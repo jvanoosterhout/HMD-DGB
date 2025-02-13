@@ -106,6 +106,8 @@ class PinOut(BaseModel):
             if value is not None: 
                 if value not in [ 1, 0]:
                     raise ValueError(f'{value} is not a valid number.')
+            else:
+                value = initial
             if blink is not None:
                 if blink < 0: 
                     raise ValueError(f'{blink} is not a valid number.')

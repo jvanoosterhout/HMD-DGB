@@ -154,7 +154,7 @@ class PinKeeper(object):
         self.logger.info('Maak pin met config: {}'.format(pin_config_dict))
         pw_needed = False
         if pin_config_dict["pin"] in self.PinPWList:
-            if 'password' in pin_config_dict:
+            if pin_config_dict['password'] is not None:
                 if pin_config_dict["password"] == self.PinPWList[pin_config_dict["pin"]]:
                     pw_needed = True
                 else:

@@ -47,11 +47,11 @@ class Pin_in(Pin):
         # self.initial = pin_config_dict["initial"]  
         self.active_state = pin_config_dict["active_state"] 
         self.pull_up = pin_config_dict["pull_up"]
-        if "password" in pin_config_dict:
-            self.password = pin_config_dict["password"]  
-        else: 
-            self.password = ""
-        if 'webhook' in pin_config_dict: 
+        # if "password" in pin_config_dict:
+        #     self.password = pin_config_dict["password"]  
+        # else: 
+        #     self.password = ""
+        if pin_config_dict['webhook'] is not None : 
             self.webhook = pin_config_dict['webhook'] 
                 
     def ConfigurePin(self):

@@ -50,7 +50,7 @@ class Pin_out(Pin):
         self.initial = pin_config_dict["initial"]  
         self.active_state = pin_config_dict["active_state"] 
         self.value = pin_config_dict["value"]  
-        if "password" in pin_config_dict:
+        if pin_config_dict["password"] is not None:
             self.password = pin_config_dict["password"]  
         else: 
             self.password = ""
@@ -96,18 +96,18 @@ class Pin_out(Pin):
         """
         if not self.HasSameConfig(pin_config_dict):
             return False
-        value = pin_config_dict['value']
-        if not isinstance(value, int):
-            value = int(value)
-        self.value = value
 
-        if "blink" in pin_config_dict:
+        if pin_config_dict["blink"] is not None:
             self.pin_device.blink(on_time=pin_config_dict["blink"],
-                                  off_time=pin_config_dict["blink"],
+                                  off_time=pin_config_dict["blink"], 
                                   n=1,
                                   background=True)
-            self.logger.info('pin {} staat {} sec aan'.format(self.pin, pin_config_dict["blink"]))
+            self.logger.info('pin {} staat {} sec op {}'.format(self.pin, pin_config_dict["blink"], not(self.initial)))
         else:
+            value = pin_config_dict['value']
+            if not isinstance(value, int):
+                value = int(value)
+            self.value = value
             if self.value:
                 self.pin_device.on()
                 self.logger.info('pin {} staat aan'.format(self.pin))

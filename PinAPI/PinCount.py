@@ -54,11 +54,11 @@ class Pin_count(Pin):
         self.active_state = pin_config_dict["active_state"] 
         self.pull_up = pin_config_dict["pull_up"]
         self.value = 'onbekend'  
-        if "password" in pin_config_dict:
-            self.password = pin_config_dict["password"]  
-        else: 
-            self.password = ""
-        if 'webhook' in pin_config_dict: 
+        # if "password" in pin_config_dict:
+        #     self.password = pin_config_dict["password"]  
+        # else: 
+        #     self.password = ""
+        if pin_config_dict['webhook'] is not None : 
             self.webhook = pin_config_dict['webhook'] 
     
     def ConfigurePin(self):

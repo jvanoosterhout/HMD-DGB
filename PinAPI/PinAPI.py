@@ -18,7 +18,7 @@ from gpiozero import CPUTemperature
 from PinAPI.PinKeeper import PinKeeper
 from PinAPI.PinModels import PinIn, PinCount, PinOut, PinType
 
-logging.basicConfig(level='DEBUG')
+logging.basicConfig(level='INFO')
 
 class Pin_api:
     def __init__(self, name:str, api_url:str="http://IP-ADRES:8123/api/", token:str="secret", pin_pw_list:dict={}):
@@ -81,11 +81,11 @@ class Pin_api:
                 the pin does not exist (due to e.g. reboot), the pin is created according to the 
                 configuration, like it was a POST.
             """
-            if pin_type == PinType.pinin :
+            if pin_type == PinType.pinin and isinstance(pin_config_in, PinIn):
                 pin_config_dict = pin_config_in.model_dump()
-            elif pin_type == PinType.pinout:
+            elif pin_type == PinType.pinout and isinstance(pin_config_out, PinOut):
                 pin_config_dict = pin_config_out.model_dump()
-            elif pin_type == PinType.pincount:
+            elif pin_type == PinType.pincount and isinstance(pin_config_Count, PinCount):
                 pin_config_dict = pin_config_Count.model_dump()
             else:
                 raise HTTPException(status_code=400, detail="Invalid pin configuration for the given pin type")

@@ -95,8 +95,7 @@ class PinOut(BaseModel):
             value = self.value
             blink = self.blink
             password = self.password
-            
-            
+            print('hoi')
             if pin not in range(27): 
                 raise ValueError(f'{pin} is not a valid GPIO pin number.')
             if type is not PinType.pinout.value: 
@@ -107,7 +106,7 @@ class PinOut(BaseModel):
                 if value not in [ 1, 0]:
                     raise ValueError(f'{value} is not a valid number.')
             else:
-                value = initial
+                self.value = initial 
             if blink is not None:
                 if blink < 0: 
                     raise ValueError(f'{blink} is not a valid number.')

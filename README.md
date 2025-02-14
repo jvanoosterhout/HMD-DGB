@@ -1,55 +1,53 @@
 # GPIOpinAPI
 
 ## Overview
-GPIOpinAPI is a Python package designed to simplify the interaction with GPIO pins on a raspberry pi from another system via REST calls. 
-It provides an easy-to-use API for configuring, reading, and writing to GPIO pins, making it ideal for domotica and IoT projects. A special feature is to provide a Home Assistant webhook in the configuration of input type pins.
+GPIOpinAPI is a Python package designed to simplify the interaction with GPIO pins on a **Raspberry Pi** from another system (specifically Home Assistant, though not limited to it) via REST calls. 
+It provides an easy-to-use API for configuring, reading, and writing to GPIO pins, making it ideal for **domotics** and IoT projects. A special feature is to provide a Home Assistant webhook in the configuration of input-type pins.
 
 ## Features
-* Easy Configuration: Quickly set up GPIO pins with simple REST commands.
-* Read/Write Operations: Perform read and write operations on GPIO pins.
-* Local push updates: send and webhook update to Home Assistant when an input device type pin is (de)activated.
-* Swagger UI docs: check and test the API capabilities. 
+* **Easy Configuration**: Quickly set up GPIO pins with simple REST commands.
+* **Read/Write Operations**: Perform read and write operations on GPIO pins.
+* **Local Push Updates**: Send a webhook update to Home Assistant when an input device-type pin is (de)activated.
+* **Persistent Connectivity**: The connectivity survives a reboot of either the Pi or the Home Assistant system, due to the requirement of sending the essential pin details with every call.
+* **Swagger UI Docs**: Check and test the API capabilities.
 
 ## Installation 
 
-Tested on Raspberry pi 4 and zero with bookworm (64-bit). 
+Tested on **Raspberry Pi 4 and Zero** with **Bookworm (64-bit)**.
 
-### run it yourself
+### Run it yourself 
 
-* create and activate a venv 
-* install the package via ```pip install git+https://gitlab.com/jotd/gpiopinapi.git@0.0.1#egg=PinAPI```
-* run the /gpiopinapi/Examples/API_example.py 
-* check http://{[the-pi-ip-adress]}:11411/docs
+* Clone the project to your system 
+* Create a project folder
+* Create and activate a **venv** in the project folder. 
+   ``` 
+    sudo apt -y install python3-venv
+    python3 -m venv venv
+    . venv/bin/activate
+    ```
+* Install the package via ```pip install -e [path-to-the-gpiopinapi-folder]```. (Note: -e is optional to install the package in editable mode)
+* Copy or adapt the **/gpiopinapi/Examples/API_example.py** file in your project folder and change the Home Assistant **IP address** and token. Optionally add or remove the pin password list.
+* Run the **API_example.py**.
+* Check **http://{[the-pi-ip-address]}:11411/docs**.
 
-### use the venv example 
+### Use the venv Example
 
-* clone the project (or just the /gpiopinapi/Examples/venv_project folder)
-* run the install_venv.sh
-* run the install_service.sh
-* check http://{[the-pi-ip-adress]}:11411/docs
+* Clone the project (or just the **/gpiopinapi/Examples/venv_project** folder).
+* Change the Home Assistant **IP address** and token in **/gpiopinapi/Examples/venv_project/API_example.py**.
+* Optionally add or remove the pin password list in the **API_example.py**.
+* Run the **install_venv.sh**.
+* Run the **install_service.sh**.
+* Check **http://{[the-pi-ip-address]}:11411/docs**.
 
-### use docker 
+### Use Docker
 
-* todo
-
-## Support
-Please feel free to post issues or questions on https://gitlab.com/jotd/gpiopinapi/-/issues. Though, know this is an spare time project. 
-
-## Roadmap
-
-* Finalyse count type pin. Use-case is a water flow meter which generates pulles based on the flowrate, alike this one https://www.otronic.nl/nl/water-flow-sensor.html
-* Add a time-series-out type pin. Use-case is to feed an RF transmitter alike this one https://www.otronic.nl/nl/433mhz-rf-zender-en-ontvanger-140567829.html to send signals to an RF IR pannel (in my case the non-wifi version of this one: https://www.gaslooswonen.nl/qh-hl-serie-wifi-infraroodpaneel-met-led-145578285.html#gerelateerde-producten). A non-public version of gpiopinapi is already able to send hardcodes signals. 
-* Add a time-series-in type pin. Use-case is to read RF signals. Processing and cutting out the functional part of a time series RF signal may not be posible within the API. 
-* Add docker setup. Use-case is to Making this package more robust to the ever changing versions of systems and software. 
-* Extend pin capablilities. Add e.g. support for input pin devices to trigger only on when_activated or when_deactivated.  
-* Improve the Swagger UI docs. The docs currenly provide a basic, though confusing overview. For example, the example payload of a POST does not change when the pin_type is changed. Also all query parameters are shown for all pin types. 
-
+* **TODO**
 
 ## Usage
 
-You can test the API most easyly via http://{[the-pi-ip-adress]}:11411/docs. The documentation and examples may seem somewhat confusing for the post and get pin endpoint. Though schemas are shown at the bottem of the page. 
+You can test the API most **easily** via **http://{[the-pi-ip-address]}:11411/docs**. The documentation and examples may seem somewhat confusing for the **POST and GET pin** endpoints, though schemas are shown at the **bottom** of the page.
 
-When intergating with Home Assistant, you may like the two samples below. thes samples can be placed in /homeassistant/configuration.yaml. Or in a separate .yaml file in "packages" directory which you include in the configuration.yaml via e.g.:
+When **integrating** with Home Assistant, you may like the two samples below. **These** samples can be placed in **/homeassistant/configuration.yaml** or in a separate **.yaml** file in the "packages" directory, which you include in the **configuration.yaml** via e.g.:
 ```
 homeassistant:
   packages: !include_dir_merge_named packages/
@@ -99,7 +97,7 @@ switch:
     unique_id: rpi_pin_out_test
     resource: http://192.168.70.20:11411/api/v1/pin/out
     method: POST
-    state_resource: http://192.168.70.20:11411/api/v1/pin/out?pin=21&initial=0&active_state=0&value=0
+    state_resource: http://192.168.70.20:11411/api/v1/pin/out?pin=21&initial=0&active_state=0
     body_on: '{"pin": 21, "initial": 0, "value": 1, "active_state": 0}'
     body_off: '{"pin": 21, "initial": 0, "value": 0, "active_state": 0}'
     headers:
@@ -136,12 +134,16 @@ automation:
             pin_in_sensor: '{"pin": 20, "pull_up": 1, "webhook": "pin_in_test" }'
 ```
 
-The second sample is gate of garage door. Having your door activate with a slight tough while your are not near the gate/door, or while your chiled plays with your phone seems trick, therefore the "password" comes in handy. It is just a simple double check you want to open the gate/door. Further in this specific example, my garage door is puls triggered the same puls is used to open, close or stop the door. Meaning you can have such senaris: 
-* click --> opening --> wait --> fully opend --> click --> closing wait --> fully opeclose
-* click --> opening --> click --> stop (somewhere while opening)--> click --> closing
-For your own gate you may be able to set different pins fr the open, close and/or stop action. 
+The second sample is for a gate or garage door. Activating your door with a slight touch while you are not near the gate/door, or while your child plays with your phone, seems tricky. Therefore, the "password" comes in handy. It is just a simple double-check to ensure you really want to open the gate/door. 
 
-Note that the below example and a pi does not suffiece, you may need a relay board to isolate the  electric circuits of the pi and gate/door. 
+In this specific example, my garage door is pulse-triggered. The same pulse is used to open, close, or stop the door. This means you can have scenarios like:
+* Click --> opening --> wait --> fully opened --> click --> closing --> wait --> fully closed
+* Click --> opening --> click --> stop (somewhere while opening) --> click --> closing
+
+For your own gate, you may be able to set different pins for the open, close, and/or stop actions.
+
+Note that the example below and a Pi alone do not suffice; you may need a relay board to isolate the electric circuits of the Pi and the gate/door. Additionally you may need magnetic reed switchs to detect the gate/door is opened/closed. 
+
 
 
 ```
@@ -306,19 +308,42 @@ Note that the below example and a pi does not suffiece, you may need a relay boa
           
 ```
 
+## Support
+Please feel free to post issues or questions on GitLab. However, please note that this is a spare-time project.
+
+## Roadmap
+
+[test](https://nos.nl/)
+
+* **Finalize count type pin**: Use-case is a water flow meter which generates pulses based on the flow rate, similar to [the one in this link](https://www.otronic.nl/nl/water-flow-sensor.html).
+* **Add a time-series-out type pin**: Use-case is to feed an RF transmitter similar to [the one in this link](https://www.otronic.nl/nl/433mhz-rf-zender-en-ontvanger-140567829.html) to send signals to an RF IR panel (in my case, the non-WiFi version of [the one in this link](https://www.gaslooswonen.nl/qh-hl-serie-wifi-infraroodpaneel-met-led-145578285.html)). An older non-public version of GPIOpinAPI is already able to send hardcoded signals.
+* **Add a time-series-in type pin**: Use-case is to read RF signals. Processing and extracting the functional part of a time-series RF signal may not be possible within the API.
+* **Make webhook useage optional**: Currently a Home Assistant endpoint is required, though this should not be necessary, even better would be the possibility to use another endpoint.
+* **Add Docker setup**: Use-case is to make this package more robust to the ever-changing versions of systems and software.
+* **Extend pin capabilities**: Add support for input pin devices to trigger only on `when_activated` or `when_deactivated`.
+* **Improve the Swagger UI docs**: The docs currently provide a basic, though confusing, overview. For example, the example payload of a POST does not change when the `pin_type` is changed. Also, all query parameters are shown for all pin types.
+
+## Considerations (Why another GPIO package?)
+
+* Many simple automations require expensive commercial and vendor-specific hubs/gateways, while they only need to toggle a switch or read some binary state. 
+* For my work/research in assembly industries, I frequently encounter programming in Python and working with REST and MQTT. I thought it would be nice to learn more about this, the pains of long-term-support and making packages in a private project.
+* I started this project in 2022, where I decided to work with Raspberry Pi for Python, long-term support, and a western product (I think ESPHome is far better at what I do and need, though I have minor personal difficulty with the ESP chip and the consideration above is still dominant).
+* To my best programming knowledge and searching skills, I found that the built-in or official remote GPIO option was not able to recover after a reboot ([see e.g. this issue](https://github.com/home-assistant/core/issues/116007)). further I did not found any other viable remote GPIO package for Home Assistant (except for HACS, which I prefere not to use for support issues).
+
 ## Contributing
-For the time being I would apreciate feedback and suggestions to update and improve the code. Later I may decide to allow contributors. 
+For the time being, I highly appreciate feedback and suggestions to update or improve the code. Later, I may decide to allow contributors.
 
 <!-- ## Authors and acknowledgment
 Show your appreciation to those who have contributed to the project. -->
 
 ## License
-For the time being I commit tho the MIT licence. 
+For the time being, I use  the MIT license.
 
-## Project status
-This is the third itteration of my privatly developed code with the intention to make it generically suitable and provide (myself) long term support and future compatibility. As a private project, don't expect a too high pace of development and support as long as I am the only contributor. 
+## Project Status
+This is the third, and the first public, iteration of my privately developed code with the intention to make it generically suitable and provide (myself) long-term support and future compatibility. As a private project, don't expect a high pace of development and support as I am the only contributor.
 
-## Known issus/bugs
+## Known Issues/Bugs
 
-* count type pin device is not fully working. 
-* not sure what happens when providing no or an incorrect Home Assistant IP adress. 
+* Count type pin device is not fully working.
+* When providing a none existing Home Assistant ip-adres, the startup proces pauses to keep reaching for Home Assistant. This should be send to a background proces or even made optional in order to facilitate working without Home Assistant. 
+* Needs testing to see what happens when Home Assistant is offline during a webhook update.

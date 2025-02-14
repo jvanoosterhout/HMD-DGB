@@ -61,9 +61,9 @@ class Pin_in(Pin):
         """
         self.pin_device = DigitalInputDevice(pin = self.pin, 
                                              pull_up = self.pull_up,
-                                             bounce_time = 0.01,
+                                             bounce_time = 0.01) #,
                                             #  active_state = self.active_state, 
-                                             pin_factory = LGPIOFactory(chip=0))
+                                            #  pin_factory = LGPIOFactory(chip=0))
         self.pin_device.when_activated = self.calback
         self.pin_device.when_deactivated = self.calback
         self.calback()

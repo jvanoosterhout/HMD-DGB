@@ -62,8 +62,8 @@ class Pin_out(Pin):
         """
         self.pin_device = DigitalOutputDevice(pin = self.pin,
                                               active_high = self.active_state,
-                                              initial_value = self.initial, 
-                                             pin_factory = LGPIOFactory(chip=0))
+                                              initial_value = self.initial) #, 
+                                            #  pin_factory = LGPIOFactory(chip=0))
 
     def GetPinValue(self) -> dict:
         """

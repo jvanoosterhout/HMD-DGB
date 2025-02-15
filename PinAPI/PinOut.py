@@ -8,18 +8,18 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_out(Pin):
-    def __init__(self, HASS_interface: Client, pin, type):
+    def __init__(self, HASS_interface: Client, pin, ptype):
         """
         Initialiseer de Pin_out klasse met standaardwaarden.
 
         Parameters:
         pin (int): Het pin nummer.
-        type (str): Het type pin, moet "out" zijn.
+        ptype (str): Het type pin, moet "out" zijn.
         """
-        if not type == "out":
-            self.logger.error('Verkeerde type. Kreeg "{}", verwachte "out"'.format(type))
+        if not ptype == "out":
+            self.logger.error('Verkeerde type. Kreeg "{}", verwachte "out"'.format(ptype))
             return False
-        super().__init__(pin=pin, HASS_interface=HASS_interface, type=type)
+        super().__init__(pin=pin, HASS_interface=HASS_interface, ptype=ptype)
 
     def HasSameConfig(self, pin_config_dict:dict) -> bool:
         """
@@ -31,8 +31,8 @@ class Pin_out(Pin):
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
-        if not pin_config_dict["type"] == self.type:
-            self.logger.info('Nieuwe "type" {} voor pin {} is anders dan bekend "type" {}'.format(pin_config_dict["type"], self.pin, self.type))
+        if not pin_config_dict['ptype'] == self.type:
+            self.logger.info('Nieuwe "type" {} voor pin {} is anders dan bekend "type" {}'.format(pin_config_dict['ptype'], self.pin, self.type))
             return False
         if not pin_config_dict["active_state"] == self.active_state:
             self.logger.info('Nieuwe "active_state" {} voor pin {} is anders dan bekend "active_state" {}'.format(pin_config_dict["active_state"], self.pin, self.active_state))

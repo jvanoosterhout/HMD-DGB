@@ -12,16 +12,16 @@ class PinType(str, Enum):
     pinout = "out"
     pincount = "count"
 
-def is_pin_type(type):
+def is_pin_type(ptype):
     try:
-        PinType(type)
+        PinType(ptype)
     except ValueError:
         return False
     return True
 
 class PinIn(BaseModel):
         pin: int  = Field(description='GPIO pin to configure')
-        type: str = Field(default= "in", description='The function type of the pin like in(put) or out(put).')
+        ptype: str = Field(default= "in", description='The function type of the pin like in(put) or out(put).')
         active_state: bool = Field(default= True, description='If True, when the hardware pin state is HIGH, the software pin is HIGH. If False, the input polarity is reversed')
         pull_up: bool = Field(default= True, description='If True, the pin will be pulled high with an internal resistor. If False (the default), the pin will be pulled low.')
         webhook: str | None = Field(default= None, description='Endpoint in Home assistant to send state changes to at the moment they occure')
@@ -54,21 +54,21 @@ class PinIn(BaseModel):
         @model_validator(mode='after')
         def validate_atts(self):
             pin = self.pin 
-            type = self.type  
+            ptype = self.ptype  
             active_state = self.active_state 
             pull_up= self.pull_up
             webhook = self.webhook
             
             if pin not in range(27): 
                 raise ValueError(f'{pin} is not a valid GPIO pin number.')
-            if type is not PinType.pinin.value: 
-                raise ValueError(f'{type} is not a valid pin configuration.')
+            if ptype is not PinType.pinin.value: 
+                raise ValueError(f'{ptype} is not a valid pin configuration.')
                     
             return self
 
 class PinOut(BaseModel):
         pin: int  
-        type: str = "out"  
+        ptype: str = "out"  
         initial: int = 0
         active_state: bool = True 
         value: int  | None = None 
@@ -90,7 +90,7 @@ class PinOut(BaseModel):
         @model_validator(mode='after')
         def validate_atts(self):
             pin = self.pin 
-            type = self.type  
+            ptype = self.ptype  
             initial = self.initial 
             value = self.value
             blink = self.blink
@@ -98,8 +98,8 @@ class PinOut(BaseModel):
             print('hoi')
             if pin not in range(27): 
                 raise ValueError(f'{pin} is not a valid GPIO pin number.')
-            if type is not PinType.pinout.value: 
-                raise ValueError(f'{type} is not a valid pin configuration.')
+            if ptype is not PinType.pinout.value: 
+                raise ValueError(f'{ptype} is not a valid pin configuration.')
             if initial not in [ 1, 0]:
                 raise ValueError(f'{initial} is not a valid number.')
             if value is not None: 
@@ -115,7 +115,7 @@ class PinOut(BaseModel):
 
 class PinCount(BaseModel):
         pin: int  
-        type: str = "count"  
+        ptype: str = "count"  
         active_state: bool = True 
         pull_up: bool = True 
         webhook: str | None = None
@@ -133,12 +133,12 @@ class PinCount(BaseModel):
         @model_validator(mode='after')
         def validate_atts(self):
             pin = self.pin 
-            type = self.type  
+            ptype = self.ptype  
             webhook = self.webhook
             
             if pin not in range(27): 
                 raise ValueError(f'{pin} is not a valid GPIO pin number.')
-            if type is not PinType.pincount.value: 
-                raise ValueError(f'{type} is not a valid pin configuration.')
+            if ptype is not PinType.pincount.value: 
+                raise ValueError(f'{ptype} is not a valid pin configuration.')
                     
             return self

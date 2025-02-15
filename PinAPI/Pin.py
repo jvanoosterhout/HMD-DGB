@@ -10,22 +10,22 @@ import time
 import logging
 from PinAPI.Tools import IOT_tools
 from gpiozero import DigitalOutputDevice, DigitalInputDevice
-from gpiozero.pins.lgpio import LGPIOFactory
+# from gpiozero.pins.lgpio import LGPIOFactory
 from homeassistant_api import Client
 
  
 class Pin(object):
-    def __init__(self, HASS_interface: Client, pin:int=-1, type:str="pin"):
+    def __init__(self, HASS_interface: Client, pin:int=-1, ptype:str="pin"):
         """
         Initialiseer the Pin class.
 
         Parameters:
         pin (int): Het pin nummer.
-        type (str): Het type pin.
+        ptype (str): Het type pin.
         """
         self.pin = pin 
         self.pin_device = None
-        self.type = type  
+        self.type = ptype  
         self.initial = 1 
         self.active_state = True 
         self.pull_up = True 

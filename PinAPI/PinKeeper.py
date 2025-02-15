@@ -163,12 +163,12 @@ class PinKeeper(object):
             else:
                 self.logger.warning('No password provided, while this is required!')
                 return False
-        if pin_config_dict['type'] is PinType.pinout.value:
-            P = Pin_out(pin=pin_config_dict["pin"],HASS_interface=self.HASS_interface, type=pin_config_dict["type"]) 
-        elif pin_config_dict['type'] is PinType.pinin.value:
-            P = Pin_in(pin=pin_config_dict["pin"],HASS_interface=self.HASS_interface, type=pin_config_dict["type"]) 
-        elif pin_config_dict['type'] is PinType.pincount.value:
-            P = Pin_count(pin=pin_config_dict["pin"],HASS_interface=self.HASS_interface, type=pin_config_dict["type"]) 
+        if pin_config_dict['ptype'] is PinType.pinout.value:
+            P = Pin_out(pin=pin_config_dict["pin"],HASS_interface=self.HASS_interface, ptype=pin_config_dict['ptype']) 
+        elif pin_config_dict['ptype'] is PinType.pinin.value:
+            P = Pin_in(pin=pin_config_dict["pin"],HASS_interface=self.HASS_interface, ptype=pin_config_dict['ptype']) 
+        elif pin_config_dict['ptype'] is PinType.pincount.value:
+            P = Pin_count(pin=pin_config_dict["pin"],HASS_interface=self.HASS_interface, ptype=pin_config_dict['ptype']) 
         else:
             return False
         if pw_needed:

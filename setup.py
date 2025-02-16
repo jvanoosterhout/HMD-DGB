@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="PinAPI",
-    version="0.0.2",
+    version="0.0.3",
     author="Jeroen van Oosterhout",
     author_email="",
     description="Interface to configure and read/write GPIO pins remotelly on a raspberry pi",
@@ -25,6 +25,6 @@ setuptools.setup(
     classifiers=[
         "Programming Language :: Python :: 3"
     ],
-    python_requires='>=3.10.11',
+    python_requires='>=3.10.0',
     license = "MIT"
 )

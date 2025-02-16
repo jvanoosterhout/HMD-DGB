@@ -10,10 +10,17 @@ It provides an easy-to-use API for configuring, reading, and writing to GPIO pin
 * **Local Push Updates**: Send a webhook update to Home Assistant when an input device-type pin is (de)activated.
 * **Persistent Connectivity**: The connectivity survives a reboot of either the Pi or the Home Assistant system, due to the requirement of sending the essential pin details with every call.
 * **Swagger UI Docs**: Check and test the API capabilities.
+* **Based on GPIOZERO**: GPIO control based on GPIOZERO libarier. 
 
 ## Installation 
 
-Tested on **Raspberry Pi 4 and Zero** with **Bookworm (64-bit)**.
+Tested on: 
+* **Raspberry Pi 4** with **Bookworm (64-bit, desktop)** and **Python 3.11.2**.
+* **Raspberry Pi zero 2 w** with **Bookworm (??-bit, lite)** and **Python 3.10.0**.
+
+May work on **Bullseye** aswel, GPIOZERO should automatically select/fall back to RPI.GPIO pin factory. Though could not jet test this. 
+
+Only compatible with Python >=3.10.0: Older versions do not support the way pydantic basemodels accepts multiple types. Feel free to change and test this yourself, though it may not be the only issue. 
 
 ### Run it yourself 
 
@@ -61,7 +68,7 @@ command_line:
     - binary_sensor: 
         name: "rpi_ping_check"
         unique_id: rpi_ping_check
-        command: ping -c 1 192.168.70.20 | grep "1 packets received" | wc -l
+        command: ping -c 1 [GPIOpinAPI-IP-address] | grep "1 packets received" | wc -l
         device_class: connectivity
         payload_on: 1
         payload_off: 0
@@ -69,7 +76,7 @@ command_line:
         
 sensor:
   - platform: rest
-    resource: http://192.168.70.20:11411/api/v1/sys/info
+    resource: http://[GPIOpinAPI-IP-address]:11411/api/v1/sys/info
     method: GET
     name: "rpi_sys_info"
     unique_id: rpi_sys_info
@@ -95,9 +102,9 @@ switch:
   - platform: rest
     name: "rpi_pin_out_test"
     unique_id: rpi_pin_out_test
-    resource: http://192.168.70.20:11411/api/v1/pin/out
+    resource: http://[GPIOpinAPI-IP-address]:11411/api/v1/pin/out
     method: POST
-    state_resource: http://192.168.70.20:11411/api/v1/pin/out?pin=21&initial=0&active_state=0
+    state_resource: http://[GPIOpinAPI-IP-address]:11411/api/v1/pin/out?pin=21&initial=0&active_state=0
     body_on: '{"pin": 21, "initial": 0, "value": 1, "active_state": 0}'
     body_off: '{"pin": 21, "initial": 0, "value": 0, "active_state": 0}'
     headers:
@@ -107,7 +114,7 @@ switch:
             
 rest_command:
     send_rpi_sensors:
-    url: http://192.168.70.20:11411/api/v1/pin/in
+    url: http://[GPIOpinAPI-IP-address]:11411/api/v1/pin/in
     method: POST
     headers:
         accept: "application/json"
@@ -175,7 +182,7 @@ Note that the example below and a Pi alone do not suffice; you may need a relay 
       
   rest_command:
     send_gate_sensors:
-      url: http://192.168.70.20:11411/api/v1/pin/in
+      url: http://[GPIOpinAPI-IP-address]:11411/api/v1/pin/in
       method: POST
       headers:
           accept: "application/json"
@@ -183,7 +190,7 @@ Note that the example below and a Pi alone do not suffice; you may need a relay 
       payload: '{{pin_in_sensor}}'
     g_roldeur_bedienen:
     trigger_gate_motor:
-      url: http://192.168.70.20:11411/api/v1/pin/in
+      url: http://[GPIOpinAPI-IP-address]:11411/api/v1/pin/in
       method: POST
       headers:
           accept: "application/json"
@@ -313,15 +320,21 @@ Please feel free to post issues or questions on GitLab. However, please note tha
 
 ## Roadmap
 
-[test](https://nos.nl/)
+### features
 
 * **Finalize count type pin**: Use-case is a water flow meter which generates pulses based on the flow rate, similar to [the one in this link](https://www.otronic.nl/nl/water-flow-sensor.html).
 * **Add a time-series-out type pin**: Use-case is to feed an RF transmitter similar to [the one in this link](https://www.otronic.nl/nl/433mhz-rf-zender-en-ontvanger-140567829.html) to send signals to an RF IR panel (in my case, the non-WiFi version of [the one in this link](https://www.gaslooswonen.nl/qh-hl-serie-wifi-infraroodpaneel-met-led-145578285.html)). An older non-public version of GPIOpinAPI is already able to send hardcoded signals.
-* **Add a time-series-in type pin**: Use-case is to read RF signals. Processing and extracting the functional part of a time-series RF signal may not be possible within the API.
-* **Make webhook useage optional**: Currently a Home Assistant endpoint is required, though this should not be necessary, even better would be the possibility to use another endpoint.
+* **Add a time-series-in type pin**: Use-case is to read RF signals. Processing and extracting the functional part of a time-series RF signal may likely not be possible within the API.
+* **Add a PWM-out type pin**: Use-case is to control LED brightness of to steer a voltage regulator [like this one, altough it might not work for a pi](https://www.otronic.nl/nl/pwm-naar-voltage-converter-module.html). 
+* **Add a PWM-in type pin**: Use-case is read sensors that send PWM signals.
 * **Add Docker setup**: Use-case is to make this package more robust to the ever-changing versions of systems and software.
 * **Extend pin capabilities**: Add support for input pin devices to trigger only on `when_activated` or `when_deactivated`.
 * **Improve the Swagger UI docs**: The docs currently provide a basic, though confusing, overview. For example, the example payload of a POST does not change when the `pin_type` is changed. Also, all query parameters are shown for all pin types.
+
+### code
+* **Move towards pydantic basemodel**: Refactor pin_config_dict to pydantic basemodel. 
+* **Make webhook useage optional**: Currently a Home Assistant endpoint is required, though this should not be necessary, even better would be the possibility to use another endpoint.
+* **Split off examples**: Split of Home Assistant examples from .md to Examples directory, wiki page or separate project(s). 
 
 ## Considerations (Why another GPIO package?)
 

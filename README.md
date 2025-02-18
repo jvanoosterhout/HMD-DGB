@@ -24,7 +24,6 @@ Only compatible with Python >=3.10.0: Older versions do not support the way pyda
 
 ### Run it yourself 
 
-* Clone the project to your system 
 * Create a project folder
 * Create and activate a **venv** in the project folder. 
    ``` 
@@ -32,8 +31,11 @@ Only compatible with Python >=3.10.0: Older versions do not support the way pyda
     python3 -m venv venv
     . venv/bin/activate
     ```
-* Install the package via ```pip install -e [path-to-the-gpiopinapi-folder]```. (Note: -e is optional to install the package in editable mode)
-* Copy or adapt the **/gpiopinapi/Examples/API_example.py** file in your project folder and change the Home Assistant **IP address** and token. Optionally add or remove the pin password list.
+* Install the package via: 
+  * a) Clone the project to your system  
+  Then ```pip install -e [path-to-the-gpiopinapi-folder] .``` (Note: -e is optional to install the package in editable mode)
+  * b) pip install git+https://gitlab.com/jotd/gpiopinapi.git
+* Copy or adapt the **/gpiopinapi/Examples/API_example.py** file in your project folder and change the Home Assistant **IP address** and **token**. Optionally add or remove the pin password list.
 * Run the **API_example.py**.
 * Check **http://{[the-pi-ip-address]}:11411/docs**.
 

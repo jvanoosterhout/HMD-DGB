@@ -1,1 +1,1 @@
-git+https://gitlab.com/jotd/gpiopinapi.git@0.0.1#egg=PinAPI
+git+https://gitlab.com/jotd/gpiopinapi.git

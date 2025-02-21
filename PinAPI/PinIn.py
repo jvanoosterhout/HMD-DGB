@@ -8,61 +8,40 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_in(Pin):
-    def __init__(self, HASS_interface: Client, pin, ptype):
-        if not ptype == "in":
-            self.logger.error('Verkeerde type. Kreeg "{}", verwachte "in"'.format(ptype))
-            return False
-        super().__init__(pin=pin, HASS_interface=HASS_interface, ptype=ptype)
+    def __init__(self, HASS_interface: Client, config:Pin):
+        super().__init__(HASS_interface=HASS_interface, config=config)
 
 
-    def HasSameConfig(self, pin_config_dict:dict) -> bool:
+    def HasSameConfig(self, config:Pin) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
         Parameters:
-        pin_config_dict (dict): Configuratien of the pin.
+        config (Pin): Configuratien of the pin.
 
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
-        if not pin_config_dict['ptype'] == self.type:
-            self.logger.info('Nieuwe "type" {} voor pin {} is anders dan bekend "type" {}'.format(pin_config_dict['ptype'], self.pin, self.type))
+        if not config.ptype == self.config.ptype:
+            self.logger.warning('New "ptype" {} for pin {} is different from known "ptype" {}'.format(config.ptype, self.config.pin, self.config.ptype))
             return False
-        if not pin_config_dict["active_state"] == self.active_state:
-            self.logger.info('Nieuwe "active_state" {} voor pin {} is anders dan bekend "active_state" {}'.format(pin_config_dict["active_state"], self.pin, self.active_state))
+        if not config.active_state == self.config.active_state:
+            self.logger.warning('New "active_state" {} for pin {} is different from known "active_state" {}'.format(config.active_state, self.config.pin, self.config.active_state))
             return False
-        if not pin_config_dict["pull_up"] == self.pull_up:
-            self.logger.info('Nieuwe "pull_up" {} voor pin {} is anders dan bekend "pull_up" {}'.format(pin_config_dict["pull_up"], self.pin, self.pull_up))
+        if not config.pull_up == self.config.pull_up:
+            self.logger.warning('New "pull_up" {} for pin {} is different from known "pull_up" {}'.format(config.pull_up, self.config.pin, self.config.pull_up))
             return False
         return True
-    
-    def SavePin(self, pin_config_dict:dict):
-        """
-        Save the pin configuration in this object.
-
-        Parameters:
-        pin_config_dict (dict): Configuratien of the pin.
-        """
-        self.pin = pin_config_dict["pin"]  
-        # self.initial = pin_config_dict["initial"]  
-        self.active_state = pin_config_dict["active_state"] 
-        self.pull_up = pin_config_dict["pull_up"]
-        # if "password" in pin_config_dict:
-        #     self.password = pin_config_dict["password"]  
-        # else: 
-        #     self.password = ""
-        if pin_config_dict['webhook'] is not None : 
-            self.webhook = pin_config_dict['webhook'] 
                 
     def ConfigurePin(self):
         """
         Configure the de GPIO as the rigth type.
 
         """
-        self.pin_device = DigitalInputDevice(pin = self.pin, 
-                                             pull_up = self.pull_up,
+        self.pin_device = DigitalInputDevice(pin = self.config.pin, 
+                                             pull_up = self.config.pull_up,
                                              bounce_time = 0.01) #,
-                                            #  active_state = self.active_state, 
+                                            #  active_state = self.config.active_state, 
                                             #  pin_factory = LGPIOFactory(chip=0))
         self.pin_device.when_activated = self.calback
         self.pin_device.when_deactivated = self.calback
@@ -77,19 +56,19 @@ class Pin_in(Pin):
         - In case a webhook was provided, send a POST call to the Home Assistant API with the current pin value.
         """
         value = self.pin_device.value
-        if not self.active_state:
+        if not self.config.active_state:
             value = int(not value == 1)
         self.value = value
 
-        if not self.webhook == "" and not self.webhook is None:
-            path = 'webhook/{}'.format(self.webhook)
+        if not self.config.webhook == "" and not self.config.webhook is None:
+            path = 'webhook/{}'.format(self.config.webhook)
             headers={"Content-Type" : "application/json"}
-            data = {"{}".format(self.webhook): self.value}
+            data = {"{}".format(self.config.webhook): self.value}
             # self.logger.info(json.dumps(data))
             self.HASS_interface.request(path = path, method="POST", headers=headers, data=json.dumps(data))
-            self.logger.info('pin {} update verstuurd'.format(self.pin))
+            self.logger.info('pin {} update send'.format(self.config.pin))
 
-        self.logger.info('pin {} heeft een signaal {}'.format(self.pin, self.value))
+        self.logger.info('pin {} has signal {}'.format(self.config.pin, self.value))
 
     def GetPinValue(self) -> dict:
         """
@@ -107,24 +86,18 @@ class Pin_in(Pin):
             res = IOT_tools.strtobool(self.value)
         return {"is_active": res}
     
-    def ProcessPinUpdate(self, pin_config_dict:dict) -> bool:
+    def ProcessPinUpdate(self, config:Pin) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
         this only works for output pins. Input pins wil only show a log 
         message with their current state.
 
         Parameters:
-        pin_config_dict (dict): Configuratie of the pin.
+        config (Pin): Configuratie of the pin.
 
         Returns:
         bool: True if update succesful, otherwise False.
         """
-        if not self.HasSameConfig(pin_config_dict):
-            return False
-        if self.value:
-            self.logger.info('pin {} heeft een hoog signaal'.format(self.pin))
-        else:
-            self.logger.info('pin {} heeft een laag signaal'.format(self.pin))
-        return True
+        self.logger.info('pin {} has signal {}'.format(self.config.pin, self.value))
 
 

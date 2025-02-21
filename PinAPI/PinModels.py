@@ -28,17 +28,11 @@ class PinIn(BaseModel):
         webhook: str | None = Field(default= None, description='Endpoint in Home assistant to send state changes to at the moment they occure')
         
         @model_validator(mode='after')
-        def validate_atts(self):
-            pin = self.pin 
-            ptype = self.ptype  
-            active_state = self.active_state 
-            pull_up= self.pull_up
-            webhook = self.webhook
-            
-            if pin not in range(27): 
-                raise ValueError(f'{pin} is not a valid GPIO pin number.')
-            if ptype is not PinType.pinin.value: 
-                raise ValueError(f'{ptype} is not a valid pin configuration.')
+        def validate_atts(self):            
+            if self.pin not in range(27): 
+                raise ValueError(f'{self.pin} is not a valid GPIO pin number. Pin must be in range(27)')
+            if self.ptype is not PinType.pinin.value: 
+                raise ValueError(f'{self.ptype} is not a valid pin configuration.')
             return self
 
 class PinOut(BaseModel):
@@ -52,27 +46,22 @@ class PinOut(BaseModel):
 
         @model_validator(mode='after')
         def validate_atts(self):
-            pin = self.pin 
-            ptype = self.ptype  
-            initial = self.initial 
-            value = self.value
-            blink = self.blink
-            password = self.password
-            
-            if pin not in range(27): 
-                raise ValueError(f'{pin} is not a valid GPIO pin number.')
-            if ptype is not PinType.pinout.value: 
-                raise ValueError(f'{ptype} is not a valid pin configuration.')
-            if initial not in [ 1, 0]:
-                raise ValueError(f'{initial} is not a valid number.')
-            if value is not None: 
-                if value not in [ 1, 0]:
-                    raise ValueError(f'{value} is not a valid number.')
+            if self.pin not in range(27): 
+                raise ValueError(f'{self.pin} is not a valid GPIO pin number. Pin must be in range(27)')
+            if self.ptype is not PinType.pinout.value: 
+                raise ValueError(f'{self.ptype} is not a valid pin configuration.')
+            if self.initial not in [ 1, 0]:
+                raise ValueError(f'{self.initial} is not a valid number. Initial must be either 1 or 0')
+            if self.value is not None: 
+                if self.value not in [ 1, 0]:
+                    raise ValueError(f'{self.value} is not a valid number. Value must be either 1 or 0')
             else:
-                self.value = initial 
-            if blink is not None:
-                if blink < 0: 
-                    raise ValueError(f'{blink} is not a valid number.')
+                self.value = self.initial 
+            if self.blink is not None:
+                if self.blink <= 0: 
+                    raise ValueError(f'{self.blink} is not a valid number. Blink must be larger >0')
+            if self.password is None:
+                self.password = ""
             return self
 
 class PinCount(BaseModel):
@@ -84,17 +73,50 @@ class PinCount(BaseModel):
         
         @model_validator(mode='after')
         def validate_atts(self):
-            pin = self.pin 
-            ptype = self.ptype  
-            webhook = self.webhook
-            
-            if pin not in range(27): 
-                raise ValueError(f'{pin} is not a valid GPIO pin number.')
-            if ptype is not PinType.pincount.value: 
-                raise ValueError(f'{ptype} is not a valid pin configuration.')
+            if self.pin not in range(27): 
+                raise ValueError(f'{self.pin} is not a valid GPIO pin number. Pin must be in range(27)')
+            if self.ptype is not PinType.pincount.value: 
+                raise ValueError(f'{self.ptype} is not a valid pin configuration.')
             return self
         
 
 class Pin(RootModel):
     root: Union[PinIn, PinOut, PinCount] = Field(..., discriminator='ptype')
+    
+    def __getattr__(self, name: str) -> any:
+        """_summary_
+
+        # Without __getattr__
+        Pin(...).root.pin   # Ok
+        Pin(...).pin        # Error
+
+        # With __getattr__
+        Pin(...).root.pin   # Ok
+        Pin(...).pin        # Ok
+
+        Args:
+            name (str): _description_
+
+        Returns:
+            any: _description_
+        """
+        return getattr(self.root, name)
+    
+    def __setattr__(self, name: str, value:any):
+        """_summary_
+        
+        # Without __getattr__
+        Pin(...).root.pin = x   # Ok
+        Pin(...).pin = x        # Error
+
+        # With __getattr__
+        Pin(...).root.pin = x   # Ok
+        Pin(...).pin = x        # Ok
+        
+        Args:
+            name (str): _description_
+            value (any): _description_
+        """       
+        object.__setattr__(self.root, name, value)
+
 

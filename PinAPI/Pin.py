@@ -11,11 +11,12 @@ import logging
 from PinAPI.Tools import IOT_tools
 from gpiozero import DigitalOutputDevice, DigitalInputDevice
 # from gpiozero.pins.lgpio import LGPIOFactory
+from PinAPI.PinModels import Pin
 from homeassistant_api import Client
 
  
 class Pin(object):
-    def __init__(self, HASS_interface: Client, pin:int=-1, ptype:str="pin"):
+    def __init__(self, HASS_interface: Client, config:Pin):
         """
         Initialiseer the Pin class.
 
@@ -23,78 +24,49 @@ class Pin(object):
         pin (int): Het pin nummer.
         ptype (str): Het type pin.
         """
-        self.pin = pin 
+        self.config = config
         self.pin_device = None
-        self.type = ptype  
-        self.initial = 1 
-        self.active_state = True 
-        self.pull_up = True 
         self.value = 0 
-        self.password = "NULL" 
-        self.webhook = "" 
+
         self.rate = 0 
         self.last_changed = time.monotonic()
-        
         self.pw = {}
         self.HASS_interface = HASS_interface
         
-        self.logger = logging.getLogger("pin_{}_{}".format(self.type, self.pin))
-        self.logger.info('Configuring pin {}.'.format(self.pin))
+        self.logger = logging.getLogger("pin_{}_{}".format(self.config.ptype, self.config.pin))
+        self.logger.info('Configuring pin {}.'.format(self.config.pin))
         logging.getLogger().setLevel(logging.INFO)
    
         
-    def PinSetup(self, pin_config_dict:dict) -> bool:
+    def PinSetup(self, config:Pin) -> bool:
         """
         Setup the pin based on the configuration.
 
         Parameters:
-        pin_config_dict (dict): Configuration of the pin.
+        config (Pin): Configuration of the pin.
 
         Returns:
         bool: True if the pin is succesfully setup, otherwise False.
         """
-        # if self.pin in self.pw:
-        #     if 'password' in pin_config_dict:
-        #         if pin_config_dict['password'] is not None or pin_config_dict['password'] == "":
-        #             if not self.check_pw(pin_config_dict['password']):
-        #                 self.logger.warning('Verkeerde paswoord!')
-        #                 return False
-        #         else:
-        #             self.logger.warning('Geen paswoord, waar dit wel vereist is!')
-        #             return False
-        #     else:
-        #         self.logger.warning('Geen paswoord, waar dit wel vereist is!')
-        #         return False
-    
-        self.SavePin(pin_config_dict)
         self.ConfigurePin()
-        if self.ProcessPinUpdate(pin_config_dict):
+        if self.ProcessPinUpdate(config):
             return True       
         else:
-            self.logger.error("Kon pin waarde niet zetten")
+            self.logger.error("Could not set pin update")
             return False
 
-    def HasSameConfig(self, pin_config_dict:dict) -> bool:
+    def HasSameConfig(self, config:Pin) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
         Parameters:
-        pin_config_dict (dict): Configuratien of the pin.
+        config (Pin): Configuratien of the pin.
 
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
         return False
  
-    def SavePin(self, pin_config_dict:dict):
-        """
-        Save the pin configuration in this object.
-
-        Parameters:
-        pin_config_dict (dict): Configuratien of the pin.
-        """
-        pass
-
     def ConfigurePin(self):
         """
         Configure the de GPIO as the rigth type.
@@ -102,14 +74,14 @@ class Pin(object):
         """
         pass
 
-    def ProcessPinUpdate(self, pin_config_dict:dict) -> bool:
+    def ProcessPinUpdate(self, config:Pin) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
         this only works for output pins. Input device type pins wil only show a log 
         message with their current state.
 
         Parameters:
-        pin_config_dict (dict): Configuratie of the pin.
+        config (Pin): Configuratie of the pin.
 
         Returns:
         bool: True if update succesful, otherwise False.
@@ -141,7 +113,7 @@ class Pin(object):
         Returns:
         bool: True if the password is correct, otherwise False.
         """
-        if pw.lower() == self.pw[self.pin]:
+        if pw.lower() == self.pw[self.config.pin]:
             return True
         else:
             return False

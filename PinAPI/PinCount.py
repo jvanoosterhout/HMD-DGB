@@ -8,8 +8,8 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_count(Pin):
-    def __init__(self, HASS_interface: Client, config:Pin):
-        super().__init__(HASS_interface=HASS_interface, config=config)
+    def __init__(self, config:PinModel):
+        super().__init__(config=config)
         self.count_totaal = 0
         self.tijd_laatste_count = time.monotonic()
         self.count_laatste_blok = 0 
@@ -19,7 +19,7 @@ class Pin_count(Pin):
         self.calibrationFactor = 1 #6.6
 
 
-    def HasSameConfig(self, config:Pin) -> bool:
+    def HasSameConfig(self, config:PinModel) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
@@ -66,15 +66,9 @@ class Pin_count(Pin):
         """
         self.count_totaal = self.count_totaal + 1
         self.tijd_laatste_count = time.monotonic()
-        if self.is_update_relevant():
-            if not self.config.webhook == "" and not self.config.webhook is None:
-                path = 'webhook/{}'.format(self.config.webhook)
-                headers={"Content-Type" : "application/json"}
-                data = self.GetPinValue()
-                print(json.dumps(data))
-                self.HASS_interface.request(path = path, method="POST", headers=headers, data=json.dumps(data))
-                self.logger.info('pin {} update send'.format(self.config.pin))
-
+ 
+        self.sendWebhook(self.GetPinValue())
+ 
 
     def is_update_relevant(self):
         """
@@ -127,10 +121,10 @@ class Pin_count(Pin):
 
         self.tijd_laatste_block = time.monotonic()
         self.count_laatste_blok = self.count_totaal
-        self.logger.info('pin {} heeft {} tellen totaal, met {} tellen laatste {} s, met een stroom van {} per seconde'.format(self.config.pin, self.count_totaal, count_laatste_blok, duur, self.stroom))
+        self.logger.info('pin {} has {} counts total, with {} counts the last {} s, and a flow of {} per second'.format(self.config.pin, self.count_totaal, count_laatste_blok, duur, self.stroom))
         return {"totaal": self.count_totaal, "stroom": self.stroom}
 
-    def ProcessPinUpdate(self, config:Pin) -> bool:
+    def ProcessPinUpdate(self, config:PinModel) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
         this only works for output pins. Input pins wil only show a log 

@@ -8,11 +8,11 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_in(Pin):
-    def __init__(self, HASS_interface: Client, config:Pin):
-        super().__init__(HASS_interface=HASS_interface, config=config)
+    def __init__(self, config:PinModel):
+        super().__init__(config=config)
 
 
-    def HasSameConfig(self, config:Pin) -> bool:
+    def HasSameConfig(self, config:PinModel) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
@@ -60,13 +60,7 @@ class Pin_in(Pin):
             value = int(not value == 1)
         self.value = value
 
-        if not self.config.webhook == "" and not self.config.webhook is None:
-            path = 'webhook/{}'.format(self.config.webhook)
-            headers={"Content-Type" : "application/json"}
-            data = {"{}".format(self.config.webhook): self.value}
-            # self.logger.info(json.dumps(data))
-            self.HASS_interface.request(path = path, method="POST", headers=headers, data=json.dumps(data))
-            self.logger.info('pin {} update send'.format(self.config.pin))
+        self.sendWebhook({"{}".format(self.config.webhook): self.value})
 
         self.logger.info('pin {} has signal {}'.format(self.config.pin, self.value))
 
@@ -86,7 +80,7 @@ class Pin_in(Pin):
             res = IOT_tools.strtobool(self.value)
         return {"is_active": res}
     
-    def ProcessPinUpdate(self, config:Pin) -> bool:
+    def ProcessPinUpdate(self, config:PinModel) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
         this only works for output pins. Input pins wil only show a log 

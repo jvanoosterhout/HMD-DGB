@@ -11,12 +11,12 @@ import logging
 from PinAPI.Tools import IOT_tools
 from gpiozero import DigitalOutputDevice, DigitalInputDevice
 # from gpiozero.pins.lgpio import LGPIOFactory
-from PinAPI.PinModels import Pin
+from PinAPI.PinModels import PinModel
 from homeassistant_api import Client
 
  
 class Pin(object):
-    def __init__(self, HASS_interface: Client, config:Pin):
+    def __init__(self, config:PinModel):
         """
         Initialiseer the Pin class.
 
@@ -31,14 +31,14 @@ class Pin(object):
         self.rate = 0 
         self.last_changed = time.monotonic()
         self.pw = {}
-        self.HASS_interface = HASS_interface
+        self.HASS_interface = None
         
         self.logger = logging.getLogger("pin_{}_{}".format(self.config.ptype, self.config.pin))
         self.logger.info('Configuring pin {}.'.format(self.config.pin))
         logging.getLogger().setLevel(logging.INFO)
    
         
-    def PinSetup(self, config:Pin) -> bool:
+    # def PinSetup(self, config:Pin) -> bool:
         """
         Setup the pin based on the configuration.
 
@@ -48,14 +48,14 @@ class Pin(object):
         Returns:
         bool: True if the pin is succesfully setup, otherwise False.
         """
-        self.ConfigurePin()
-        if self.ProcessPinUpdate(config):
-            return True       
-        else:
-            self.logger.error("Could not set pin update")
-            return False
+        # self.ConfigurePin()
+        # if self.ProcessPinUpdate(config):
+        #     return True       
+        # else:
+        #     self.logger.error("Could not set pin update")
+        #     return False
 
-    def HasSameConfig(self, config:Pin) -> bool:
+    def HasSameConfig(self, config:PinModel) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
@@ -74,7 +74,7 @@ class Pin(object):
         """
         pass
 
-    def ProcessPinUpdate(self, config:Pin) -> bool:
+    def ProcessPinUpdate(self, config:PinModel) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
         this only works for output pins. Input device type pins wil only show a log 
@@ -119,4 +119,13 @@ class Pin(object):
             return False
 
     def update(self): 
+        pass
+
+    def sendWebhook(self, data_dict:dict):
+        if "webhook" in self.config.root.model_dump() and not self.HASS_interface is None:
+            if not self.config.webhook == "" and not self.config.webhook is None:
+                path = 'webhook/{}'.format(self.config.webhook)
+                headers={"Content-Type" : "application/json"}
+                self.logger.info("Sending the following data to webhook: {}".format(json.dumps(data_dict)))
+                self.HASS_interface.request(path = path, method="POST", headers=headers, data=json.dumps(data_dict))
         pass

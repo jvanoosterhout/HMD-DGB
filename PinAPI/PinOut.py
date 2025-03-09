@@ -8,7 +8,7 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_out(Pin):
-    def __init__(self, HASS_interface: Client, config:Pin):
+    def __init__(self, config:PinModel, is_PinNWayOut:bool=False):
         """
         Initialiseer de Pin_out klasse met standaardwaarden.
 
@@ -16,9 +16,10 @@ class Pin_out(Pin):
         pin (int): Het pin nummer.
         ptype (str): Het type pin, moet "out" zijn.
         """
-        super().__init__(HASS_interface=HASS_interface, config=config)
+        super().__init__(config=config)
+        self.is_PinNWayOut = is_PinNWayOut
 
-    def HasSameConfig(self, config:Pin) -> bool:
+    def HasSameConfig(self, config:PinModel) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
@@ -63,7 +64,7 @@ class Pin_out(Pin):
 
         return {"is_active": res}
     
-    def ProcessPinUpdate(self, config:Pin) -> bool:
+    def ProcessPinUpdate(self, config:PinModel, is_PinNWayOut:bool=False) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
         this only works for output pins. Input pins wil only show a log 
@@ -75,24 +76,26 @@ class Pin_out(Pin):
         Returns:
         bool: True if update succesful, otherwise False.
         """
-        if config.blink is not None:
-            self.pin_device.blink(on_time=config.blink,
-                                  off_time=config.blink, 
-                                  n=1,
-                                  background=True)
-            self.logger.info('pin {} has value {} for {} seconds'.format(self.config.pin, not(self.config.initial), config.blink))
-        else:
-            value = config.value
-            if not isinstance(value, int):
-                value = int(value)
-            self.value = value
-            if self.value:
-                self.pin_device.on()
-                self.logger.info('pin {} is on'.format(self.config.pin))
+        if self.is_PinNWayOut == is_PinNWayOut: 
+            if config.blink is not None:
+                self.pin_device.blink(on_time=config.blink,
+                                    off_time=config.blink, 
+                                    n=1,
+                                    background=True)
+                self.logger.info('pin {} has value {} for {} seconds'.format(self.config.pin, not(self.config.initial), config.blink))
             else:
-                self.pin_device.off()
-                self.logger.info('pin {} is off'.format(self.config.pin))
-        
-        return True
+                value = config.value
+                if not isinstance(value, int):
+                    value = int(value)
+                self.value = value
+                if self.value:
+                    self.pin_device.on()
+                    self.logger.info('pin {} is on'.format(self.config.pin))
+                else:
+                    self.pin_device.off()
+                    self.logger.info('pin {} is off'.format(self.config.pin))
+            
+            return True
+        return False 
     
 

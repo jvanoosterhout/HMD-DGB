@@ -21,9 +21,9 @@ from PinAPI.PinModels import *
 logging.basicConfig(level='INFO')
 
 class Pin_api:
-    def __init__(self, name:str, api_url:str="http://IP-ADRES:8123/api/", token:str="secret", pin_pw_list:dict={}):
+    def __init__(self, name:str, api_url:str="", token:str="secret", pin_pw_list:dict={}):
         self.name = name
-        self.pin_maker = PinKeeper(api_url=api_url, token=token, pin_pw_list=pin_pw_list)
+        self.pin_keeper = PinKeeper(api_url=api_url, token=token, pin_pw_list=pin_pw_list)
         self.logger = logging.getLogger("{}_log".format(self.name))
         self.logger.info('starting {}'.format(self.name))
         self.base_url = "/api/v1/"
@@ -83,41 +83,49 @@ class Pin_api:
             """
                 This endpoint allows to create new pins or change the state of an output type pin device. 
             """
+            print(pin_config)
             pin_config['ptype'] = pin_type.value
+            print(pin_config)
             try:
-                pin_model = Pin(pin_config)
+                pin_model = PinModel(pin_config)
             except ValidationError as e:
                 raise HTTPException(status_code=400, detail=str(e))
 
-            # pin_config_dict = pin_model.model_dump() 
+            print(pin_model.model_dump())
             
             self.logger.info('Posting new (value for) pin: {}'.format(pin_model))
-            if self.pin_maker.SetPin(pin_model): 
-                return self.jsonify(self.pin_maker.GetPin(pin_model))    
+            if self.pin_keeper.SetPin(pin_model): 
+                return self.jsonify(self.pin_keeper.GetPin(pin_model))    
 
 
         @self.app.get(self.base_url + 'pin/{pin_type}')
         async def get_pin(pin_type: PinType, 
                           pin_config_in: Optional[PinIn] = Depends(PinIn),
                           pin_config_out: Optional[PinOut] = Depends(PinOut),
-                          pin_config_count: Optional[PinCount] = Depends(PinCount)): 
+                          pin_config_count: Optional[PinCount] = Depends(PinCount),
+                          pin_config_nway: Optional[PinNWayOut] = Depends(PinNWayOut)): 
             """
                 This endpoint allows to retrieve the curent pin state of the specified existin pin. 
                 Mind that the configuration of the pin must match the saved configuration. In case 
                 the pin does not exist (due to e.g. reboot), the pin is created according to the 
                 configuration, like it was a POST.
             """
-            if pin_type == PinType.pinin and isinstance(pin_config_in, PinIn):
-                pin_model = Pin(pin_config_in.model_dump())
-            elif pin_type == PinType.pinout and isinstance(pin_config_out, PinOut):
-                pin_model = Pin(pin_config_out.model_dump())
-            elif pin_type == PinType.pincount and isinstance(pin_config_count, PinCount):
-                pin_model = Pin(pin_config_count.model_dump())
-            else:
-                raise HTTPException(status_code=400, detail="Invalid pin configuration for the given pin type")
+            try:
+                if pin_type == PinType.pinin:
+                    pin_model = PinModel(pin_config_in.model_dump())
+                elif pin_type == PinType.pinout:
+                    pin_model = PinModel(pin_config_out.model_dump())
+                elif pin_type == PinType.pincount:
+                    pin_model = PinModel(pin_config_count.model_dump())
+                elif pin_type == PinType.pinnwayouth:
+                    pin_model = PinModel(pin_config_nway.model_dump())
+                else:
+                    raise HTTPException(status_code=400, detail="Invalid pin configuration for the given pin type")
+            except ValidationError as e:
+                raise HTTPException(status_code=400, detail=str(e))
             
             self.logger.info('Getting value of pin: {}'.format(pin_model))
-            ret = self.pin_maker.GetPin(pin_model)
+            ret = self.pin_keeper.GetPin(pin_model)
             if type(ret) == bool: 
                 return self.jsonify(pin_model.root.model_dump())
             else:

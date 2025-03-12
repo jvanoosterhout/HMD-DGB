@@ -8,11 +8,8 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_count(Pin):
-    def __init__(self, HASS_interface: Client, pin, ptype):
-        if not ptype == "count":
-            self.logger.error('Verkeerde type. Kreeg "{}", verwachte "out"'.format(ptype))
-            return False
-        super().__init__(pin=pin, HASS_interface=HASS_interface, ptype=ptype)
+    def __init__(self, config:PinModel):
+        super().__init__(config=config)
         self.count_totaal = 0
         self.tijd_laatste_count = time.monotonic()
         self.count_laatste_blok = 0 
@@ -22,54 +19,36 @@ class Pin_count(Pin):
         self.calibrationFactor = 1 #6.6
 
 
-    def HasSameConfig(self, pin_config_dict:dict) -> bool:
+    def HasSameConfig(self, config:PinModel) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
         Parameters:
-        pin_config_dict (dict): Configuratien of the pin.
+        config (Pin): Configuratien of the pin.
 
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
-        if not pin_config_dict['ptype'] == self.type:
-            self.logger.info('Nieuwe "type" {} voor pin {} is anders dan bekend "type" {}'.format(pin_config_dict['ptype'], self.pin, self.type))
+        if not config.ptype == self.config.ptype:
+            self.logger.warning('New "ptype" {} for pin {} is different from known "ptype" {}'.format(config.ptype, self.config.pin, self.config.ptype))
             return False
-        if not pin_config_dict["active_state"] == self.active_state:
-            self.logger.info('Nieuwe "active_state" {} voor pin {} is anders dan bekend "active_state" {}'.format(pin_config_dict["active_state"], self.pin, self.active_state))
+        if not config.active_state == self.config.active_state:
+            self.logger.warning('New "active_state" {} for pin {} is different from known "active_state" {}'.format(config.active_state, self.config.pin, self.config.active_state))
             return False
-        if not pin_config_dict["pull_up"] == self.pull_up:
-            self.logger.info('Nieuwe "pull_up" {} voor pin {} is anders dan bekend "pull_up" {}'.format(pin_config_dict["pull_up"], self.pin, self.pull_up))
+        if not config.pull_up == self.config.pull_up:
+            self.logger.warning('New "pull_up" {} for pin {} is different from known "pull_up" {}'.format(config.pull_up, self.config.pin, self.config.pull_up))
             return False
         return True
-    
-    def SavePin(self, pin_config_dict:dict):
-        """
-        Save the pin configuration in this object.
-
-        Parameters:
-        pin_config_dict (dict): Configuratien of the pin.
-        """
-        self.pin = pin_config_dict["pin"]  
-        self.active_state = pin_config_dict["active_state"] 
-        self.pull_up = pin_config_dict["pull_up"]
-        self.value = 'onbekend'  
-        # if "password" in pin_config_dict:
-        #     self.password = pin_config_dict["password"]  
-        # else: 
-        #     self.password = ""
-        if pin_config_dict['webhook'] is not None : 
-            self.webhook = pin_config_dict['webhook'] 
-    
+        
     def ConfigurePin(self):
         """
         Configure the de GPIO as the rigth type.
 
         """
-        self.pin_device = DigitalInputDevice(pin = self.pin, 
-                                             pull_up = self.pull_up,
+        self.pin_device = DigitalInputDevice(pin = self.config.pin, 
+                                             pull_up = self.config.pull_up,
                                              bounce_time = None) #,
-                                            #  active_state = self.active_state, 
+                                            #  active_state = self.config.active_state, 
                                             #  pin_factory = LGPIOFactory(chip=0))
         self.pin_device.when_activated = self.calback
         self.pin_device.when_deactivated = self.calback
@@ -87,15 +66,9 @@ class Pin_count(Pin):
         """
         self.count_totaal = self.count_totaal + 1
         self.tijd_laatste_count = time.monotonic()
-        if self.is_update_relevant():
-            if not self.webhook == "":
-                path = 'webhook/{}'.format(self.webhook)
-                headers={"Content-Type" : "application/json"}
-                data = self.GetPinValue()
-                print(json.dumps(data))
-                self.HASS_interface.request(path = path, method="POST", headers=headers, data=json.dumps(data))
-                # self.logger.info('pin {} updete verstuurd'.format(pin))
-
+ 
+        self.sendWebhook(self.GetPinValue())
+ 
 
     def is_update_relevant(self):
         """
@@ -148,24 +121,22 @@ class Pin_count(Pin):
 
         self.tijd_laatste_block = time.monotonic()
         self.count_laatste_blok = self.count_totaal
-        self.logger.info('pin {} heeft {} tellen totaal, met {} tellen laatste {} s, met een stroom van {} per seconde'.format(self.pin, self.count_totaal, count_laatste_blok, duur, self.stroom))
+        self.logger.info('pin {} has {} counts total, with {} counts the last {} s, and a flow of {} per second'.format(self.config.pin, self.count_totaal, count_laatste_blok, duur, self.stroom))
         return {"totaal": self.count_totaal, "stroom": self.stroom}
 
-    def ProcessPinUpdate(self, pin_config_dict:dict) -> bool:
+    def ProcessPinUpdate(self, config:PinModel) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
         this only works for output pins. Input pins wil only show a log 
         message with their current state.
 
         Parameters:
-        pin_config_dict (dict): Configuratie of the pin.
+        config (Pin): Configuratie of the pin.
 
         Returns:
         bool: True if update succesful, otherwise False.
         """
-        if not self.HasSameConfig(pin_config_dict):
-            return False
-        self.logger.info('pin {} heeft {} tellen totaal, met een stroom van {} per seconde'.format(self.pin, self.count_totaal, self.stroom))
+        self.logger.info('pin {} heeft {} tellen totaal, met een stroom van {} per seconde'.format(self.config.pin, self.count_totaal, self.stroom))
         return True
 
 

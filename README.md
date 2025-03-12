@@ -2,9 +2,10 @@
 
 ## Overview
 GPIOpinAPI is a Python package designed to simplify the interaction with GPIO pins on a **Raspberry Pi** from another system (specifically Home Assistant, though not limited to it) via REST calls. 
-It provides an easy-to-use API for configuring, reading, and writing to GPIO pins, making it ideal for **domotics** and IoT projects. A special feature is to provide a Home Assistant webhook in the configuration of input-type pins.
+It provides an easy-to-use API for configuring, reading, and writing to GPIO pins, making it ideal for **domotica** and IoT projects. A special feature is to provide a Home Assistant webhook in the configuration of input-type pins.
 
 ## Features
+* **Several Pin types**: Current pin types are a digital input, digital pin output, digital N Way Output. 
 * **Easy Configuration**: Quickly set up GPIO pins with simple REST commands.
 * **Read/Write Operations**: Perform read and write operations on GPIO pins.
 * **Local Push Updates**: Send a webhook update to Home Assistant when an input device-type pin is (de)activated.
@@ -24,7 +25,6 @@ Only compatible with Python >=3.10.0: Older versions do not support the way pyda
 
 ### Run it yourself 
 
-* Clone the project to your system 
 * Create a project folder
 * Create and activate a **venv** in the project folder. 
    ``` 
@@ -32,8 +32,11 @@ Only compatible with Python >=3.10.0: Older versions do not support the way pyda
     python3 -m venv venv
     . venv/bin/activate
     ```
-* Install the package via ```pip install -e [path-to-the-gpiopinapi-folder]```. (Note: -e is optional to install the package in editable mode)
-* Copy or adapt the **/gpiopinapi/Examples/API_example.py** file in your project folder and change the Home Assistant **IP address** and token. Optionally add or remove the pin password list.
+* Install the package via: 
+  * a) Clone the project to your system  
+  Then ```pip install -e [path-to-the-gpiopinapi-folder] .``` (Note: -e is optional to install the package in editable mode)
+  * b) pip install git+https://gitlab.com/jotd/gpiopinapi.git
+* Copy or adapt the **/gpiopinapi/Examples/API_example.py** file in your project folder and change the Home Assistant **IP address** and **token**. Optionally add or remove the pin password list.
 * Run the **API_example.py**.
 * Check **http://{[the-pi-ip-address]}:11411/docs**.
 
@@ -60,7 +63,7 @@ homeassistant:
   packages: !include_dir_merge_named packages/
 ```
 
-The first sample is a very simple out-put-in-put test where you may want to connect pin gpio21 and gpio20. The first two binnary sensor privide a simple check wether the raspberry is online and running. in case those are not on, the remainder of the test is not representative. When both are on, than as soon as you activate the rpi_pin_out_test swith, the rpi_pin_in_test will be active to (ofcource, when you disconnect the pins, notting will happen).
+The first example is a very simple out-put-in-put test where you may want to connect pin gpio21 and gpio20. The first two binnary sensor privide a simple check wether the raspberry is online and running. in case those are not on, the remainder of the test is not representative. When both are on, than as soon as you activate the rpi_pin_out_test swith, the rpi_pin_in_test will be active to (ofcource, when you disconnect the pins, notting will happen).
 
 
 ```
@@ -141,7 +144,7 @@ automation:
             pin_in_sensor: '{"pin": 20, "pull_up": 1, "webhook": "pin_in_test" }'
 ```
 
-The second sample is for a gate or garage door. Activating your door with a slight touch while you are not near the gate/door, or while your child plays with your phone, seems tricky. Therefore, the "password" comes in handy. It is just a simple double-check to ensure you really want to open the gate/door. 
+The second example is for a gate or garage door. Activating your door with a slight touch while you are not near the gate/door, or while your child plays with your phone, seems tricky. Therefore, the "password" comes in handy. It is just a simple double-check to ensure you really want to open the gate/door. 
 
 In this specific example, my garage door is pulse-triggered. The same pulse is used to open, close, or stop the door. This means you can have scenarios like:
 * Click --> opening --> wait --> fully opened --> click --> closing --> wait --> fully closed
@@ -188,7 +191,6 @@ Note that the example below and a Pi alone do not suffice; you may need a relay 
           accept: "application/json"
       content_type: 'application/json'
       payload: '{{pin_in_sensor}}'
-    g_roldeur_bedienen:
     trigger_gate_motor:
       url: http://[GPIOpinAPI-IP-address]:11411/api/v1/pin/in
       method: POST
@@ -224,36 +226,7 @@ Note that the example below and a Pi alone do not suffice; you may need a relay 
           data:
               pin_in_sensor: '{"pin": 16, "pull_up": 1, "webhook": "gate_is_closed_sensor" }'
       mode: single
-      
-    - id: "trigger_gate"
-      alias: trigger_gate
-      trigger:
-        - platform: device
-          device_id: c5c3bcbbff9db90e8a1bbe0fvadfvf
-          domain: bthome
-          type: button
-          subtype: press
-          id: "btn 1"
-      action:
-        - if:
-            - condition: trigger
-              id: "btn 1"
-          then:
-            - service: input_text.set_value
-              target:
-                  entity_id: input_text.gate_pw
-              data:
-                  value: "ok"
-        - service: cover.toggle
-          target:
-            entity_id: cover.gate
-        - service: input_text.set_value
-          target:
-              entity_id: input_text.gate_pw
-          data:
-              value: ""
-      mode: single
-      
+           
   cover:
     - platform: template
       covers:
@@ -315,6 +288,44 @@ Note that the example below and a Pi alone do not suffice; you may need a relay 
           
 ```
 
+The thired example demonstrates the usage of an N Way Out configuration. I encountered several devices that have three or more states (off, open, close for a valve; 0, 1, 2, 3 for mechanical home ventilation). You could of course create two or more switches, and automate them such that no more than one switch is active at the time, though I hope to simplify this proces with just one endpoint with human readable triggers. In the example the automation could be replaced with a cover like from the example above. 
+
+```
+rest_command:
+  switch_nwayout:
+    url: http://[GPIOpinAPI-IP-address]:11411/api/v1/pin/nwayout
+    method: POST
+    headers:
+      accept: "application/json"
+    content_type: 'application/json'
+    payload: '{"pin": 23, "pin_list": [23, 24, -1], "initial": [0, 0 ,0], "active_state": [0, 0, 0], "pin_names": ["stop", "close", "open"], "active_pin": "{{MKnwayout}}" }'
+
+input_select:
+    nwayout_input:
+        name: nwayout_input
+        options:
+          - open
+          - close
+          - stop
+        initial: open
+        icon: mdi:arrow-decision 
+        
+automation:
+  - id: "send_switch_nwayout"
+    alias: send_switch_nwayout
+    description: 'send update to nwayout pin'
+    trigger:
+      - platform: state
+        entity_id: 
+            - input_select.nwayout_input
+    condition: []
+    action:
+      - service: rest_command.switch_nwayout
+        data:
+            MKnwayout: '{{ states(''input_select.nwayout_input'') | string}}'
+```
+
+
 ## Support
 Please feel free to post issues or questions on GitLab. However, please note that this is a spare-time project.
 
@@ -329,11 +340,11 @@ Please feel free to post issues or questions on GitLab. However, please note tha
 * **Add a PWM-in type pin**: Use-case is read sensors that send PWM signals.
 * **Add Docker setup**: Use-case is to make this package more robust to the ever-changing versions of systems and software.
 * **Extend pin capabilities**: Add support for input pin devices to trigger only on `when_activated` or `when_deactivated`.
-* **Improve the Swagger UI docs**: The docs currently provide a basic, though confusing, overview. For example, the example payload of a POST does not change when the `pin_type` is changed. Also, all query parameters are shown for all pin types.
+* ~~**Improve the Swagger UI docs**: The docs currently provide a basic, though confusing, overview. For example, the example payload of a POST does not change when the `pin_type` is changed. Also, all query parameters are shown for all pin types.~~
 
 ### code
-* **Move towards pydantic basemodel**: Refactor pin_config_dict to pydantic basemodel. 
-* **Make webhook useage optional**: Currently a Home Assistant endpoint is required, though this should not be necessary, even better would be the possibility to use another endpoint.
+~~* **Move towards pydantic basemodel**: Refactor pin_config_dict to pydantic basemodel. ~~
+~~* **Make webhook useage optional**: Currently a Home Assistant endpoint is required, though this should not be necessary, even better would be the possibility to use another endpoint.~~
 * **Split off examples**: Split of Home Assistant examples from .md to Examples directory, wiki page or separate project(s). 
 
 ## Considerations (Why another GPIO package?)
@@ -358,5 +369,5 @@ This is the third, and the first public, iteration of my privately developed cod
 ## Known Issues/Bugs
 
 * Count type pin device is not fully working.
-* When providing a none existing Home Assistant ip-adres, the startup proces pauses to keep reaching for Home Assistant. This should be send to a background proces or even made optional in order to facilitate working without Home Assistant. 
+* When providing a none existing Home Assistant ip-adres, the startup proces pauses to keep reaching out for Home Assistant. This should be send to a background proces or even made optional in order to facilitate working without Home Assistant. 
 * Needs testing to see what happens when Home Assistant is offline during a webhook update.

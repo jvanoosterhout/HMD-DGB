@@ -3,7 +3,8 @@ import uvicorn
 
 def main():
     pin_api = Pin_api(name = "pin api", 
-                      api_url="http://[your-home-assistant-ip-adres]:8123/api/", 
+                      # api_url="http://[your-home-assistant-ip-adres]:8123/api/", # use when connecting to Home Assistant 
+                      api_url="", # use when not using Home Assistant 
                       token="[your-home-assistant-long-life-token]",
                       pin_pw_list={25:"ok", 10: "test"})
     

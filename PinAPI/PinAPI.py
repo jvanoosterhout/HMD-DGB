@@ -16,14 +16,14 @@ import time
 import psutil
 from gpiozero import CPUTemperature
 from PinAPI.PinKeeper import PinKeeper
-from PinAPI.PinModels import PinIn, PinCount, PinOut, PinType
+from PinAPI.PinModels import *
 
 logging.basicConfig(level='INFO')
 
 class Pin_api:
-    def __init__(self, name:str, api_url:str="http://IP-ADRES:8123/api/", token:str="secret", pin_pw_list:dict={}):
+    def __init__(self, name:str, api_url:str="", token:str="secret", pin_pw_list:dict={}):
         self.name = name
-        self.pin_maker = PinKeeper(api_url=api_url, token=token, pin_pw_list=pin_pw_list)
+        self.pin_keeper = PinKeeper(api_url=api_url, token=token, pin_pw_list=pin_pw_list)
         self.logger = logging.getLogger("{}_log".format(self.name))
         self.logger.info('starting {}'.format(self.name))
         self.base_url = "/api/v1/"
@@ -52,56 +52,110 @@ class Pin_api:
 
         @self.app.post(self.base_url + 'pin/{pin_type}')
         async def post_pin(pin_type: PinType, 
-                          pin_config: Union[PinIn, PinOut, PinCount] = Body(...)): 
+                          pin_config = Body(openapi_examples={"in": { 
+                                                                    "value": {
+                                                                        "pin": "1",
+                                                                        "active_state": 1, 
+                                                                        "pull_up": 1,
+                                                                        "webhook": "my_home_assisistant_pin_in_1"
+                                                                        },
+                                                                    },
+                                                                "out": {
+                                                                    "value": {
+                                                                        "pin": "1",
+                                                                        "initial": 0,
+                                                                        "active_state": 1,
+                                                                        "value": 1,
+                                                                        "password": "secret",
+                                                                        "blink": 1
+                                                                        }, 
+                                                                    },
+                                                                "count": {
+                                                                    "value": {
+                                                                        "pin": "1",
+                                                                        "active_state": 1,
+                                                                        "pull_up": 1,
+                                                                        "webhook": "my_home_assisistant_pin_count_1"
+                                                                        },
+                                                                    },
+                                                                "nwayout": {
+                                                                    "value": {
+                                                                        "pin": 23, 
+                                                                        "pin_list": [23, 24, -1], 
+                                                                        "initial": [0, 0 ,0], 
+                                                                        "active_state": [0, 0, 0], 
+                                                                        "pin_names": ["stop", "close", "open"], 
+                                                                        "active_pin": "close"
+                                                                        },
+                                                                    },
+                                                                },
+                                                            )): 
             """
                 This endpoint allows to create new pins or change the state of an output type pin device. 
             """
-            if pin_type == PinType.pinin and isinstance(pin_config, PinIn):
-                pin_config_dict = pin_config.model_dump() 
-            elif pin_type == PinType.pinout and isinstance(pin_config, PinOut):
-                pin_config_dict = pin_config.model_dump() 
-            elif pin_type == PinType.pincount and isinstance(pin_config, PinCount):
-                pin_config_dict = pin_config.model_dump() 
-            else:
-                raise HTTPException(status_code=400, detail="Invalid pin configuration for the given pin type")
+            pin_config['ptype'] = pin_type.value
+            try:
+                pin_model = PinModel(pin_config)
+            except ValidationError as e: # Exception as e
+                raise HTTPException(status_code=400, detail=str(e))
             
-            self.logger.info('Posting new (value for) pin: {}'.format(pin_config_dict))
-            if self.pin_maker.SetPin(pin_config_dict): 
-                return self.jsonify(self.pin_maker.GetPin(pin_config_dict))    
-            
+            self.logger.info('Posting new (value for) pin: {}'.format(pin_model))
+            if self.pin_keeper.SetPin(pin_model): 
+                return self.jsonify(self.pin_keeper.GetPin(pin_model))    
 
-        @self.app.get(self.base_url + 'pin/{pin_type}')
-        async def get_pin(pin_type: PinType, 
-                          pin_config_in: Optional[PinIn] = Depends(PinIn),
-                          pin_config_out: Optional[PinOut] = Depends(PinOut),
-                          pin_config_Count: Optional[PinCount] = Depends(PinCount)): 
+
+        @self.app.get(self.base_url + 'pin/' + PinType.pinin.value)
+        async def get_pin(pin_config: PinIn= Depends()): 
             """
                 This endpoint allows to retrieve the curent pin state of the specified existin pin. 
                 Mind that the configuration of the pin must match the saved configuration. In case 
                 the pin does not exist (due to e.g. reboot), the pin is created according to the 
                 configuration, like it was a POST.
             """
-            if pin_type == PinType.pinin and isinstance(pin_config_in, PinIn):
-                pin_config_dict = pin_config_in.model_dump()
-            elif pin_type == PinType.pinout and isinstance(pin_config_out, PinOut):
-                pin_config_dict = pin_config_out.model_dump()
-            elif pin_type == PinType.pincount and isinstance(pin_config_Count, PinCount):
-                pin_config_dict = pin_config_Count.model_dump()
-            else:
-                raise HTTPException(status_code=400, detail="Invalid pin configuration for the given pin type")
-            
-            self.logger.info('Getting value of pin: {}'.format(pin_config_dict))
-            ret = self.pin_maker.GetPin(pin_config_dict)
-            if type(ret) == bool: 
-                return self.jsonify(pin_config_dict)
-            else:
-                return self.jsonify(ret)
+            return self.handel_get_request(PinModel(pin_config.model_dump()))
+
+        @self.app.get(self.base_url + 'pin/' + PinType.pinout.value)
+        async def get_pin(pin_config: PinOut= Depends()): 
+            """
+                This endpoint allows to retrieve the curent pin state of the specified existin pin. 
+                Mind that the configuration of the pin must match the saved configuration. In case 
+                the pin does not exist (due to e.g. reboot), the pin is created according to the 
+                configuration, like it was a POST.
+            """
+            return self.handel_get_request(PinModel(pin_config.model_dump()))
+
+        @self.app.get(self.base_url + 'pin/' + PinType.pincount.value)
+        async def get_pin(pin_config: PinCount= Depends()): 
+            """
+                This endpoint allows to retrieve the curent pin state of the specified existin pin. 
+                Mind that the configuration of the pin must match the saved configuration. In case 
+                the pin does not exist (due to e.g. reboot), the pin is created according to the 
+                configuration, like it was a POST.
+            """
+            return self.handel_get_request(PinModel(pin_config.model_dump()))
+
+        @self.app.get(self.base_url + 'pin/' + PinType.pinnwayout.value)
+        async def get_pin(pin_config: PinNWayOut = Depends()): 
+            """
+                This endpoint allows to retrieve the curent pin state of the specified existin pin. 
+                Mind that the configuration of the pin must match the saved configuration. In case 
+                the pin does not exist (due to e.g. reboot), the pin is created according to the 
+                configuration, like it was a POST.
+            """
+            return self.handel_get_request(PinModel(pin_config.model_dump()))
             
 
-            
         self.logger.info('{} started'.format(self.name))
 
 
+    def handel_get_request(self, pin_model):
+            self.logger.info('Getting value of pin: {}'.format(pin_model))
+            ret = self.pin_keeper.GetPin(pin_model)
+            if type(ret) == bool: 
+                return self.jsonify(pin_model.root.model_dump())
+            else:
+                return self.jsonify(ret)
+    
     def jsonify(self, json_dict):
         return JSONResponse(content=jsonable_encoder(json_dict))
     

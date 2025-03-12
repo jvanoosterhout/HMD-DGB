@@ -8,7 +8,7 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_out(Pin):
-    def __init__(self, HASS_interface: Client, pin, ptype):
+    def __init__(self, config:PinModel, is_PinNWayOut:bool=False):
         """
         Initialiseer de Pin_out klasse met standaardwaarden.
 
@@ -16,53 +16,35 @@ class Pin_out(Pin):
         pin (int): Het pin nummer.
         ptype (str): Het type pin, moet "out" zijn.
         """
-        if not ptype == "out":
-            self.logger.error('Verkeerde type. Kreeg "{}", verwachte "out"'.format(ptype))
-            return False
-        super().__init__(pin=pin, HASS_interface=HASS_interface, ptype=ptype)
+        super().__init__(config=config)
+        self.is_PinNWayOut = is_PinNWayOut
 
-    def HasSameConfig(self, pin_config_dict:dict) -> bool:
+    def HasSameConfig(self, config:PinModel) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
         Parameters:
-        pin_config_dict (dict): Configuratien of the pin.
+        config (Pin): Configuratien of the pin.
 
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
-        if not pin_config_dict['ptype'] == self.type:
-            self.logger.info('Nieuwe "type" {} voor pin {} is anders dan bekend "type" {}'.format(pin_config_dict['ptype'], self.pin, self.type))
+        if not config.ptype == self.config.ptype:
+            self.logger.warning('New "ptype" {} for pin {} is different from known "ptype" {}'.format(config.ptype, self.config.pin, self.config.ptype))
             return False
-        if not pin_config_dict["active_state"] == self.active_state:
-            self.logger.info('Nieuwe "active_state" {} voor pin {} is anders dan bekend "active_state" {}'.format(pin_config_dict["active_state"], self.pin, self.active_state))
+        if not config.active_state == self.config.active_state:
+            self.logger.warning('New "active_state" {} for pin {} is different from known "active_state" {}'.format(config.active_state, self.config.pin, self.config.active_state))
             return False
         return True
-    
-    def SavePin(self, pin_config_dict:dict):
-        """
-        Save the pin configuration in this object.
-
-        Parameters:
-        pin_config_dict (dict): Configuratien of the pin.
-        """
-        self.pin = pin_config_dict["pin"]  
-        self.initial = pin_config_dict["initial"]  
-        self.active_state = pin_config_dict["active_state"] 
-        self.value = pin_config_dict["value"]  
-        if pin_config_dict["password"] is not None:
-            self.password = pin_config_dict["password"]  
-        else: 
-            self.password = ""
     
     def ConfigurePin(self):
         """
         Configure the de GPIO as the rigth type.
 
         """
-        self.pin_device = DigitalOutputDevice(pin = self.pin,
-                                              active_high = self.active_state,
-                                              initial_value = self.initial) #, 
+        self.pin_device = DigitalOutputDevice(pin = self.config.pin,
+                                              active_high = self.config.active_state,
+                                              initial_value = self.config.initial) #, 
                                             #  pin_factory = LGPIOFactory(chip=0))
 
     def GetPinValue(self) -> dict:
@@ -82,39 +64,38 @@ class Pin_out(Pin):
 
         return {"is_active": res}
     
-    def ProcessPinUpdate(self, pin_config_dict:dict) -> bool:
+    def ProcessPinUpdate(self, config:PinModel, is_PinNWayOut:bool=False) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
         this only works for output pins. Input pins wil only show a log 
         message with their current state.
 
         Parameters:
-        pin_config_dict (dict): Configuratie of the pin.
+        config (Pin): Configuratie of the pin.
 
         Returns:
         bool: True if update succesful, otherwise False.
         """
-        if not self.HasSameConfig(pin_config_dict):
-            return False
-
-        if pin_config_dict["blink"] is not None:
-            self.pin_device.blink(on_time=pin_config_dict["blink"],
-                                  off_time=pin_config_dict["blink"], 
-                                  n=1,
-                                  background=True)
-            self.logger.info('pin {} staat {} sec op {}'.format(self.pin, pin_config_dict["blink"], not(self.initial)))
-        else:
-            value = pin_config_dict['value']
-            if not isinstance(value, int):
-                value = int(value)
-            self.value = value
-            if self.value:
-                self.pin_device.on()
-                self.logger.info('pin {} staat aan'.format(self.pin))
+        if self.is_PinNWayOut == is_PinNWayOut: 
+            if config.blink is not None:
+                self.pin_device.blink(on_time=config.blink,
+                                    off_time=config.blink, 
+                                    n=1,
+                                    background=True)
+                self.logger.info('pin {} has value {} for {} seconds'.format(self.config.pin, not(self.config.initial), config.blink))
             else:
-                self.pin_device.off()
-                self.logger.info('pin {} staat uit'.format(self.pin))
-        
-        return True
+                value = config.value
+                if not isinstance(value, int):
+                    value = int(value)
+                self.value = value
+                if self.value:
+                    self.pin_device.on()
+                    self.logger.info('pin {} is on'.format(self.config.pin))
+                else:
+                    self.pin_device.off()
+                    self.logger.info('pin {} is off'.format(self.config.pin))
+            
+            return True
+        return False 
     
 

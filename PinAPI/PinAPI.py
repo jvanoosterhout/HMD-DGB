@@ -72,69 +72,90 @@ class Pin_api:
                                                                     },
                                                                 "count": {
                                                                     "value": {
-                                                                            "pin": "1",
-                                                                            "active_state": 1,
-                                                                            "pull_up": 1,
-                                                                            "webhook": "my_home_assisistant_pin_count_1"
+                                                                        "pin": "1",
+                                                                        "active_state": 1,
+                                                                        "pull_up": 1,
+                                                                        "webhook": "my_home_assisistant_pin_count_1"
+                                                                        },
+                                                                    },
+                                                                "nwayout": {
+                                                                    "value": {
+                                                                        "pin": 23, 
+                                                                        "pin_list": [23, 24, -1], 
+                                                                        "initial": [0, 0 ,0], 
+                                                                        "active_state": [0, 0, 0], 
+                                                                        "pin_names": ["stop", "close", "open"], 
+                                                                        "active_pin": "close"
+                                                                        },
                                                                     },
                                                                 },
-                                                            },
-                                                        )): 
+                                                            )): 
             """
                 This endpoint allows to create new pins or change the state of an output type pin device. 
             """
-            print(pin_config)
             pin_config['ptype'] = pin_type.value
-            print(pin_config)
             try:
                 pin_model = PinModel(pin_config)
-            except ValidationError as e:
+            except ValidationError as e: # Exception as e
                 raise HTTPException(status_code=400, detail=str(e))
-
-            print(pin_model.model_dump())
             
             self.logger.info('Posting new (value for) pin: {}'.format(pin_model))
             if self.pin_keeper.SetPin(pin_model): 
                 return self.jsonify(self.pin_keeper.GetPin(pin_model))    
 
 
-        @self.app.get(self.base_url + 'pin/{pin_type}')
-        async def get_pin(pin_type: PinType, 
-                          pin_config_in: Optional[PinIn] = Depends(PinIn),
-                          pin_config_out: Optional[PinOut] = Depends(PinOut),
-                          pin_config_count: Optional[PinCount] = Depends(PinCount),
-                          pin_config_nway: Optional[PinNWayOut] = Depends(PinNWayOut)): 
+        @self.app.get(self.base_url + 'pin/' + PinType.pinin.value)
+        async def get_pin(pin_config: PinIn= Depends()): 
             """
                 This endpoint allows to retrieve the curent pin state of the specified existin pin. 
                 Mind that the configuration of the pin must match the saved configuration. In case 
                 the pin does not exist (due to e.g. reboot), the pin is created according to the 
                 configuration, like it was a POST.
             """
-            try:
-                if pin_type == PinType.pinin:
-                    pin_model = PinModel(pin_config_in.model_dump())
-                elif pin_type == PinType.pinout:
-                    pin_model = PinModel(pin_config_out.model_dump())
-                elif pin_type == PinType.pincount:
-                    pin_model = PinModel(pin_config_count.model_dump())
-                elif pin_type == PinType.pinnwayouth:
-                    pin_model = PinModel(pin_config_nway.model_dump())
-                else:
-                    raise HTTPException(status_code=400, detail="Invalid pin configuration for the given pin type")
-            except ValidationError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+            return self.handel_get_request(PinModel(pin_config.model_dump()))
+
+        @self.app.get(self.base_url + 'pin/' + PinType.pinout.value)
+        async def get_pin(pin_config: PinOut= Depends()): 
+            """
+                This endpoint allows to retrieve the curent pin state of the specified existin pin. 
+                Mind that the configuration of the pin must match the saved configuration. In case 
+                the pin does not exist (due to e.g. reboot), the pin is created according to the 
+                configuration, like it was a POST.
+            """
+            return self.handel_get_request(PinModel(pin_config.model_dump()))
+
+        @self.app.get(self.base_url + 'pin/' + PinType.pincount.value)
+        async def get_pin(pin_config: PinCount= Depends()): 
+            """
+                This endpoint allows to retrieve the curent pin state of the specified existin pin. 
+                Mind that the configuration of the pin must match the saved configuration. In case 
+                the pin does not exist (due to e.g. reboot), the pin is created according to the 
+                configuration, like it was a POST.
+            """
+            return self.handel_get_request(PinModel(pin_config.model_dump()))
+
+        @self.app.get(self.base_url + 'pin/' + PinType.pinnwayout.value)
+        async def get_pin(pin_config: PinNWayOut = Depends()): 
+            """
+                This endpoint allows to retrieve the curent pin state of the specified existin pin. 
+                Mind that the configuration of the pin must match the saved configuration. In case 
+                the pin does not exist (due to e.g. reboot), the pin is created according to the 
+                configuration, like it was a POST.
+            """
+            return self.handel_get_request(PinModel(pin_config.model_dump()))
             
+
+        self.logger.info('{} started'.format(self.name))
+
+
+    def handel_get_request(self, pin_model):
             self.logger.info('Getting value of pin: {}'.format(pin_model))
             ret = self.pin_keeper.GetPin(pin_model)
             if type(ret) == bool: 
                 return self.jsonify(pin_model.root.model_dump())
             else:
                 return self.jsonify(ret)
-            
-
-        self.logger.info('{} started'.format(self.name))
-
-
+    
     def jsonify(self, json_dict):
         return JSONResponse(content=jsonable_encoder(json_dict))
     

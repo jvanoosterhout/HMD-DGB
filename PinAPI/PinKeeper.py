@@ -29,11 +29,13 @@ class PinKeeper(object):
 
         if api_url == "":
             self.HASS_interface = None
+            self.logger.info('This host will not connect to Home Assistant.')
         else:
             self.HASS_interface = Client(api_url=api_url, token=token, verify_ssl=False)
             while not self.check_HASS():
                 self.logger.info('This host cannot (jet) connect to Home Assistant at {}.'.format(api_url))
                 time.sleep(10)
+            self.logger.info('Successfully connected to Home Assistant at {}.'.format(api_url))
 
         self.logger.info('PinKeeper initialized.')
 

@@ -44,9 +44,10 @@ class Pin_N_way_out(Pin):
         Configure the de GPIO as the rigth type.
 
         """
+        n = self.GetPinIndex(self.config.pin)
         self.pin_device = DigitalOutputDevice(pin = self.config.pin,
-                                              active_high = self.config.active_state,
-                                              initial_value = self.config.initial) #, 
+                                              active_high = self.config.active_state[n],
+                                              initial_value = self.config.initial[n]) #, 
                                             #  pin_factory = LGPIOFactory(chip=0))
 
     def GetPinValue(self) -> dict:
@@ -103,19 +104,13 @@ class Pin_N_way_out(Pin):
         Returns:
         bool: True if update succesful, otherwise False.
         """
-        
-        # for n in range(len(self.config.pin_list)):
-        #     if not self.config.pin_list[n] == config.pin and self.config.pin_list[n] >=0:
-        #         sub_config = self.GenerateSubPinConfig(n)
-        #         sub_config.value = 0
-        #         self.Pins[n].ProcessPinUpdate(sub_config, is_PinNWayOut=True)
         for p in self.Pins:
             sub_config = p.config
             sub_config.value = 0
             p.ProcessPinUpdate(sub_config, is_PinNWayOut=True)
         self.pin_device.off()
         self.config.value = 0
-        self.logger.info('All N Way Out pins turned off'.format(self.config.pin))
+        self.logger.info('All N Way Out pins turned off')
         
         active_pin = config.active_pin
         if active_pin is None:
@@ -130,7 +125,7 @@ class Pin_N_way_out(Pin):
             self.config.active_pin = active_pin
             return True
 
-        if not self.config.pin_list[n] == config.pin:
+        if not self.config.pin_list[n] == self.config.pin:
             for p in self.Pins:
                 if p.config.pin == self.config.pin_list[n]:
                     sub_config = p.config

@@ -37,24 +37,6 @@ class Pin(object):
         self.logger.info('Configuring pin {}.'.format(self.config.pin))
         logging.getLogger().setLevel(logging.INFO)
    
-        
-    # def PinSetup(self, config:Pin) -> bool:
-        """
-        Setup the pin based on the configuration.
-
-        Parameters:
-        config (Pin): Configuration of the pin.
-
-        Returns:
-        bool: True if the pin is succesfully setup, otherwise False.
-        """
-        # self.ConfigurePin()
-        # if self.ProcessPinUpdate(config):
-        #     return True       
-        # else:
-        #     self.logger.error("Could not set pin update")
-        #     return False
-
     def HasSameConfig(self, config:PinModel) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.

@@ -30,13 +30,18 @@ class Pin_N_way_out(Pin):
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
-        # if not config.ptype == self.config.ptype:
-        #     self.logger.warning('New "ptype" {} for pin {} is different from known "ptype" {}'.format(config.ptype, self.config.pin, self.config.ptype))
-        #     return False
-        # if not config.active_state == self.config.active_state:
-        #     self.logger.warning('New "active_state" {} for pin {} is different from known "active_state" {}'.format(config.active_state, self.config.pin, self.config.active_state))
-        #     return False
-        
+        if not config.ptype == self.config.ptype:
+            self.logger.warning('New "ptype" {} for pin {} is different from known "ptype" {}'.format(config.ptype, self.config.pin, self.config.ptype))
+            return False
+        if not config.pin_list == self.config.pin_list:
+            self.logger.warning('New "pin_list" {} for pin {} is different from known "pin_list" {}'.format(config.pin_list, self.config.pin, self.config.pin_list))
+            return False
+        if not config.active_state == self.config.active_state:
+            self.logger.warning('New "active_state" {} for pin {} is different from known "active_state" {}'.format(config.active_state, self.config.pin, self.config.active_state))
+            return False
+        if not config.pin_names == self.config.pin_names:
+            self.logger.warning('New "pin_names" {} for pin {} is different from known "pin_names" {}'.format(config.pin_names, self.config.pin, self.config.pin_names))
+            return False        
         return True
     
     def ConfigurePin(self):

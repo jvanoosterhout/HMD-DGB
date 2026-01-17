@@ -19,7 +19,8 @@ setuptools.setup(
         "psutil==6.1.1",
         "gpiozero==2.0.1",
         "lgpio==0.2.2.0",
-        "homeassistant-api==4.2.2.post2"
+        "homeassistant-api==5.0.2",
+        "ha-mqtt-discoverable==0.23.0"
     ],
     extras_require={},
     classifiers=[

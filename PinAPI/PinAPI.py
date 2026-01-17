@@ -22,6 +22,7 @@ logging.basicConfig(level='INFO')
 
 class Pin_api:
     def __init__(self, name:str, api_url:str="", token:str="secret", pin_pw_list:dict={}):
+        print("wako")
         self.name = name
         self.pin_keeper = PinKeeper(api_url=api_url, token=token, pin_pw_list=pin_pw_list)
         self.logger = logging.getLogger("{}_log".format(self.name))

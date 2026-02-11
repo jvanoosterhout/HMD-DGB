@@ -13,10 +13,13 @@ from gpiozero import DigitalOutputDevice, DigitalInputDevice
 # from gpiozero.pins.lgpio import LGPIOFactory
 from PinAPI.PinModels import PinModel
 from homeassistant_api import Client
+# from PinAPI.Binder import Binder
+from durable.lang import post
+from PinAPI.DataStore import DataStore
 
  
 class Pin(object):
-    def __init__(self, config:PinModel):
+    def __init__(self, config:PinModel, datastore:DataStore):
         """
         Initialiseer the Pin class.
 
@@ -24,14 +27,15 @@ class Pin(object):
         pin (int): Het pin nummer.
         ptype (str): Het type pin.
         """
-        self.config = config
+        self.config:PinModel = config
         self.pin_device = None
-        self.value = 0 
+        # self.value = 0 
 
         self.rate = 0 
         self.last_changed = time.monotonic()
         self.pw = {}
         self.HASS_interface = None
+        self.datastore = datastore
         
         self.logger = logging.getLogger("pin_{}_{}".format(self.config.ptype, self.config.pin))
         self.logger.info('Configuring pin {}.'.format(self.config.pin))
@@ -56,6 +60,12 @@ class Pin(object):
         """
         pass
 
+    def on(self, **kwargs) -> bool:
+        return False
+
+    def off(self, **kwargs) -> bool:
+        return False
+
     def ProcessPinUpdate(self, config:PinModel) -> bool:
         """
         Process the new optained value of the pin configuration. Gennerally 
@@ -77,7 +87,9 @@ class Pin(object):
         Returns:
         dict: The current value of the pin.
         """
-        return {"is_active": False}
+
+        res = bool(self.pin_device.value)
+        return {"is_active": res}
 
     def calback(self):
         """

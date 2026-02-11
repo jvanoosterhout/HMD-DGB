@@ -18,11 +18,19 @@ from PinAPI.PinModels import *
 import paho.mqtt.client as mqtt
 from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
 import json
+from PinAPI.PinKeeper import PinKeeper
+from PinAPI.Binder import Binder
+from PinAPI.PinModels import *
+from PinAPI.PinModels import *
+from PinAPI.Binder import Binder
+from PinAPI.DataStore import DataStore
+
 
 logging.basicConfig(level='INFO')
 
 class Pin_mqtt:
     def __init__(self, name:str, broker:str="", port:int=1883, topic:str=None, username:str="me", password:str="secret", pin_pw_list:dict={}):
+        
         self.name = name
         self.broker = broker
         self.port = port
@@ -42,62 +50,84 @@ class Pin_mqtt:
         self.cpu_percentage_sensor = None
         self.memory_usage_sensor = None
 
-
-        # self.pin_keeper = PinKeeper(api_url="api_url", token="token", pin_pw_list=pin_pw_list)
-
         self.logger = logging.getLogger("{}_log".format(self.name))
         self.logger.info('starting {}'.format(self.name))
 
         self.config_brokker()
         
-        self.devicekeeper = DeviceKeeper(self.mqtt_settings)
-        self.config_system_sensors()        
+        self.datastore = DataStore()
+        self.devicekeeper = DeviceKeeper(self.mqtt_settings, datastore=self.datastore)
+        self.pinkeeper = PinKeeper(pin_pw_list=pin_pw_list, datastore=self.datastore)
+        self.binder = Binder(datastore=self.datastore)
+
+        # self.config_system_sensors()        
 
     def __del__(self):
         self.client.unsubscribe(self.config_topic)
         self.client.loop_stop()
         self.client.disconnect()
-        print("unscribed and disconnected")
+        self.logger.info("unscribed and disconnected")
         
     def config_brokker(self):
         def on_connect(client, userdata, flags, rc, properties):
-            logging.info('CONNACK received with code {}.'.format(rc))
+            self.logger.info('CONNACK received with code {}.'.format(rc))
 
         def on_disconnect(client, userdata, rc):
-
             FIRST_RECONNECT_DELAY = 10
             RECONNECT_RATE = 2
             MAX_RECONNECT_COUNT = 10000
             MAX_RECONNECT_DELAY = 600
 
-            logging.info("Disconnected with result code: {}".format(rc))
+            self.logger.info("Disconnected with result code: {}".format(rc))
             reconnect_count, reconnect_delay = 0, FIRST_RECONNECT_DELAY
             while reconnect_count < MAX_RECONNECT_COUNT:
-                logging.info("Reconnecting in %d seconds...", reconnect_delay)
+                self.logger.info("Reconnecting in %d seconds...", reconnect_delay)
                 time.sleep(reconnect_delay)
 
                 try:
                     client.reconnect()
-                    logging.info("Reconnected successfully!")
+                    self.logger.info("Reconnected successfully!")
                     return
                 except Exception as err:
-                    logging.error("%s. Reconnect failed. Retrying...", err)
+                    self.logger.info("%s. Reconnect failed. Retrying...", err)
 
                 reconnect_delay *= RECONNECT_RATE
                 reconnect_delay = min(reconnect_delay, MAX_RECONNECT_DELAY)
                 reconnect_count += 1
-            logging.info("Reconnect failed after %s attempts. Exiting...", reconnect_count)
-
+            self.logger.info("Reconnect failed after %s attempts. Exiting...", reconnect_count)
 
         def on_subscribe(client, userdata, mid, granted_qos, properties):
-            logging.info("Subscribed: "+str(mid)+" "+str(granted_qos))            
+            self.logger.info("Subscribed: "+str(mid)+" "+str(granted_qos))            
 
         def on_message(client, userdata, msg):
-            logging.info(msg.topic+" "+str(msg.qos)+" "+str(msg.payload))  
+            self.logger.info("new msg recieved on topic " + msg.topic)  
             if self.config_topic in msg.topic:
-                self.devicekeeper.new_device(json.loads(msg.payload.decode()))
-            else: 
-                logging.warning("Unknown topic '{}', skipping this configuration".format(msg.topic)) 
+                payload = json.loads(msg.payload.decode())
+                if "Devices" in payload: 
+                    self.devicekeeper.new_device(payload['Devices'])
+                else:
+                    self.logger.warning("No Devices in payload")
+                
+                if "Pins" in payload:
+                    for pin in payload["Pins"]:
+                        try:
+                            pin_model = PinModel(pin["PinInfo"])
+                        except ValidationError as e: # Exception as e
+                            raise self.logger.warning(str(e))
+                        
+                        self.logger.info('Posting new (value for) pin: {}'.format(pin_model))
+                        if self.pinkeeper.SetPin(pin_model): 
+                            self.logger.info("pin made succesfully")
+                        else:
+                            self.logger.info("total failure")
+                else:
+                    self.logger.warning("No Pins in payload")
+                if "Bindings" in payload: 
+                    for bind in payload['Bindings']: 
+                        self.binder.new_binding(bind['BindInfo'])
+                else:
+                    self.logger.warning("No Bindings in payload")
+                
 
         self.client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2,client_id=self.client_id, clean_session=True)
         self.client.on_connect = on_connect
@@ -110,7 +140,7 @@ class Pin_mqtt:
         self.client.publish("sys/{}/status".format(self.name),"online",0,retain=True)
         self.client.connect(self.broker, self.port)
         self.client.subscribe(self.config_topic + '#', qos=1)
-        logging.info("subscribed to toppic {}".format(self.config_topic))
+        self.logger.info("subscribed to toppic {}".format(self.config_topic))
 
         self.mqtt_settings = Settings.MQTT(client=self.client)
     
@@ -181,6 +211,6 @@ class Pin_mqtt:
         self.client.loop_start()
 
         while True:
-            self.update_system_sensors()
+            # self.update_system_sensors()
             time.sleep(60)
 

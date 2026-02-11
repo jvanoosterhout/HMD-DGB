@@ -8,8 +8,8 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_in(Pin):
-    def __init__(self, config:PinModel):
-        super().__init__(config=config)
+    def __init__(self, config:PinModel, datastore:DataStore):
+        super().__init__(config=config, datastore=datastore)
 
 
     def HasSameConfig(self, config:PinModel) -> bool:
@@ -40,8 +40,8 @@ class Pin_in(Pin):
         """
         self.pin_device = DigitalInputDevice(pin = self.config.pin, 
                                              pull_up = self.config.pull_up,
-                                             bounce_time = 0.01) #,
-                                            #  active_state = self.config.active_state, 
+                                             bounce_time = 0.01)
+                                            #  active_state = self.config.active_state) #
                                             #  pin_factory = LGPIOFactory(chip=0))
         self.pin_device.when_activated = self.calback
         self.pin_device.when_deactivated = self.calback
@@ -56,29 +56,17 @@ class Pin_in(Pin):
         - In case a webhook was provided, send a POST call to the Home Assistant API with the current pin value.
         """
         value = self.pin_device.value
-        if not self.config.active_state:
-            value = int(not value == 1)
-        self.value = value
+        # if not self.config.active_state:
+        #     value = int(not value == 1)
+        # self.value = value
+        
+        self.logger.info("Pin {} is: {}".format(self.config.pin, value))
+        for rulset_name in self.datastore.get_bindings(str(self.config.pin)):
+            post(rulset_name, {"value": str(value)})
 
-        self.sendWebhook({"{}".format(self.config.webhook): self.value})
+        self.sendWebhook({"{}".format(self.config.webhook): value})
 
-        self.logger.info('pin {} has signal {}'.format(self.config.pin, self.value))
-
-    def GetPinValue(self) -> dict:
-        """
-        Get the current value of a pin.
-
-        Returns:
-        dict: The current value of the pin.
-        """
-        res = False
-        if isinstance(self.value, int):
-            res = bool(self.value)
-        elif isinstance(self.value, bool):
-            res = self.value
-        else: 
-            res = IOT_tools.strtobool(self.value)
-        return {"is_active": res}
+        self.logger.info('pin {} has signal {}'.format(self.config.pin, value))
     
     def ProcessPinUpdate(self, config:PinModel) -> bool:
         """
@@ -92,6 +80,6 @@ class Pin_in(Pin):
         Returns:
         bool: True if update succesful, otherwise False.
         """
-        self.logger.info('pin {} has signal {}'.format(self.config.pin, self.value))
+        self.logger.info('pin {} has signal {}'.format(self.config.pin, self.pin_device.value))
 
 

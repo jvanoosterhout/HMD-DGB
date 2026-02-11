@@ -20,7 +20,8 @@ setuptools.setup(
         "gpiozero==2.0.1",
         "lgpio==0.2.2.0",
         "homeassistant-api==5.0.2",
-        "ha-mqtt-discoverable==0.23.0"
+        "ha-mqtt-discoverable==0.23.0",
+        "durable-rules==2.0.28"
     ],
     extras_require={},
     classifiers=[

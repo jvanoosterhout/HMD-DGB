@@ -8,8 +8,8 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_count(Pin):
-    def __init__(self, config:PinModel):
-        super().__init__(config=config)
+    def __init__(self, config:PinModel, datastore:DataStore):
+        super().__init__(config=config, datastore=datastore)
         self.count_totaal = 0
         self.tijd_laatste_count = time.monotonic()
         self.count_laatste_blok = 0 
@@ -66,8 +66,10 @@ class Pin_count(Pin):
         """
         self.count_totaal = self.count_totaal + 1
         self.tijd_laatste_count = time.monotonic()
- 
+        
+        self.binder.execute_all(self.count_totaal)
         self.sendWebhook(self.GetPinValue())
+        
  
 
     def is_update_relevant(self):

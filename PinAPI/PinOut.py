@@ -8,7 +8,7 @@ Jeroen van Oosterhout, 15-07-2024
 from PinAPI.Pin import *
 
 class Pin_out(Pin):
-    def __init__(self, config:PinModel, is_PinNWayOut:bool=False):
+    def __init__(self, config:PinModel, datastore:DataStore, is_PinNWayOut:bool=False):
         """
         Initialiseer de Pin_out klasse met standaardwaarden.
 
@@ -16,7 +16,7 @@ class Pin_out(Pin):
         pin (int): Het pin nummer.
         ptype (str): Het type pin, moet "out" zijn.
         """
-        super().__init__(config=config)
+        super().__init__(config=config, datastore=datastore)
         self.is_PinNWayOut = is_PinNWayOut
 
     def HasSameConfig(self, config:PinModel) -> bool:
@@ -46,23 +46,38 @@ class Pin_out(Pin):
                                               active_high = self.config.active_state,
                                               initial_value = self.config.initial) #, 
                                             #  pin_factory = LGPIOFactory(chip=0))
+    
+    def blink(self, blink:int = None, is_PinNWayOut:bool=False) -> bool:
+        if self.is_PinNWayOut == is_PinNWayOut:
+            if blink is None  and self.blink is None:
+                self.logger.info('pin {} is has no blink configured'.format(self.config.pin))
+                return False
+            elif blink is not None:
+                on_time = blink
+            else :
+                on_time = self.blink
+            
+            self.pin_device.blink(on_time=on_time,
+                                    off_time=on_time, 
+                                    n=1,
+                                    background=True)
+            self.logger.info('pin {} has value {} for {} seconds'.format(self.config.pin, 1, on_time))
+            return True
+        return False 
+    
+    def on(self, is_PinNWayOut:bool=False) -> bool:
+        if self.is_PinNWayOut == is_PinNWayOut:
+            self.pin_device.on()
+            self.logger.info('pin {} is on'.format(self.config.pin))
+            return True
+        return False 
 
-    def GetPinValue(self) -> dict:
-        """
-        Get the current value of a pin.
-
-        Returns:
-        dict: The current value of the pin.
-        """
-        res = False
-        if isinstance(self.value, int):
-            res = bool(self.value)
-        elif isinstance(self.value, bool):
-            res = self.value
-        else: 
-            res = IOT_tools.strtobool(self.value)
-
-        return {"is_active": res}
+    def off(self, is_PinNWayOut:bool=False) -> bool:
+        if self.is_PinNWayOut == is_PinNWayOut:
+            self.pin_device.off()
+            self.logger.info('pin {} is off'.format(self.config.pin))
+            return True
+        return False 
     
     def ProcessPinUpdate(self, config:PinModel, is_PinNWayOut:bool=False) -> bool:
         """
@@ -78,24 +93,15 @@ class Pin_out(Pin):
         """
         if self.is_PinNWayOut == is_PinNWayOut: 
             if config.blink is not None:
-                self.pin_device.blink(on_time=config.blink,
-                                    off_time=config.blink, 
-                                    n=1,
-                                    background=True)
-                self.logger.info('pin {} has value {} for {} seconds'.format(self.config.pin, not(self.config.initial), config.blink))
+                return self.blink(blink = config.blink, is_PinNWayOut = is_PinNWayOut)
             else:
                 value = config.value
                 if not isinstance(value, int):
                     value = int(value)
-                self.value = value
-                if self.value:
-                    self.pin_device.on()
-                    self.logger.info('pin {} is on'.format(self.config.pin))
+                if value:
+                    return self.on(is_PinNWayOut)
                 else:
-                    self.pin_device.off()
-                    self.logger.info('pin {} is off'.format(self.config.pin))
-            
-            return True
+                    return self.off(is_PinNWayOut)
         return False 
     
 

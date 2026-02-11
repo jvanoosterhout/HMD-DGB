@@ -13,18 +13,21 @@ from PinAPI.PinNWayOut import Pin_N_way_out
 from PinAPI.Pin import Pin
 from PinAPI.Tools import IOT_tools
 from PinAPI.PinModels import is_pin_type, PinType, PinModel
+from PinAPI.DataStore import DataStore
 import logging
 import time
 from homeassistant_api import Client
 
 class PinKeeper(object):
-    def __init__(self, api_url:str="", token:str="secret",pin_pw_list:dict={}):
+    def __init__(self, datastore:DataStore, api_url:str="", token:str="secret",pin_pw_list:dict={}):
         """
         Initialize the PinKeeper class with default values.
         """
         self.PinPWList = pin_pw_list
         self.PinList: list[Pin] = []
+        # self.PinDict: dict[str, any] = {}
         self.logger = logging.getLogger("PinKeeper")
+        self.datastore = datastore
         logging.getLogger().setLevel(logging.INFO)
 
         if api_url == "":
@@ -157,21 +160,26 @@ class PinKeeper(object):
                 self.logger.warning('No password provided for pin {}, while this is required!'.format(config.pin))
                 return False
         if config.ptype is PinType.pinout.value:
-            P = Pin_out(config=config) 
+            P = Pin_out(config=config, datastore=self.datastore) 
+            self.datastore.add_pin(str(config.pin), P, {"on": P.on, "off": P.off, "blink": P.blink} )
         elif config.ptype is PinType.pinin.value:
-            P = Pin_in(config=config) 
+            P = Pin_in(config=config, datastore=self.datastore) 
+            self.datastore.add_pin(str(config.pin), P )
         elif config.ptype is PinType.pincount.value:
-            P = Pin_count(config=config) 
+            P = Pin_count(config=config, datastore=self.datastore) 
+            self.datastore.add_pin(str(config.pin), P )
         elif config.ptype is PinType.pinnwayout.value:
-            P = Pin_N_way_out(config=config) 
+            P = Pin_N_way_out(config=config, datastore=self.datastore) 
+            self.datastore.add_pin(str(config.pin), P, {"on": P.on, "off": P.off, "blink": P.blink} )
             for l in range(len(config.pin_list)):
                 if not config.pin_list[l] == config.pin and config.pin_list[l] >= 0:
                     sub_config = P.GenerateSubPinConfig(l)
                     self.logger.info('Configure sub pin {}.'.format(sub_config))
-                    N = Pin_out(config = sub_config, is_PinNWayOut = True)
+                    N = Pin_out(config = sub_config, is_PinNWayOut = True, datastore=self.datastore)
                     N.ConfigurePin()
                     P.Pins.append(N)
                     self.PinList.append(N)
+                    self.datastore.add_pin(str(sub_config.pin), N )
         else:
             return False
         if not self.HASS_interface is None:
@@ -184,6 +192,9 @@ class PinKeeper(object):
             self.logger.error("Could not set pin update")
         self.logger.info('Add pin {} to PinList'.format(P.config.pin))
         self.PinList.append(P)
+        # self.PinDict[str(sub_config.pin)]["pin"] = P
+        self.logger.info(self.datastore.pins_objects)
+        self.logger.info(self.datastore.get_pin(str(P.config.pin)).config)
         self.logger.info('Pin {} added to PinList.'.format(P.config.pin))
         return True
 

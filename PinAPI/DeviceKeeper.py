@@ -11,8 +11,9 @@ import time
 from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
 import json
 from paho.mqtt.client import Client, MQTTMessage
-from durable.lang import post
+from durable.lang import post, get_state
 from PinAPI.DataStore import DataStore
+from PinAPI.Binder import post_event
 
 logging.basicConfig(level='INFO')   
 
@@ -82,9 +83,7 @@ class DeviceKeeper(object):
             payload = message.payload.decode()
             self.logger.info("turn cover {}: {}".format(device._entity.unique_id, payload))
             
-            for rulset_name in self.datastore.get_bindings(device._entity.unique_id):
-                self.logger.info("posting event to ruleset {}: {}".format(rulset_name, payload))    
-                post(rulset_name, {"value": payload.lower()})
+            post_event(device._entity.unique_id, payload, self.datastore, self.logger)
 
             if payload == "OPEN":
                 device.opening()
@@ -118,9 +117,7 @@ class DeviceKeeper(object):
             payload = message.payload.decode()
             self.logger.info("turn switch {}: {}".format(device._entity.unique_id, payload))
             
-            for rulset_name in self.datastore.get_bindings(device._entity.unique_id):
-                self.logger.info("posting event to ruleset {}: {}".format(rulset_name, payload))    
-                post(rulset_name, {"value": payload.lower()})
+            post_event(device._entity.unique_id, payload, self.datastore, self.logger)
 
             if payload == "ON":
                 # turn_my_custom_thing_on()

@@ -1,4 +1,4 @@
-# GPIOpinAPI
+# HMD-DGC ha-mqtt-discoverable-device-gpio-configurator
 
 ## Overview
 GPIOpinAPI is a Python package designed to simplify the interaction with GPIO pins on a **Raspberry Pi** from another system (specifically Home Assistant, though not limited to it) via REST calls. 

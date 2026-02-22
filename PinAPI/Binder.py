@@ -9,9 +9,10 @@ This means that one device has multple binders: one per trigger.
 
 Jeroen van Oosterhout, 24-01-2026
 """
+import copy
 import logging
 # dynamic_rules.py
-from durable.lang import ruleset, when_all, when_any, m, c, s, any, all, post, get_host, get_state, timeout, update_state  # Durable Python DSL
+from durable.lang import ruleset, when_all, when_any, m, c, s, any, all, none, post, get_host, get_state, timeout, update_state, assert_fact, retract_fact, value  # Durable Python DSL
 # import yaml
 import json
 from typing import Any, Dict, Callable
@@ -31,30 +32,38 @@ class pintest():
         return True
 
 def post_event(unique_id, payload: dict, datastore: DataStore, logger: logging.Logger):
-        for rulset_name in datastore.get_bindings(unique_id):
-            logger.info("posting event to ruleset {}: {}".format(rulset_name, payload))    
-            post(rulset_name, payload)
+        for ruleset in datastore.get_bindings(unique_id):
+            logger.info("posting event to ruleset {}: {}".format(ruleset["name"], payload))   
+            rule_state = get_host().get_ruleset(ruleset["name"]).get_definition()
+            if ruleset["timeout"]:
+                assert_fact(ruleset["name"], payload) 
+            else:          
+                post(ruleset["name"], payload)    
+            # post(ruleset["name"], payload)
+
             
         time.sleep(0.1)  # wait a bit for rules to process the event and set return_value in state
-        time_out = 1
+        time_out = 2
         succes_array = []
-        for ruleset_name in datastore.get_bindings(unique_id):
+        for ruleset in datastore.get_bindings(unique_id):
             returend = False
             now = time.time()
             while not returend and (time.time() - now < time_out):
-                rule_state = get_state(ruleset_name)
-                logger.info("state of ruleset {}: {}".format(ruleset_name, rule_state))
+                rule_state = get_state(ruleset["name"])
+                logger.info("state of ruleset {}: {}".format(ruleset["name"], rule_state))
                 if 'return_value' in rule_state:
                     state = rule_state["return_value"]["value"] 
                     if state == "pending":
-                         logger.info("rule {} is still pending, waiting...".format(ruleset_name))
+                         logger.info("rule {} is still pending, waiting...".format(ruleset["name"]))
                          time.sleep(0.5)
                          pass
                     returend = True
                     succes_array.append(state )
                     del rule_state["return_value"]
-                    update_state(ruleset_name, rule_state)  # clear return_value after reading
+                    update_state(ruleset["name"], rule_state)  # clear return_value after reading
                 time.sleep(0.5)  # wait a bit before checking again
+            # if ruleset["timeout"]: #TODO: make function in separate thread, such that multiple events can be posted simultaneously without blocking each other, and timeouts can be handled more robustly
+            #     retract_fact(ruleset["name"], payload)  # clean up the fact after processing
         
         logger.info("final state after posting to rulesets {}: {}".format(datastore.get_bindings(unique_id), succes_array))
 
@@ -64,7 +73,7 @@ def build_action(rules: dict, logger: logging.Logger, datastore: DataStore):
         for rule_name, rule_def in rules.items():
             # identify the fired rule to find the right action to execute (in case of multiple rules in one ruleset)
             if not getattr(c.s, "value_store") is None:
-                logger.info(c.s)
+                # logger.info(c.s)
                 rule_identifier = c.s.value_store
                 def_identifier = rule_def.get("when").get("all")[0].get("m")
             elif isinstance(rule_def.get("when").get("all"), list):
@@ -106,76 +115,59 @@ class Binder:
             if self.devices_and_calls_exist(bind):
             
                 self.logger.info("creating binding '{}' with ruleset: {}".format(ruleset_name, bind["rulesets"]))
-                self.set_rule(ruleset_name, bind["rulesets"])
+                self.set_rule(ruleset_name, bind["rulesets"], bind["timeout"] if "timeout" in bind else 0)
                 for dev in bind["with"]:
-                    self.datastore.add_binding(dev, ruleset_name)
+                    self.datastore.add_binding(dev, ruleset_name, True if "timeout" in bind and bind["timeout"] else False)
             else:
                 self.logger.warning("Invalid binding configuration, device(s) or call(s) not found for: {}".format(bind))
         else:
             self.logger.warning("Invalid binding configuration, missing 'with' or 'rulesets' key: {}".format(bind))
 
-    def set_rule(self, ruleset_name: str, rules: dict):
+    def set_rule(self, ruleset_name: str, rules: dict, timeout_sec: int = 0):
         with ruleset(ruleset_name): 
+            all_condition_for_negate: list[value] = []
             for rule_name, rule_def in rules.items(): 
                 self.logger.info("building rule: {}".format(rule_name))
                 condition = self.build_condition(rule_def.get("when").get("all"))
-
+                if isinstance(condition, list):
+                    for cond in condition:
+                        rebuilt_cond = value(vtype=cond._type, left=cond._left, op=cond._op, right=cond._right)
+                        
+                        print(rebuilt_cond.__dict__)
+                        all_condition_for_negate.append(rebuilt_cond)
+                else:
+                    print(type(condition))
+                    all_condition_for_negate.append(condition)
+                
                 action = build_action(rules, self.logger, self.datastore)
                                
                 if isinstance(condition, list):
-                    if False: 
-                        @when_all(*condition)
-                        def action_handler(c):
-                            c.s.return_value = {"value": "pending"}
-                            action(c)
+                    @when_all(*condition)
+                    def action_handler(c):
+                        self.logger.info("all conditions met, executing action")
+                        c.s.return_value = {"value": "pending"}
+                        action(c)
+                        if timeout_sec > 0:
+                            for cond in condition:
+                                retract_fact(ruleset_name=ruleset_name, fact={"value": cond._right}) 
 
-                    else: 
-                        seen_list = None
-                        for cond in list(condition):
-                            # print(cond.__dict__)
-                            part = getattr(s, f"seen_{cond.__dict__['alias']}") == cond.__dict__['_right']
-                            seen_list = part if seen_list is None else (seen_list & part)
-                            
-                            @when_all(cond)
-                            def action_handler(c):
-                                bound = {
-                                    name: getattr(c, name)
-                                    for name in self._BIND_NAMES
-                                    if getattr(c, name, None) is not None
-                                }
-
-                                for name, msg in bound.items():
-                                    print(name, msg)
-                                setattr(c.s, f"seen_{name}", msg['value'])  
-
-                                self.logger.info("started timer")
-                                c.s.return_value = {"value": "pending"}
-                                # raise "start_timer"  # signal to start timer
-                                c.start_timer('MyTimer', 3)
-                                         
-                        @when_all(seen_list)
-                        def action_handler(c):
-                            self.logger.info("all conditions met, executing action")   
-                            c.cancel_timer('MyTimer')  # cancel timer if it's still running 
-                            value = c.s.seen_first
-                            for name in self._BIND_NAMES: 
-                                if getattr(c.s, f"seen_{name}", None) is not None:
-                                    setattr(c.s, f"seen_{name}", None)  # clear state to prevent stale data
-                            
-                            c.s.value_store = {"value": value}
-                            action(c)
-                            c.s.value_store = None
-                            c.s.return_value = {"value": "True"}
-
-                        @when_all(timeout('MyTimer'))
-                        def timer(c):
-                            # self.logger.info(dict(c.s.__dict__))
-                            for name in self._BIND_NAMES: 
-                                if getattr(c.s, f"seen_{name}", None) is not None:
-                                    setattr(c.s, f"seen_{name}", None)  # clear state to prevent stale data
-                            c.s.return_value = {"value": "False"}
-                            self.logger.info('timer timeout')
-
+                    # if timeout_sec == 0:
+                    #     @when_all(*condition)
+                    #     def action_handler(c):
+                    #         self.logger.info("all conditions met, executing action")
+                    #         c.s.return_value = {"value": "pending"}
+                    #         action(c)
+                    # else:
+                    #     assert_cond = None
+                    #     for cond in condition:
+                    #         plain_cond = value(vtype=cond._type, left=cond._left, op=cond._op, right=cond._right)
+                    #         assert_cond = plain_cond if assert_cond is None else assert_cond & plain_cond
+                    #     @when_all(assert_cond)
+                    #     def action_handler(c):
+                    #         self.logger.info("all conditions met, executing action")
+                    #         c.s.return_value = {"value": "pending"}
+                    #         action(c)
+                
                 else:
                     @when_all(condition)
                     def action_handler(c):
@@ -185,12 +177,18 @@ class Binder:
                 
             @when_all(+s.exception)
             def action_handler(c):
-                print("caught an unregistered event: {}".format(c.s.exception))
+                self.logger.error("caught an exception: {}".format(c.s.exception))
                 c.s.exception = None
-
-            @when_all(+m.value)
-            def action_handler(c):
-                print("caught an unregisterd event: '{}'".format(c.m))
+            # all_cond = None
+            # for cond in (all_condition_for_negate):
+            #         print(type(cond))
+            #         cond = none(cond)
+            #         self.logger.info("condition for negate: {}".format(cond.__dict__))
+            #         all_cond = (cond) if all_cond is None else all_cond & cond
+            # @when_all((all_cond))
+            # def action_handler(c):
+            #     self.logger.error("caught an unregistered event: '{}'".format(c.m))
+            
                 
 
                     
@@ -219,7 +217,7 @@ class Binder:
     #         condition.append(getattr(s, f"seen_{self._BIND_NAMES[i]}") << self.build_m_expr(clause["m"]))
     #     return condition
 
-    def build_condition(self, all_clause: dict|list):
+    def build_condition(self, all_clause: dict|list): 
         """
         Supports:
         - {"m": {...}}  (single-event)
@@ -233,7 +231,9 @@ class Binder:
 
         # Case 2: multi-event style (partial match): [{"m": {...}}, {"m": {...}}, ...]
         if isinstance(all_clause, list):
+            events = []
             condition = []
+
             for i, clause in enumerate(all_clause):
                 self.logger.info("building sub-condition {} for multi-event clause: {}".format(i, all_clause))
                 if not isinstance(clause, dict) or "m" not in clause:
@@ -241,12 +241,15 @@ class Binder:
                 if i >= len(self._BIND_NAMES):
                     raise ValueError("Too many partial clauses; extend _BIND_NAMES")
                 condition.append(getattr(c, self._BIND_NAMES[i]) << self.build_m_expr(clause["m"]))
-            return condition
+                # print(clause)
+                # condition.append(self.build_m_expr(clause["m"]))
+                # print(condition[-1].__dict__)
+            return  condition #, events
         
         raise ValueError(f"Unsupported 'all' clause format: {all_clause}")
 
 
-    def build_m_expr(self, m_dict: dict):
+    def build_m_expr(self, m_dict: dict) -> value:
         """Builds an AND expression for fields inside a single message."""
         # {"type": "greeting", "phrase": "hello"}
         expr = None

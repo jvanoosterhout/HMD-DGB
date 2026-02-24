@@ -20,10 +20,10 @@ class DataStore:
         self.pins_functions[unique_id] = functions or {}
         self.logger.info("added pin {} with functions {}".format(unique_id, functions if functions else []))
     
-    def add_binding(self, device_id:str, ruleset_name:str, has_timeout:bool=False):
+    def add_binding(self, device_id:str, ruleset_name:str, time_out:int=0):
         if device_id not in self.bindings:
             self.bindings[device_id] = []
-        self.bindings[device_id].append({"name": ruleset_name, "timeout": has_timeout})
+        self.bindings[device_id].append({"name": ruleset_name, "time_out": time_out})
         self.logger.info("added binding for device {} to ruleset {}".format(device_id, ruleset_name))
     
     def get_device(self, unique_id:str):

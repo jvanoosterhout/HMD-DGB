@@ -20,6 +20,7 @@ from typing import Any, Dict, Callable
 from PinAPI.DataStore import DataStore
 import time
 import threading
+from collections.abc import Mapping, Sequence
 
 class pintest():
     def __init__(self, id: str):
@@ -27,84 +28,143 @@ class pintest():
 
     def on(self, t="-" ):
         print("{} is on with t={}".format(self.id, t))
+        # t.x 
         return True
 
     def off(self, t="-" ):
         print("{} is off with t={}".format(self.id, t))
         return True
 
+def iter_parents(tree, child_key, path=()):
+    """
+    Yield tuples (path, run_value) where path shows how to reach the dict containing 'run'.
+    Path elements are dict keys or list indices.
+    """
+    # print(isinstance(tree, Mapping))
+    if isinstance(tree, Mapping):
+        if child_key in tree:
+            yield (path + (child_key,), tree)
+
+        for k, v in tree.items():
+            yield from iter_parents(v, child_key, path + (k,))
+    
+    elif isinstance(tree, Sequence) and not isinstance(tree, (str, bytes, bytearray)):
+        for i, item in enumerate(tree):
+            yield from iter_parents(item, child_key, path + (i,))
+
+
 def post_event(unique_id, payload: dict, datastore: DataStore, logger: logging.Logger):
         for ruleset in datastore.get_bindings(unique_id):
             logger.info("posting event to ruleset {}: {}".format(ruleset["name"], payload))   
-            rule_state = get_host().get_ruleset(ruleset["name"]).get_definition()
-            
-            payload["any"] = True
+            # rule_state = get_host().get_ruleset(ruleset["name"]).get_definition()
+            # print 
+            # payload["any"] = True
             try: 
-                if ruleset["time_out"]:
-                    post(ruleset["name"], {"time_out": ruleset["time_out"], "ruleset": ruleset["name"], "fact": payload})
-                    assert_fact(ruleset["name"], payload) 
-                    # TODO: post event that sets timer to retract fact in payload after ruleset["timeout"]
-                else:          
-                    post(ruleset["name"], payload) 
+                # if ruleset["time_out"]:
+                #     post(ruleset["name"], {"time_out": ruleset["time_out"], "ruleset": ruleset["name"], "fact": payload})
+                #     assert_fact(ruleset["name"], payload) 
+                # else:          
+                #     post(ruleset["name"], payload) 
+                post(ruleset["name"], payload) 
             
             except MessageNotHandledException as e:
                     # print(type(e))
-                    logger.error("Unmatched event (You can ignore key and value 'any': True): {}".format(e.message))
+                    logger.error("Unmatched event: {}".format(e.message))
 
-def start_timer(time, callback):
-    timer = threading.Timer(time, callback)
-    timer.daemon = True    
-    timer.start()
+# def start_timer(time, callback):
+#     timer = threading.Timer(time, callback)
+#     timer.daemon = True    
+#     timer.start()
             
-        # time.sleep(0.1)  # wait a bit for rules to process the event and set return_value in state
-        # time_out = 2
-        # succes_array = []
-        # for ruleset in datastore.get_bindings(unique_id):
-        #     returend = False
-        #     now = time.time()
-        #     while not returend and (time.time() - now < time_out):
-        #         rule_state = get_state(ruleset["name"])
-        #         logger.info("state of ruleset {}: {}".format(ruleset["name"], rule_state))
-        #         if 'return_value' in rule_state:
-        #             state = rule_state["return_value"]["value"] 
-        #             if state == "pending":
-        #                  logger.info("rule {} is still pending, waiting...".format(ruleset["name"]))
-        #                  time.sleep(0.5)
-        #                  pass
-        #             returend = True
-        #             succes_array.append(state )
-        #             del rule_state["return_value"]
-        #             update_state(ruleset["name"], rule_state)  # clear return_value after reading
-        #         time.sleep(0.5)  # wait a bit before checking again
+def build_error_handler(_rule_set_name: str, _logger: logging.Logger):
+    def error_handler(c):
+        _logger.error("caught an exception: {}".format(c.s.exception))
+        c.s.exception = None
+    error_handler.__name__ = f"error_handler__{_rule_set_name}"
+    return error_handler
 
-        # logger.info("final state after posting to rulesets {}: {}".format(datastore.get_bindings(unique_id), succes_array))
+def build_condition_handler(_path :list, _run_parent:dict|list, _logger: logging.Logger, _datastore:DataStore):
+    _rule_name = _path[0]
+    _run_path = _path[1]
+    if isinstance(_run_parent, list):
+        pass
+    else:
+        action = build_action(_run_path, _run_parent, _logger, _datastore)
+    def condition_handler(c):
+        c.s.return_value = {"value": "pending"}
+        action(c)
+    condition_handler.__name__ = f"handler__{_rule_name}"
+    return condition_handler
 
-def build_action(rules: dict, logger: logging.Logger, datastore: DataStore):
-    def action(c): 
-        # Look up the Python function by name 
-        for rule_name, rule_def in rules.items():
-            # identify the fired rule to find the right action to execute (in case of multiple rules in one ruleset)
-            if isinstance(rule_def.get("when").get("all"), list):
-                rule_identifier = rule_def.get("when").get("all")[0].get("m")  # assuming the first condition has a discriminative "value" field
-                input_identifier = c.first  # the value from the first event
-            else:
-                rule_identifier = rule_def.get("when").get("all").get("m")  # assuming a single condition with "m"
-                input_identifier = c.m  # the value from the event
-            logger.info("checking rule '{}' with condition value '{}' against event value '{}'".format(rule_name, rule_identifier, input_identifier))
-            
-            if rule_identifier.get("value") == input_identifier["value"]: 
-                # call function and send the posted event
-                logger.info("triggering action {} of device {}".format(rule_def.get("run").get("call"), rule_def.get("run").get("id")))
-                action_function = datastore.get_functions(rule_def.get("run").get("id")).get(rule_def.get("run").get("call"))
-                # todo: check if action fuction consumes arguments and call accordingly
+def build_action(rule_name: str, run_def: dict, logger: logging.Logger, datastore:DataStore):
+    # capture everything in the closure
+    device_id = run_def.get("id")
+    call_name = run_def.get("call")
 
-                state = action_function()
-                c.s.return_value = {"value": True if state is None or state else False}
-                return 
-            
-        logger.warning("failed to trigger action for {}".format(c.m))
-    
+    def action(c, _rule_name=rule_name, _device_id=device_id, _call_name=call_name):
+        logger.info("rule fired: %s", _rule_name)
+        action_function = datastore.get_functions(_device_id).get(_call_name)
+        if action_function is None:
+            logger.warning("no action function '%s' for device '%s'", _call_name, _device_id)
+            return
+        result = action_function()  
+        c.s.return_value = { "value": True if result is None else bool(result) }
+    # give it a stable name for debugging
+    action.__name__ = f"action__{rule_name}"
     return action
+
+# def build_event_handler(_rule_name: str, _action:callable, _logger: logging.Logger):
+#     def event_handler(c):
+#         _logger.info("all conditions met for rule '{}', executing action".format(_rule_name))
+#         c.s.return_value = {"value": "pending"}
+#         _action(c)
+#     event_handler.__name__ = f"handler__{_rule_name}"
+#     return event_handler
+
+# def build_action_for_rule(rule_name: str, rule_def: dict, logger: logging.Logger, datastore:DataStore):
+#     # capture everything in the closure
+#     device_id = rule_def.get("run", {}).get("id")
+#     call_name = rule_def.get("run", {}).get("call")
+
+#     def action(c, _rule_name=rule_name, _device_id=device_id, _call_name=call_name):
+#         logger.info("rule fired: %s", _rule_name)
+#         action_function = datastore.get_functions(_device_id).get(_call_name)
+#         if action_function is None:
+#             logger.warning("no action function '%s' for device '%s'", _call_name, _device_id)
+#             return
+#         result = action_function()  
+#         c.s.return_value = { "value": True if result is None else bool(result) }
+#     # give it a stable name for debugging
+#     action.__name__ = f"action__{rule_name}"
+#     return action
+
+
+# def build_action(rules: dict, logger: logging.Logger, datastore: DataStore):
+#     def action(c): 
+#         # Look up the Python function by name 
+#         for rule_name, rule_def in rules.items():
+#             # identify the fired rule to find the right action to execute (in case of multiple rules in one ruleset)
+#             if isinstance(rule_def.get("when").get("all"), list):
+#                 rule_identifier = rule_def.get("when").get("all")[0].get("m")  # assuming the first condition has a discriminative "value" field
+#                 input_identifier = c.first  # the value from the first event
+#             else:
+#                 rule_identifier = rule_def.get("when").get("all").get("m")  # assuming a single condition with "m"
+#                 input_identifier = c.m  # the value from the event
+#             logger.info("checking rule '{}' with condition value '{}' against event value '{}'".format(rule_name, rule_identifier, input_identifier))
+            
+#             if rule_identifier.get("value") == input_identifier["value"]: 
+#                 # call function and send the posted event
+#                 logger.info("triggering action {} of device {}".format(rule_def.get("run").get("call"), rule_def.get("run").get("id")))
+#                 action_function = datastore.get_functions(rule_def.get("run").get("id")).get(rule_def.get("run").get("call"))
+#                 # todo: check if action fuction consumes arguments and call accordingly
+
+#                 state = action_function()
+#                 c.s.return_value = {"value": True if state is None or state else False}
+#                 return 
+            
+#         logger.warning("failed to trigger action for {}".format(c.m))
+    
+#     return action
 
 
 class Binder:
@@ -113,7 +173,86 @@ class Binder:
         self.datastore = datastore
         self._BIND_NAMES = ["first", "second", "third", "fourth", "fifth", "sixth"]
 
+    def devices_and_calls_exist(self, bind: dict) -> bool:
+        for ruleset in bind.keys():
+            for rule_name in bind[ruleset].keys():
+                # print("checking:", ruleset, rule_name, bind[ruleset][rule_name])
+                rule_def = bind[ruleset][rule_name]
+                if "run" not in rule_def:
+                    self.logger.warning("Missing 'run' definition in rule '{}' of ruleset '{}'".format(rule_name, rule_def))
+                    return False                
+                if "all" not in rule_def and "any" not in rule_def:
+                    self.logger.warning("Missing 'all|any' definition in rule '{}' of ruleset '{}'".format(rule_name, rule_def))
+                    return False
+                
+                run_def = rule_def["run"]
+                if isinstance(run_def, list):
+                    for run in run_def:
+                        if not self.check_call(run, rule_name):
+                            return False
+                else:
+                    if not self.check_call(run_def,rule_name):
+                        return False
+                
+                if "time_out" in bind:
+                    if (not isinstance(bind["time_out"], int) or bind["time_out"] < 0):
+                        self.logger.warning("Invalid 'time_out' value in binding: {}".format(bind["time_out"]))
+                        return False
+        return True
+
+    def check_call(self, run_def:dict|list, rule_name:str) -> bool:
+        if "id" not in run_def or "call" not in run_def:
+            self.logger.warning("Missing 'id' or 'call' in 'run' definition of rule '{}' of ruleset '{}'".format(rule_name, run_def))
+            return False
+        
+        device_id = run_def.get("id")
+        functions = self.datastore.get_functions(device_id)
+        if not functions:
+            self.logger.warning("Device '{}' not found in datastore for rule '{}' of ruleset '{}'".format(device_id, rule_name, run_def))
+            return False
+        
+        call_name = run_def.get("call")
+        if call_name not in functions:
+            self.logger.warning("Call '{}' not found for device '{}' in datastore for rule '{}' of ruleset '{}'".format(call_name, device_id, rule_name, run_def))
+            return False
+        return True
+
     def new_binding(self, bind: dict):
+        if not self.devices_and_calls_exist(bind):
+            return
+
+
+        # store bindings such that devices (listed by "id" in "all") can find the rulesets to post messages to 
+        for path, all_parent in iter_parents(bind, "all"):
+            for id_path, id_parent in iter_parents(all_parent['all'], 'id'): 
+                # print("id", path, id_parent['id'])
+                if id_parent['id'] not in self.datastore.devices_objects and id_parent['id'] not in self.datastore.pins_objects:
+                    self.logger.warning("Device '{}' not found in datastore for binding: {}".format(id_parent['id'], bind))
+                    return
+                self.datastore.add_binding(id_parent['id'], path[0])
+
+        # build the condition handler with the action(s) defined in "run"
+        for path, run_parent in iter_parents(bind, "run"):
+            # print("run", path, run_parent['run'])
+            run_parent['run'] = build_condition_handler(path, run_parent['run'], self.logger, self.datastore)
+
+        # add an error hendler event to catch e.g. action errors. 
+        for ruleset in bind.keys():
+            bind[ruleset]['error_handle'] = {
+            "all": [{"m": {"$and": [
+                                    { "$ex": {"exception": 1}},
+                                    { "$s": 1 }  
+                                    ]}}],
+            "run":   build_error_handler(ruleset, self.logger )
+        }
+
+        get_host().set_rulesets(bind)
+        # for path, run_parent in iter_parents(bind, "all"):
+        #     if isinstance(run_parent['all'], list):
+        #         for rule in run_parent['all']:
+        #             pass
+        return
+
         if "with" in bind and "rulesets" in bind:
             ruleset_name = bind["ruleset_name"] if "ruleset_name" in bind else "ruleset_{}".format(len(self.datastore.bindings))
 
@@ -128,138 +267,96 @@ class Binder:
         else:
             self.logger.warning("Invalid binding configuration, missing 'with' or 'rulesets' key: {}".format(bind))
 
-    def set_rule(self, ruleset_name: str, rules: dict, time_out: int = 0):
-        conditions = []
-        with ruleset(ruleset_name): 
-            for rule_name, rule_def in rules.items(): 
-                self.logger.info("building rule: {}".format(rule_name))
-                condition = self.build_condition(rule_def.get("when").get("all"))
-                action = build_action(rules, self.logger, self.datastore)
+    # def set_rule(self, ruleset_name: str, rules: dict, time_out: int = 0):
+    #     conditions = []
+    #     # build actions
+    #     actions = {}
+    #     for rule_name, rule_def in rules.items(): 
+    #         actions[rule_name] = build_action_for_rule(rule_name, rule_def, self.logger, self.datastore)
 
-                if isinstance(condition, list):
-                    for cond in condition: 
-                        conditions.append(cond) 
-                else: 
-                    conditions.append(condition) 
+    #     with ruleset(ruleset_name): 
+    #         for rule_name, rule_def in rules.items(): 
+    #             self.logger.info("building rule: {}".format(rule_name))
+    #             condition = self.build_condition(rule_def.get("when").get("all"))
+    #             action = actions[rule_name]
+    #             # action = build_action(rules, self.logger, self.datastore)
 
-                if isinstance(condition, list):
-                    @when_all(*condition)
-                    def action_handler(c):
-                        self.logger.info("all conditions met, executing action")
-                        c.s.return_value = {"value": "pending"}
-                        action(c)
-                        if time_out > 0:
-                            c.cancel_timer('timer')
-                            for cond in conditions:
-                                retract_fact(ruleset_name=ruleset_name, fact={"value": cond._right, "any": True}) 
+    #             if isinstance(condition, list):
+    #                 for cond in condition: 
+    #                     conditions.append(cond) 
+    #             else: 
+    #                 conditions.append(condition) 
+
+    #             if isinstance(condition, list):
+    #                 event_handler = build_event_handler(_rule_name=rule_name, _action=action, _logger=self.logger)
+    #                 when_all(*condition)(event_handler)
                     
-                    if time_out > 0:
-                        @when_all(+m.time_out)
-                        def set_timer(c):
-                            self.logger.info("starting timeout timer for rule '{}' with time_out {} seconds".format(rule_name, time_out))
-                            # print(type(c.m.time_out))
-                            # c.start_timer('MyTimer', 5)
-                            c.start_timer("timer", int(c.m.time_out)) 
+    #                 if time_out > 0:
+    #                     @when_all(+m.time_out)
+    #                     def set_timer(c):
+    #                         self.logger.info("starting timeout timer for rule '{}' with time_out {} seconds".format(rule_name, time_out))
+    #                         c.start_timer("timer", int(c.m.time_out)) 
+    #             else:
 
-                else:
-                    @when_all(condition)
-                    def action_handler(c):
-                        c.s.return_value = {"value": "pending"}
-                        action(c)
+    #                 handler = build_condition_handler(_rule_name=rule_name, _action=action, _logger=self.logger)
+    #                 when_all(condition)(handler)
+                   
+    #         # Catch exceptions in rules and its actions
+    #         @when_all(+s.exception)
+    #         def action_handler(c):
+    #             self.logger.error("caught an exception: {}".format(c.s.exception))
+    #             c.s.exception = None
             
-            # Catch exceptions in rules and its actions
-            @when_all(+s.exception)
-            def action_handler(c):
-                self.logger.error("caught an exception: {}".format(c.s.exception))
-                c.s.exception = None
-            
-            if isinstance(condition, list) and time_out > 0:
-                @when_all(timeout("timer"))
-                def handle_time_out(c):
-                    self.logger.info("not all events arived withing the time_out time, retracting partial matches")
-                    for cond in conditions:
-                        retract_fact(ruleset_name=ruleset_name, fact={"value": cond._right, "any": True}) 
-            # Catch-all rule
-            # @when_all(+m.any)
-            # def fallback(c):
-            #     print(c.m)
-            #     self.logger.warning("Caught a multi-event or unmatched event: {}".format({"value": c.m.value}))
-            #     c.s.matched = False  # reset for next event
-            
-            
+    #         if isinstance(condition, list) and time_out > 0:
+    #             @when_all(timeout("timer"))
+    #             def handle_time_out(c):
+    #                 self.logger.info("not all events arived withing the time_out time, retracting partial matches")
+    #                 for cond in conditions:
+    #                     retract_fact(ruleset_name=ruleset_name, fact={"value": cond._right, "any": True}) 
+                       
 
-    def build_condition(self, all_clause: dict|list): 
-        """
-        Supports:
-        - {"m": {...}}  (single-event)
-        - [{"m":{...}}, {"m":{...}}] (multi-event / partial match)
-        Returns: (condition)
-        """
-        # Case 1: Single-event style: {"m": {...}}
-        if isinstance(all_clause, dict) and "m" in all_clause:
-            self.logger.info("building single-event condition: {}".format(all_clause))
-            return self.build_m_expr(all_clause["m"])
+    # def build_condition(self, all_clause: dict|list): 
+    #     """
+    #     Supports:
+    #     - {"m": {...}}  (single-event)
+    #     - [{"m":{...}}, {"m":{...}}] (multi-event / partial match)
+    #     Returns: (condition)
+    #     """
+    #     # Case 1: Single-event style: {"m": {...}}
+    #     if isinstance(all_clause, dict) and "m" in all_clause:
+    #         self.logger.info("building single-event condition: {}".format(all_clause))
+    #         return self.build_m_expr(all_clause["m"])
 
-        # Case 2: multi-event style (partial match): [{"m": {...}}, {"m": {...}}, ...]
-        if isinstance(all_clause, list):
-            events = []
-            condition = []
+    #     # Case 2: multi-event style (partial match): [{"m": {...}}, {"m": {...}}, ...]
+    #     if isinstance(all_clause, list):
+    #         events = []
+    #         condition = []
 
-            for i, clause in enumerate(all_clause):
-                self.logger.info("building sub-condition {} for multi-event clause: {}".format(i, all_clause))
-                if not isinstance(clause, dict) or "m" not in clause:
-                    raise ValueError(f"Invalid clause (missing 'm' or no dict): {clause}")
-                if i >= len(self._BIND_NAMES):
-                    raise ValueError("Too many partial clauses; extend _BIND_NAMES")
-                condition.append(getattr(c, self._BIND_NAMES[i]) << self.build_m_expr(clause["m"]))
-                # print(clause)
-                # condition.append(self.build_m_expr(clause["m"]))
-                # print(condition[-1].__dict__)
-            return  condition #, events
+    #         for i, clause in enumerate(all_clause):
+    #             self.logger.info("building sub-condition {} for multi-event clause: {}".format(i, all_clause))
+    #             if not isinstance(clause, dict) or "m" not in clause:
+    #                 raise ValueError(f"Invalid clause (missing 'm' or no dict): {clause}")
+    #             if i >= len(self._BIND_NAMES):
+    #                 raise ValueError("Too many partial clauses; extend _BIND_NAMES")
+    #             condition.append(getattr(c, self._BIND_NAMES[i]) << self.build_m_expr(clause["m"]))
+    #             # print(clause)
+    #             # condition.append(self.build_m_expr(clause["m"]))
+    #             # print(condition[-1].__dict__)
+    #         return  condition #, events
         
-        raise ValueError(f"Unsupported 'all' clause format: {all_clause}")
+    #     raise ValueError(f"Unsupported 'all' clause format: {all_clause}")
 
 
-    def build_m_expr(self, m_dict: dict) -> value:
-        """Builds an AND expression for fields inside a single message."""
-        # {"type": "greeting", "phrase": "hello"}
-        expr = None
-        for key, value in m_dict.items():
-            part = getattr(m, key) == value
-            expr = part if expr is None else (expr & part)
-        return expr
+    # def build_m_expr(self, m_dict: dict) -> value:
+    #     """Builds an AND expression for fields inside a single message."""
+    #     # {"type": "greeting", "phrase": "hello"}
+    #     expr = None
+    #     for key, value in m_dict.items():
+    #         part = getattr(m, key) == value
+    #         expr = part if expr is None else (expr & part)
+    #     return expr
     
-    def devices_and_calls_exist(self, bind: dict) -> bool:
-        for dev in bind["with"]:
-            if dev not in self.datastore.devices_objects and dev not in self.datastore.pins_objects:
-                self.logger.warning("Device '{}' not found in datastore for binding: {}".format(dev, bind))
-                return False
-        for rule_name, rule_def in bind["rulesets"].items():
-            if "run" not in rule_def:
-                self.logger.warning("Missing 'run' definition in rule '{}' of ruleset '{}'".format(rule_name, rule_def))
-                return False
-            
-            run_def = rule_def["run"]
-            if "id" not in run_def or "call" not in run_def:
-                self.logger.warning("Missing 'id' or 'call' in 'run' definition of rule '{}' of ruleset '{}'".format(rule_name, run_def))
-                return False
-            
-            device_id = run_def.get("id")
-            functions = self.datastore.get_functions(device_id)
-            if not functions:
-                self.logger.warning("Device '{}' not found in datastore for rule '{}' of ruleset '{}'".format(device_id, rule_name, run_def))
-                return False
-            
-            call_name = run_def.get("call")
-            if call_name not in functions:
-                self.logger.warning("Call '{}' not found for device '{}' in datastore for rule '{}' of ruleset '{}'".format(call_name, device_id, rule_name, run_def))
-                return False
-            
-            if "time_out" in bind:
-                if (not isinstance(bind["time_out"], int) or bind["time_out"] < 0):
-                    self.logger.warning("Invalid 'time_out' value in binding: {}".format(bind["time_out"]))
-                    return False
-        return True
+    
     
 
 if __name__ == "__main__":

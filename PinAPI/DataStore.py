@@ -23,8 +23,19 @@ class DataStore:
     def add_binding(self, device_id:str, ruleset_name:str, time_out:int=0):
         if device_id not in self.bindings:
             self.bindings[device_id] = []
+        for bind in self.bindings:
+            # print(self.bindings[bind])
+            # print(ruleset_name)
+            for rule in self.bindings[bind]:
+                # print(rule)
+                if 'name' in rule: 
+                    if rule['name'] == ruleset_name:
+                        self.logger.info("Device {} already had binding to ruleset {}".format(device_id, ruleset_name))
+                        return
         self.bindings[device_id].append({"name": ruleset_name, "time_out": time_out})
         self.logger.info("added binding for device {} to ruleset {}".format(device_id, ruleset_name))
+
+            
     
     def get_device(self, unique_id:str):
         return self.devices_objects.get(unique_id)

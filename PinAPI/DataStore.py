@@ -26,6 +26,7 @@ class DataStore:
         for bind in self.bindings:
             # print(self.bindings[bind])
             # print(ruleset_name)
+            ruleset_name = ruleset_name.split('$', 1)[0]
             for rule in self.bindings[bind]:
                 # print(rule)
                 if 'name' in rule: 

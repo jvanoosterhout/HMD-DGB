@@ -13,7 +13,7 @@ import copy
 import logging
 # dynamic_rules.py
 from durable.lang import ruleset, when_all, when_start, when_any, m, c, s, any, all, none, post, get_host, get_state, timeout, update_state, assert_fact, retract_fact, value  # Durable Python DSL
-from durable.engine import MessageNotHandledException
+from durable.engine import MessageNotHandledException, MessageObservedException
 # import yaml
 import json
 from typing import Any, Dict, Callable
@@ -21,6 +21,12 @@ from PinAPI.DataStore import DataStore
 import time
 import threading
 from collections.abc import Mapping, Sequence
+
+_event_names = ["first", "second", "third", "fourth", "fifth", "sixth"]
+
+def print_timer(c):
+    print("timer action")
+
 
 class pintest():
     def __init__(self, id: str):
@@ -70,6 +76,9 @@ def post_event(unique_id, payload: dict, datastore: DataStore, logger: logging.L
             except MessageNotHandledException as e:
                     # print(type(e))
                     logger.error("Unmatched event: {}".format(e.message))
+            except MessageObservedException as e:
+                    logger.error("Event has already been observed: {}".format(e.message))
+            # retract_fact(ruleset["name"], payload)
 
 # def start_timer(time, callback):
 #     timer = threading.Timer(time, callback)
@@ -92,6 +101,14 @@ def build_condition_handler(_path :list, _run_parent:dict|list, _logger: logging
         action = build_action(_run_path, _run_parent, _logger, _datastore)
     def condition_handler(c):
         c.s.return_value = {"value": "pending"}
+        for event_name in _event_names:
+            event = getattr(c, event_name)
+            if not event is  None:
+                
+
+                _logger.info("rule fired by {} with data {}".format(event_name, event ))
+                if hasattr(event, 'post_time'):
+                    _logger.info(getattr(c, 'post_time'))
         action(c)
     condition_handler.__name__ = f"handler__{_rule_name}"
     return condition_handler
@@ -113,65 +130,12 @@ def build_action(rule_name: str, run_def: dict, logger: logging.Logger, datastor
     action.__name__ = f"action__{rule_name}"
     return action
 
-# def build_event_handler(_rule_name: str, _action:callable, _logger: logging.Logger):
-#     def event_handler(c):
-#         _logger.info("all conditions met for rule '{}', executing action".format(_rule_name))
-#         c.s.return_value = {"value": "pending"}
-#         _action(c)
-#     event_handler.__name__ = f"handler__{_rule_name}"
-#     return event_handler
-
-# def build_action_for_rule(rule_name: str, rule_def: dict, logger: logging.Logger, datastore:DataStore):
-#     # capture everything in the closure
-#     device_id = rule_def.get("run", {}).get("id")
-#     call_name = rule_def.get("run", {}).get("call")
-
-#     def action(c, _rule_name=rule_name, _device_id=device_id, _call_name=call_name):
-#         logger.info("rule fired: %s", _rule_name)
-#         action_function = datastore.get_functions(_device_id).get(_call_name)
-#         if action_function is None:
-#             logger.warning("no action function '%s' for device '%s'", _call_name, _device_id)
-#             return
-#         result = action_function()  
-#         c.s.return_value = { "value": True if result is None else bool(result) }
-#     # give it a stable name for debugging
-#     action.__name__ = f"action__{rule_name}"
-#     return action
-
-
-# def build_action(rules: dict, logger: logging.Logger, datastore: DataStore):
-#     def action(c): 
-#         # Look up the Python function by name 
-#         for rule_name, rule_def in rules.items():
-#             # identify the fired rule to find the right action to execute (in case of multiple rules in one ruleset)
-#             if isinstance(rule_def.get("when").get("all"), list):
-#                 rule_identifier = rule_def.get("when").get("all")[0].get("m")  # assuming the first condition has a discriminative "value" field
-#                 input_identifier = c.first  # the value from the first event
-#             else:
-#                 rule_identifier = rule_def.get("when").get("all").get("m")  # assuming a single condition with "m"
-#                 input_identifier = c.m  # the value from the event
-#             logger.info("checking rule '{}' with condition value '{}' against event value '{}'".format(rule_name, rule_identifier, input_identifier))
-            
-#             if rule_identifier.get("value") == input_identifier["value"]: 
-#                 # call function and send the posted event
-#                 logger.info("triggering action {} of device {}".format(rule_def.get("run").get("call"), rule_def.get("run").get("id")))
-#                 action_function = datastore.get_functions(rule_def.get("run").get("id")).get(rule_def.get("run").get("call"))
-#                 # todo: check if action fuction consumes arguments and call accordingly
-
-#                 state = action_function()
-#                 c.s.return_value = {"value": True if state is None or state else False}
-#                 return 
-            
-#         logger.warning("failed to trigger action for {}".format(c.m))
-    
-#     return action
 
 
 class Binder:
     def __init__(self, datastore: DataStore):
         self.logger = logging.getLogger("Binder")
         self.datastore = datastore
-        self._BIND_NAMES = ["first", "second", "third", "fourth", "fifth", "sixth"]
 
     def devices_and_calls_exist(self, bind: dict) -> bool:
         for ruleset in bind.keys():
@@ -218,8 +182,8 @@ class Binder:
         return True
 
     def new_binding(self, bind: dict):
-        if not self.devices_and_calls_exist(bind):
-            return
+        # if not self.devices_and_calls_exist(bind):
+        #     return
 
 
         # store bindings such that devices (listed by "id" in "all") can find the rulesets to post messages to 
@@ -234,19 +198,30 @@ class Binder:
         # build the condition handler with the action(s) defined in "run"
         for path, run_parent in iter_parents(bind, "run"):
             # print("run", path, run_parent['run'])
-            run_parent['run'] = build_condition_handler(path, run_parent['run'], self.logger, self.datastore)
+            if isinstance(run_parent['run'], dict):
+                run_parent['run'] = build_condition_handler(path, run_parent['run'], self.logger, self.datastore)
+            elif isinstance(run_parent['run'], list):
+                for i, run_def in enumerate(run_parent['run']):
+                    if isinstance(run_def, dict):
+                        run_parent['run'] = build_condition_handler(path, run_def, self.logger, self.datastore)
+                    # else:
+                    #     run_parent['run'] = print_timer
+            else:
+                run_parent['run'] = print_timer
 
         # add an error hendler event to catch e.g. action errors. 
-        for ruleset in bind.keys():
-            bind[ruleset]['error_handle'] = {
-            "all": [{"m": {"$and": [
-                                    { "$ex": {"exception": 1}},
-                                    { "$s": 1 }  
-                                    ]}}],
-            "run":   build_error_handler(ruleset, self.logger )
-        }
+        # for ruleset in bind.keys():
+        #     bind[ruleset]['error_handle'] = {
+        #     "all": [{"m": {"$and": [
+        #                             { "$ex": {"exception": 1}},
+        #                             { "$s": 1 }  
+        #                             ]}}],
+        #     "run":   build_error_handler(ruleset, self.logger )
+        # }
 
+        print(bind)
         get_host().set_rulesets(bind)
+        
         # for path, run_parent in iter_parents(bind, "all"):
         #     if isinstance(run_parent['all'], list):
         #         for rule in run_parent['all']:

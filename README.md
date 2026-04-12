@@ -1,8 +1,8 @@
-# HMD-DGC ha-mqtt-discoverable-device-gpio-configurator
+# HMD-DGB ha-mqtt-discoverable-device-gpio-binder
 
 ## Overview
-GPIOpinAPI is a Python package designed to simplify the interaction with GPIO pins on a **Raspberry Pi** from another system (specifically Home Assistant, though not limited to it) via REST calls. 
-It provides an easy-to-use API for configuring, reading, and writing to GPIO pins, making it ideal for **domotica** and IoT projects. A special feature is to provide a Home Assistant webhook in the configuration of input-type pins.
+HMD-DGB is a Python package designed to simplify the interaction with GPIO pins on a **Raspberry Pi** from another system (specifically Home Assistant, though not limited to it) via mainly MQTT and also REST calls. 
+It provides extensive configuration options to definde MQTT Discoverable devices for Home assistant and bind thouse devices to GPIO pin configurations via Durable rules. Further it has an easy-to-use REST API for configuring, reading, and writing to GPIO pins, making it ideal for **domotica** and IoT projects. A special REST feature is to provide a Home Assistant webhook in the configuration of input-type pins.
 
 ## Features
 * **Several Pin types**: Current pin types are a digital input, digital pin output, digital N Way Output. 
@@ -17,11 +17,13 @@ It provides an easy-to-use API for configuring, reading, and writing to GPIO pin
 
 Tested on: 
 * **Raspberry Pi 4** with **Bookworm (64-bit, desktop)** and **Python 3.11.2**.
-* **Raspberry Pi zero 2 w** with **Bookworm (??-bit, lite)** and **Python 3.10.0**.
+* **Raspberry Pi zero 2 w** with **Bookworm (32-bit, lite)** and **Python 3.10.0**.
 
 May work on **Bullseye** aswel, GPIOZERO should automatically select/fall back to RPI.GPIO pin factory. Though could not jet test this. 
 
 Only compatible with Python >=3.10.0: Older versions do not support the way pydantic basemodels accepts multiple types. Feel free to change and test this yourself, though it may not be the only issue. 
+
+todo: text below needs updating --> is still old gpioapi text
 
 ### Run it yourself 
 
@@ -35,7 +37,7 @@ Only compatible with Python >=3.10.0: Older versions do not support the way pyda
 * Install the package via: 
   * a) Clone the project to your system  
   Then ```pip install -e [path-to-the-gpiopinapi-folder] .``` (Note: -e is optional to install the package in editable mode)
-  * b) pip install git+https://gitlab.com/jotd/gpiopinapi.git
+  * b) pip install git+https://github.com/jvanoosterhout/HMD-DGB.git
 * Copy or adapt the **/gpiopinapi/Examples/API_example.py** file in your project folder and change the Home Assistant **IP address** and **token**. Optionally add or remove the pin password list.
 * Run the **API_example.py**.
 * Check **http://{[the-pi-ip-address]}:11411/docs**.

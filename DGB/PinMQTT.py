@@ -11,26 +11,21 @@ import logging
 import time
 import psutil
 from gpiozero import CPUTemperature
-# from PinAPI.PinKeeper import PinKeeper
-# from PinAPI.PinModels import *
-from PinAPI.DeviceKeeper import DeviceKeeper 
-from PinAPI.PinModels import *
+from DGB.DeviceKeeper import DeviceKeeper
 import paho.mqtt.client as mqtt
 from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
 import json
-from PinAPI.PinKeeper import PinKeeper
-from PinAPI.Binder import Binder
-from PinAPI.PinModels import *
-from PinAPI.PinModels import *
-from PinAPI.Binder import Binder
-from PinAPI.DataStore import DataStore
+from DGB.PinKeeper import PinKeeper
+from DGB.PinModels import *
+from DGB.Binder import Binder
+from DGB.DataStore import DataStore
 
 
 logging.basicConfig(level='INFO')
 
 class Pin_mqtt:
     def __init__(self, name:str, broker:str="", port:int=1883, topic:str=None, username:str="me", password:str="secret", pin_pw_list:dict={}):
-        
+        print("test DGB pin mqtt")
         self.name = name
         self.broker = broker
         self.port = port

@@ -1,4 +1,6 @@
 import logging
+import queue
+import threading
 
 class DataStore:
     def __init__(self):
@@ -9,6 +11,9 @@ class DataStore:
         self.bindings : dict[str, list[str]] = {}                           # str -> list of ruleset_names
         self.logger = logging.getLogger("DataStore")
         self.logger.info('DataStore initialized.')
+        self.post_queue = queue.Queue()
+        self.engine_lock = threading.Lock()
+
     
     def add_device(self, unique_id:str, device_obj:any, functions:dict[str, callable]|None=None):
         self.devices_objects[unique_id] = device_obj
@@ -56,3 +61,8 @@ class DataStore:
     
     def get_bindings(self, device_id:str):
         return self.bindings.get(device_id, [])
+    
+    def put_to_queue(self, cmd:str, payload:dict):
+        
+        self.post_queue.put((cmd, payload))
+       

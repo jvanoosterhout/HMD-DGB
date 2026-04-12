@@ -6,14 +6,14 @@ Pin keeper class to create and manage all pins
 Jeroen van Oosterhout, 15-07-2024
 """
 
-from PinAPI.PinOut import Pin_out
-from PinAPI.PinIn import Pin_in
-from PinAPI.PinCount import Pin_count
-from PinAPI.PinNWayOut import Pin_N_way_out
-from PinAPI.Pin import Pin
-from PinAPI.Tools import IOT_tools
-from PinAPI.PinModels import is_pin_type, PinType, PinModel
-from PinAPI.DataStore import DataStore
+from DGB.PinOut import Pin_out
+from DGB.PinIn import Pin_in
+from DGB.PinCount import Pin_count
+from DGB.PinNWayOut import Pin_N_way_out
+from DGB.Pin import Pin
+from DGB.Tools import IOT_tools
+from DGB.PinModels import is_pin_type, PinType, PinModel
+from DGB.DataStore import DataStore
 import logging
 import time
 from homeassistant_api import Client

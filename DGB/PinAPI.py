@@ -15,8 +15,8 @@ import logging
 import time
 import psutil
 from gpiozero import CPUTemperature
-from PinAPI.PinKeeper import PinKeeper
-from PinAPI.PinModels import *
+from DGB.PinKeeper import PinKeeper
+from DGB.PinModels import *
 
 logging.basicConfig(level='INFO')
 

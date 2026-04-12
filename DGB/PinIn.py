@@ -5,7 +5,7 @@ Generieke pin configurator class
 
 Jeroen van Oosterhout, 15-07-2024
 """
-from PinAPI.Pin import *
+from DGB.Pin import *
 
 class Pin_in(Pin):
     def __init__(self, config:PinModel, datastore:DataStore):

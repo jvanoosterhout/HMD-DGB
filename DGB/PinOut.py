@@ -5,7 +5,7 @@ Pin uit class om GPIO pinnen in te stellen als output
 
 Jeroen van Oosterhout, 15-07-2024
 """
-from PinAPI.Pin import *
+from DGB.Pin import *
 
 class Pin_out(Pin):
     def __init__(self, config:PinModel, datastore:DataStore, is_PinNWayOut:bool=False):

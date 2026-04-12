@@ -12,8 +12,8 @@ from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
 import json
 from paho.mqtt.client import Client, MQTTMessage
 from durable.lang import post, get_state
-from PinAPI.DataStore import DataStore
-from PinAPI.Binder import post_event
+from DGB.DataStore import DataStore
+from DGB.Binder import post_event
 
 logging.basicConfig(level='INFO')   
 

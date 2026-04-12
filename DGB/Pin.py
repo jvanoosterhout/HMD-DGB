@@ -8,14 +8,14 @@ Jeroen van Oosterhout, 15-07-2024
 import json
 import time
 import logging
-from PinAPI.Tools import IOT_tools
+from DGB.Tools import IOT_tools
 from gpiozero import DigitalOutputDevice, DigitalInputDevice
 # from gpiozero.pins.lgpio import LGPIOFactory
-from PinAPI.PinModels import PinModel
+from DGB.PinModels import PinModel
 from homeassistant_api import Client
 # from PinAPI.Binder import Binder
 from durable.lang import post
-from PinAPI.DataStore import DataStore
+from DGB.DataStore import DataStore
 
  
 class Pin(object):

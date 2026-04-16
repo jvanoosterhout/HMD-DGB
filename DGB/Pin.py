@@ -14,7 +14,7 @@ from gpiozero import DigitalOutputDevice, DigitalInputDevice
 from DGB.PinModels import PinModel
 from homeassistant_api import Client
 # from PinAPI.Binder import Binder
-from durable.lang import post
+# from durable.lang import post
 from DGB.DataStore import DataStore
 
  

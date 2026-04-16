@@ -24,21 +24,9 @@ from collections.abc import Mapping, Sequence
 
 _event_names = ["first", "second", "third", "fourth", "fifth", "sixth"]
 
-def print_timer(c):
-    print("timer action")
+def log_msg(c):
+    print("x")
 
-class pintest():
-    def __init__(self, id: str):
-        self.id = id
-
-    def on(self, t="-" ):
-        print("{} is on with t={}".format(self.id, t))
-        # t.x 
-        return True
-
-    def off(self, t="-" ):
-        print("{} is off with t={}".format(self.id, t))
-        return True
 
 def iter_parents(tree, child_key, path=()):
     """
@@ -61,43 +49,45 @@ def iter_parents(tree, child_key, path=()):
 def build_condition_handler(_path :list, _run_parent:dict|list, _logger: logging.Logger, _datastore:DataStore):
     _rule_name = _path[0]
     _run_path = _path[1]
-    if isinstance(_run_parent, list):
-        action = []
-        for a in _run_parent:
-            if 'timer' in a:
-                action.append(build_timer(_rule_name, _run_path, a, _logger, _datastore))
-                # action = build_timer(_run_path, a, _logger)
-            else :
-                action.append(build_action(_run_path, a, _logger, _datastore))
-                # action = build_action(_run_path, a, _logger, _datastore)
-    else:
-        if 'timer' in _run_parent:
-            action = build_timer(_rule_name, _run_path, _run_parent, _logger, _datastore)
-        else :
-            action = build_action(_run_path, _run_parent, _logger, _datastore)
+    if isinstance(_run_parent, dict):
+        _run_parent = [_run_parent]
+    action = []
+    for a in _run_parent:
+        if 'timer' in a:
+            action.append(build_timer(_rule_name, _run_path, a, _logger, _datastore))
+        elif 'action' in a:
+            action.append(build_action(_run_path, a.get('action'), _logger, _datastore))
+        elif 'log' in a:
+            # action = log_msg
+            action = build_log_action(a.get('log').get("msg"), _logger)
+
     def condition_handler(c):
         c.s.return_value = {"value": "pending"}
-        for event_name in _event_names:
-            event = getattr(c, event_name)
-            if not event is  None:
-                _logger.info("rule fired by {} with data {}".format(event_name, event ))
-                if hasattr(event, 'post_time'):
-                    _logger.info(getattr(c, 'post_time'))
+        # for event_name in _event_names:
+        #     event = getattr(c, event_name)
+        #     if not event is  None:
+        #         _logger.info("rule fired by {} with data {}".format(event_name, event ))
         if isinstance(action, list):
             for a in action:
-                # _logger.info("action in list")
                 a(c)
         else:
             action(c)
-            # _logger.info("action alone")
+        # _logger.info(f"action {_rule_name} completed ")
     condition_handler.__name__ = f"handler__{_rule_name}"
     return condition_handler
 
+def build_log_action(msg:str, logger: logging.Logger):
+    logger.info(f"building log {msg}")
+    def log_msg(c):
+        logger.info(msg)
+    return log_msg
+    
+
 def build_action(rule_name: str, run_def: dict, logger: logging.Logger, datastore:DataStore):
     # capture everything in the closure
-    device_id = run_def.get("id")
+    device_id = run_def.get("unique_id")
     call_name = run_def.get("call")
-
+    logger.info(f"building action {device_id}, {call_name}")
     def action(c, _rule_name=rule_name, _device_id=device_id, _call_name=call_name):
         logger.info("rule fired: %s", _rule_name)
         action_function = datastore.get_functions(_device_id).get(_call_name)
@@ -145,6 +135,7 @@ def build_timer(rule_set:str, rule_name: str, run_def: dict, logger: logging.Log
     seconds = cfg.get('seconds')
     if not name or not action:
         raise ValueError('Timer action requires name and action')
+    logger.info(f"building timer {name}, {action}")
 
     def timer(c, _rule_name=rule_name, name=name, action=action, seconds=seconds):
         if action == 'start':
@@ -153,7 +144,7 @@ def build_timer(rule_set:str, rule_name: str, run_def: dict, logger: logging.Log
                 raise ValueError('Timer start requires seconds')
             def callback():
                 rule_set_name = rule_set.split('$', 1)[0]
-                datastore.put_to_queue('post', {"rulesetname": rule_set_name, "payload": {"timeout" : name, "dummy": "dummy"}})
+                datastore.put_to_queue('post', {"timeout" : name, "rulesetname": rule_set_name})
             start_timer(name, seconds, callback)
   
         elif action == 'cancel':
@@ -171,32 +162,37 @@ class Binder:
     def __init__(self, datastore: DataStore):
         self.logger = logging.getLogger("Binder")
         self.datastore = datastore
-        
+           
     def start_event_dispatcher(self): 
+        t = threading.Thread(target = self.event_dispatcher)
+        print('start event loop')
+        t.start()
+
+    def event_dispatcher(self):
         while True:
             cmd, payload = self.datastore.post_queue.get()
-            # if cmd == 'shutdown':
-            #     self.logger.info("Dispatcher shutdown requested")
-            #     break
+            
+            if cmd == 'shutdown':
+                self.logger.info("Dispatcher shutdown requested")
+                break
 
             if cmd == 'post':
                 if not 'unique_id' in payload and not 'rulesetname' in payload:
-                    self.logger.error("no unique_id or rulesetname in payload")
+                    self.logger.error("no unique_id or rulesetname in post")
                     return
-                if not 'payload' in payload:
-                    self.logger.error("no payload in payload")
-                    return
-                ruleset = []
+                rulesets = []
                 if 'unique_id' in payload: 
-                    ruleset = self.datastore.get_bindings(payload['unique_id'])
+                    rulesets = self.datastore.get_bindings(payload['unique_id'])
+                    if rulesets == []:
+                        self.logger.warning(f"no rulesets found for device {payload['unique_id']}")
+                        self.logger.warning(self.datastore.bindings)
                 else:
-                    ruleset = [{'name': payload['rulesetname']}]
+                    rulesets = [payload['rulesetname']]        
                 try: 
                     with self.datastore.engine_lock:
-                        for set in ruleset:
-                            self.logger.info("Posting event to ruleset {}: {}".format(set['name'], payload['payload']))
-                            post(set['name'], payload['payload']) 
-                    
+                        for ruleset in rulesets:
+                            self.logger.info("Posting event to ruleset {}: {}".format(ruleset, payload))
+                            post(ruleset, payload)  
                 except MessageNotHandledException as e:
                         self.logger.error("Unmatched event: {}".format(e.message))
                 except MessageObservedException as e:
@@ -206,65 +202,18 @@ class Binder:
                 finally:
                     self.datastore.post_queue.task_done()
                     
-            elif cmd == 'ruleset':
-                self.logger.warning('not implemented jet')
-
-    def devices_and_calls_exist(self, bind: dict) -> bool:
-        for ruleset in bind.keys():
-            for rule_name in bind[ruleset].keys():
-                # print("checking:", ruleset, rule_name, bind[ruleset][rule_name])
-                rule_def = bind[ruleset][rule_name]
-                if "run" not in rule_def:
-                    self.logger.warning("Missing 'run' definition in rule '{}' of ruleset '{}'".format(rule_name, rule_def))
-                    return False                
-                if "all" not in rule_def and "any" not in rule_def:
-                    self.logger.warning("Missing 'all|any' definition in rule '{}' of ruleset '{}'".format(rule_name, rule_def))
-                    return False
-                
-                run_def = rule_def["run"]
-                if isinstance(run_def, list):
-                    for run in run_def:
-                        if not self.check_call(run, rule_name):
-                            return False
-                else:
-                    if not self.check_call(run_def,rule_name):
-                        return False
-                
-                if "time_out" in bind:
-                    if (not isinstance(bind["time_out"], int) or bind["time_out"] < 0):
-                        self.logger.warning("Invalid 'time_out' value in binding: {}".format(bind["time_out"]))
-                        return False
-        return True
-
-    def check_call(self, run_def:dict|list, rule_name:str) -> bool:
-        if "id" not in run_def or "call" not in run_def:
-            self.logger.warning("Missing 'id' or 'call' in 'run' definition of rule '{}' of ruleset '{}'".format(rule_name, run_def))
-            return False
-        
-        device_id = run_def.get("id")
-        functions = self.datastore.get_functions(device_id)
-        if not functions:
-            self.logger.warning("Device '{}' not found in datastore for rule '{}' of ruleset '{}'".format(device_id, rule_name, run_def))
-            return False
-        
-        call_name = run_def.get("call")
-        if call_name not in functions:
-            self.logger.warning("Call '{}' not found for device '{}' in datastore for rule '{}' of ruleset '{}'".format(call_name, device_id, rule_name, run_def))
-            return False
-        return True
+            if cmd == 'ruleset':
+                self.logger.warning('Adding new binding ruleset')
+                self.new_binding(payload)
 
     def new_binding(self, bind: dict):
-        # if not self.devices_and_calls_exist(bind):
-        #     return
-
-        # store bindings such that devices (listed by "id" in "all") can find the rulesets to post messages to 
+        # store bindings such that devices (listed by "unique_id" in "all") can find the rulesets to post messages to 
         for path, all_parent in iter_parents(bind, "all"):
-            for id_path, id_parent in iter_parents(all_parent['all'], 'id'): 
-                # print("id", path, id_parent['id'])
-                if id_parent['id'] not in self.datastore.devices_objects and id_parent['id'] not in self.datastore.pins_objects:
-                    self.logger.warning("Device '{}' not found in datastore for binding: {}".format(id_parent['id'], bind))
+            for id_path, id_parent in iter_parents(all_parent['all'], "unique_id"): 
+                if id_parent["unique_id"] not in self.datastore.devices_objects and id_parent["unique_id"] not in self.datastore.pins_objects:
+                    self.logger.warning("Device '{}' not found in datastore for binding: {}".format(id_parent["unique_id"], bind))
                     return
-                self.datastore.add_binding(id_parent['id'], path[0])
+                self.datastore.add_binding(id_parent["unique_id"], path[0])
 
         # build the condition handler with the action(s) defined in "run"
         for path, run_parent in iter_parents(bind, "run"):
@@ -272,21 +221,55 @@ class Binder:
             if isinstance(run_parent['run'], dict) or isinstance(run_parent['run'], list):
                 run_parent['run'] = build_condition_handler(path, run_parent['run'], self.logger, self.datastore)
             else:
-                run_parent['run'] = print_timer
+                self.logger.error("Unexpected run specs: {}".format(run_parent['run']))
 
-        # add an error hendler event to catch e.g. action errors. 
-        # for ruleset in bind.keys():
-        #     bind[ruleset]['error_handle'] = {
-        #     "all": [{"m": {"$and": [
-        #                             { "$ex": {"exception": 1}},
-        #                             { "$s": 1 }  
-        #                             ]}}],
-        #     "run":   build_error_handler(ruleset, self.logger )
-        # }
-
-        print(bind)
+        # print(bind)
         with self.datastore.engine_lock:
             get_host().set_rulesets(bind)
         
         return
 
+
+    # def devices_and_calls_exist(self, bind: dict) -> bool:
+    #     for ruleset in bind.keys():
+    #         for rule_name in bind[ruleset].keys():
+    #             # print("checking:", ruleset, rule_name, bind[ruleset][rule_name])
+    #             rule_def = bind[ruleset][rule_name]
+    #             if "run" not in rule_def:
+    #                 self.logger.warning("Missing 'run' definition in rule '{}' of ruleset '{}'".format(rule_name, rule_def))
+    #                 return False                
+    #             if "all" not in rule_def and "any" not in rule_def:
+    #                 self.logger.warning("Missing 'all|any' definition in rule '{}' of ruleset '{}'".format(rule_name, rule_def))
+    #                 return False
+                
+    #             run_def = rule_def["run"]
+    #             if isinstance(run_def, list):
+    #                 for run in run_def:
+    #                     if not self.check_call(run, rule_name):
+    #                         return False
+    #             else:
+    #                 if not self.check_call(run_def,rule_name):
+    #                     return False
+                
+    #             if "time_out" in bind:
+    #                 if (not isinstance(bind["time_out"], int) or bind["time_out"] < 0):
+    #                     self.logger.warning("Invalid 'time_out' value in binding: {}".format(bind["time_out"]))
+    #                     return False
+    #     return True
+
+    # def check_call(self, run_def:dict|list, rule_name:str) -> bool:
+    #     if "unique_id" not in run_def or "call" not in run_def:
+    #         self.logger.warning("Missing 'unique_id' or 'call' in 'run' definition of rule '{}' of ruleset '{}'".format(rule_name, run_def))
+    #         return False
+        
+    #     device_id = run_def.get("unique_id")
+    #     functions = self.datastore.get_functions(device_id)
+    #     if not functions:
+    #         self.logger.warning("Device '{}' not found in datastore for rule '{}' of ruleset '{}'".format(device_id, rule_name, run_def))
+    #         return False
+        
+    #     call_name = run_def.get("call")
+    #     if call_name not in functions:
+    #         self.logger.warning("Call '{}' not found for device '{}' in datastore for rule '{}' of ruleset '{}'".format(call_name, device_id, rule_name, run_def))
+    #         return False
+    #     return True

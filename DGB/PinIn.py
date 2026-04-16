@@ -61,8 +61,7 @@ class Pin_in(Pin):
         # self.value = value
         
         self.logger.info("Pin {} is: {}".format(self.config.pin, value))
-        for rulset_name in self.datastore.get_bindings(str(self.config.pin)):
-            post(rulset_name, {"value": str(value)})
+        self.datastore.put_to_queue("post", {"unique_id": str(self.config.pin), "payload":  value}) 
 
         self.sendWebhook({"{}".format(self.config.webhook): value})
 
@@ -81,5 +80,6 @@ class Pin_in(Pin):
         bool: True if update succesful, otherwise False.
         """
         self.logger.info('pin {} has signal {}'.format(self.config.pin, self.pin_device.value))
+        return True
 
 

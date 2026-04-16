@@ -19,6 +19,9 @@ from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import *
 from DGB.Binder import Binder
 from DGB.DataStore import DataStore
+import pkg_resources
+import socket
+import threading
 
 
 logging.basicConfig(level='INFO')
@@ -54,14 +57,18 @@ class Pin_mqtt:
         self.devicekeeper = DeviceKeeper(self.mqtt_settings, datastore=self.datastore)
         self.pinkeeper = PinKeeper(pin_pw_list=pin_pw_list, datastore=self.datastore)
         self.binder = Binder(datastore=self.datastore)
+        self.shutdown = False
 
-        # self.config_system_sensors()        
+        self.config_system_sensors()        
 
     def __del__(self):
+        self.shutdown = True
         self.client.unsubscribe(self.config_topic)
         self.client.loop_stop()
         self.client.disconnect()
         self.logger.info("unscribed and disconnected")
+        self.datastore.put_to_queue("shutdown", {})
+        
         
     def config_brokker(self):
         def on_connect(client, userdata, flags, rc, properties):
@@ -99,7 +106,8 @@ class Pin_mqtt:
             if self.config_topic in msg.topic:
                 payload = json.loads(msg.payload.decode())
                 if "Devices" in payload: 
-                    self.devicekeeper.new_device(payload['Devices'])
+                    for dev in payload['Devices']: 
+                        self.devicekeeper.new_device(dev)
                 else:
                     self.logger.warning("No Devices in payload")
                 
@@ -114,7 +122,7 @@ class Pin_mqtt:
                         if self.pinkeeper.SetPin(pin_model): 
                             self.logger.info("pin made succesfully")
                         else:
-                            self.logger.info("total failure")
+                            self.logger.info("pin creation failed")
                 else:
                     self.logger.warning("No Pins in payload")
                 if "Bindings" in payload: 
@@ -126,7 +134,7 @@ class Pin_mqtt:
 
         self.client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2,client_id=self.client_id, clean_session=True)
         self.client.on_connect = on_connect
-        self.client.on_disconnect = on_disconnect
+        # self.client.on_disconnect = on_disconnect
         self.client.on_subscribe = on_subscribe
         self.client.on_message = on_message
 
@@ -142,14 +150,16 @@ class Pin_mqtt:
     
 
     def config_system_sensors(self):
-
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        
         device_info = DeviceInfo(
             name="{} main device".format(self.name), 
             identifiers="device_id_{}_001".format(self.name),
-            model="PI 4", 
-            manufacturer="Raspberry",
-            sw_version="12 (bookworm)", 
-            configuration_url="192.168.70.20"
+            model="HMD-DGB", 
+            manufacturer="J van Oosterhout",
+            sw_version= str(pkg_resources.get_distribution("pinAPI").version), 
+            configuration_url= str(s.getsockname()[0])
             )
         logging.info(device_info.identifiers)
         
@@ -191,21 +201,25 @@ class Pin_mqtt:
         self.cpu_percentage_sensor = sensors.Sensor(Settings(mqtt=self.mqtt_settings, entity=cpu_percentage_info))
         self.memory_usage_sensor = sensors.Sensor(Settings(mqtt=self.mqtt_settings, entity=memory_usage_info))
 
-
-
     def update_system_sensors(self):
-        # Change the state of the sensor, publishing an MQTT message that gets picked up by HA
-
-        self.cpu_temp_sensor.set_state(CPUTemperature().temperature)
-        self.up_time_sensor.set_state(time.monotonic()/60/60)
-        self.cpu_percentage_sensor.set_state(psutil.cpu_percent(interval=1))
-        self.memory_usage_sensor.set_state(psutil.virtual_memory().percent)
-
+        self.logger.info("system sensor updates started")
+        while True: 
+            if self.shutdown:
+                break
+            # Change the state of the sensor, publishing an MQTT message that gets picked up by HA
+            self.cpu_temp_sensor.set_state(CPUTemperature().temperature)
+            self.up_time_sensor.set_state(time.monotonic()/60/60)
+            self.cpu_percentage_sensor.set_state(psutil.cpu_percent(interval=1))
+            self.memory_usage_sensor.set_state(psutil.virtual_memory().percent)
+            time.sleep(60)
+        self.logger.info("system sensor updates stoped")
 
     def run(self):
         self.client.loop_start()
-
-        while True:
-            # self.update_system_sensors()
-            time.sleep(60)
+        self.binder.start_event_dispatcher()
+        t = threading.Thread(target = self.update_system_sensors)
+        t.start()
+        # while True:
+        #     # self.update_system_sensors()
+        #     time.sleep(60)
 

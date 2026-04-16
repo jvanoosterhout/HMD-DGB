@@ -7,7 +7,7 @@ Jeroen van Oosterhout, 30-01-2024
 from pydantic import BaseModel, model_validator, Field, RootModel, ValidationError
 from typing import Literal, Union
 from enum import Enum
-from PinAPI.Tools import IOT_tools
+from DGB.Tools import IOT_tools
 
 class PinType(str, Enum):
     pinin = "in"

@@ -13,7 +13,7 @@ import json
 from paho.mqtt.client import Client, MQTTMessage
 from durable.lang import post, get_state
 from DGB.DataStore import DataStore
-from DGB.Binder import post_event
+# from DGB.Binder import post_event
 
 logging.basicConfig(level='INFO')   
 
@@ -30,35 +30,35 @@ class DeviceKeeper(object):
         self.logger = logging.getLogger("DeviceKeeper")
         self.logger.info('starting Entitykeeper')
     
-    def new_device(self, payload):
+    def new_device(self, dev):
         # print(payload)
-        for dev in payload: 
-            if "EntityInfo" in dev:
-                if "component" in dev['EntityInfo']:
-                    if dev['EntityInfo']['component'] == "cover":
-                        self.configure_cover(dev)
-                    elif dev['EntityInfo']['component'] == "sensor":
-                        self.configure_sensor(dev)
-                    elif dev['EntityInfo']['component'] == "switch":
-                        self.configure_switch(dev)
-                    elif dev['EntityInfo']['component'] == "light":
-                        self.configure_light(dev)
-                    elif dev['EntityInfo']['component'] == "button":
-                        self.configure_button(dev)
-                    elif dev['EntityInfo']['component'] == "text":
-                        self.configure_text(dev)
-                    elif dev['EntityInfo']['component'] == "number":
-                        self.configure_number(dev)
-                    elif dev['EntityInfo']['component'] == "select":
-                        self.configure_select(dev)
-                    elif dev['EntityInfo']['component'] == "binary_sensor":
-                        self.configure_binary_sensor(dev)
-                    else:
-                        self.logger.warning("Unknown component '{}', skipping this configuration".format(dev['EntityInfo']['component'])) 
+        # for dev in payload: 
+        if "EntityInfo" in dev:
+            if "component" in dev['EntityInfo']:
+                if dev['EntityInfo']['component'] == "cover":
+                    self.configure_cover(dev)
+                elif dev['EntityInfo']['component'] == "sensor":
+                    self.configure_sensor(dev)
+                elif dev['EntityInfo']['component'] == "switch":
+                    self.configure_switch(dev)
+                elif dev['EntityInfo']['component'] == "light":
+                    self.configure_light(dev)
+                elif dev['EntityInfo']['component'] == "button":
+                    self.configure_button(dev)
+                elif dev['EntityInfo']['component'] == "text":
+                    self.configure_text(dev)
+                elif dev['EntityInfo']['component'] == "number":
+                    self.configure_number(dev)
+                elif dev['EntityInfo']['component'] == "select":
+                    self.configure_select(dev)
+                elif dev['EntityInfo']['component'] == "binary_sensor":
+                    self.configure_binary_sensor(dev)
                 else:
-                    self.logger.warning("No component in EntityInfo, skipping this configuration {}".format(dev['EntityInfo'])) 
+                    self.logger.warning("Unknown component '{}', skipping this configuration".format(dev['EntityInfo']['component'])) 
             else:
-                self.logger.warning("No EntityInfo in payload, skipping this configuration") 
+                self.logger.warning("No component in EntityInfo, skipping this configuration {}".format(dev['EntityInfo'])) 
+        else:
+            self.logger.warning("No EntityInfo in payload, skipping this configuration") 
 
     def configure_cover(self, payload):
         self.logger.info("creating cover")
@@ -83,7 +83,7 @@ class DeviceKeeper(object):
             payload = message.payload.decode()
             self.logger.info("turn cover {}: {}".format(device._entity.unique_id, payload))
             
-            post_event(device._entity.unique_id, payload, self.datastore, self.logger)
+            self.datastore.put_to_queue("post", {"unique_id": device._entity.unique_id, "payload":  payload}) 
 
             if payload == "OPEN":
                 device.opening()
@@ -116,28 +116,16 @@ class DeviceKeeper(object):
         def my_callback(client: Client, user_data, message: MQTTMessage):
             payload = message.payload.decode()
             self.logger.info("turn switch {}: {}".format(device._entity.unique_id, payload))
-            
-            post_event(device._entity.unique_id, payload, self.datastore, self.logger)
-
+            self.datastore.put_to_queue("post", {"unique_id": device._entity.unique_id, "payload":  payload}) 
             if payload == "ON":
-                # turn_my_custom_thing_on()
-                # Let HA know that the switch was successfully activated
                 device.on()
             elif payload == "OFF":
-                # turn_my_custom_thing_off()
-                # Let HA know that the switch was successfully deactivated
                 device.off()
 
         device = sensors.Switch(Settings(mqtt=self.mqtt_settings, entity=switch_info), my_callback)
-        # switch.
         self.datastore.add_device(device._entity.unique_id, device, {"on": device.on, "off": device.off})
-
         device.off()
-        
-        self.logger.info("Switch '{}' with unique_id '{}' made and deactivated.".format(device._entity.name, device._entity.unique_id))
-        # self.switches[-1].mqtt_client.message_callback_add(self.switches[-1]._command_topic, my_callback)
-        
-        # self.mqtt_client.message_callback_add(self._command_topic, my_callback)
+        self.logger.info("Switch '{}' with unique_id '{}' made and turned off.".format(device._entity.name, device._entity.unique_id))
     
     def configure_light(self, payload):
         pass
@@ -155,11 +143,9 @@ class DeviceKeeper(object):
         pass
     
     def configure_binary_sensor(self, payload):
-        
         self.logger.info("creating binary sensor")
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
         device = sensors.BinarySensor(Settings(mqtt=self.mqtt_settings, entity=binarysensor_info))
-
         self.datastore.add_device(device._entity.unique_id, device, {"on": device.on, "off": device.off})
         self.logger.info("Binary sensor '{}' with unique_id '{}' made and deactivated.".format(device._entity.name, device._entity.unique_id))
         device.off()

@@ -1,4 +1,4 @@
-from PinAPI.PinAPI import Pin_api
+from DGB.PinAPI import Pin_api
 import uvicorn
 
 def main():

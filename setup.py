@@ -4,11 +4,11 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="PinAPI",
-    version="0.1.0",
+    name="HMD-DGB",
+    version="1.0.0",
     author="Jeroen van Oosterhout",
     author_email="",
-    description="Interface to configure and read/write GPIO pins remotelly on a raspberry pi",
+    description="Connects Home Assistant entities to physical GPIO pins using durable bindings",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="",

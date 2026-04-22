@@ -5,12 +5,16 @@ Pin uit class om GPIO pinnen in te stellen als output
 
 Jeroen van Oosterhout, 15-07-2024
 """
-from DGB.Pin import *
+
 from DGB.PinOut import Pin_out
 from DGB.PinModels import PinType, PinModel
+from DGB.Pin import Pin
+from gpiozero import DigitalOutputDevice
+from DGB.DataStore import DataStore
+
 
 class Pin_N_way_out(Pin):
-    def __init__(self, config:PinModel, datastore:DataStore):
+    def __init__(self, config: PinModel, datastore: DataStore):
         """
         Initialiseer the Pin_N_way_out class.
 
@@ -18,9 +22,9 @@ class Pin_N_way_out(Pin):
         config (Pin rootmodel): the pin configuration.
         """
         super().__init__(config=config, datastore=datastore)
-        self.Pins:list[Pin_out] = []
+        self.Pins: list[Pin_out] = []
 
-    def HasSameConfig(self, config:PinModel) -> bool:
+    def HasSameConfig(self, config: PinModel) -> bool:
         """
         Check if the given pin configurtation truly matches the configuration of the saved pin.
 
@@ -31,29 +35,47 @@ class Pin_N_way_out(Pin):
         bool: True if the configuration matches, otherwise False.
         """
         if not config.ptype == self.config.ptype:
-            self.logger.warning('New "ptype" {} for pin {} is different from known "ptype" {}'.format(config.ptype, self.config.pin, self.config.ptype))
+            self.logger.warning(
+                'New "ptype" {} for pin {} is different from known "ptype" {}'.format(
+                    config.ptype, self.config.pin, self.config.ptype
+                )
+            )
             return False
         if not config.pin_list == self.config.pin_list:
-            self.logger.warning('New "pin_list" {} for pin {} is different from known "pin_list" {}'.format(config.pin_list, self.config.pin, self.config.pin_list))
+            self.logger.warning(
+                'New "pin_list" {} for pin {} is different from known "pin_list" {}'.format(
+                    config.pin_list, self.config.pin, self.config.pin_list
+                )
+            )
             return False
         if not config.active_state == self.config.active_state:
-            self.logger.warning('New "active_state" {} for pin {} is different from known "active_state" {}'.format(config.active_state, self.config.pin, self.config.active_state))
+            self.logger.warning(
+                'New "active_state" {} for pin {} is different from known "active_state" {}'.format(
+                    config.active_state, self.config.pin, self.config.active_state
+                )
+            )
             return False
         if not config.pin_names == self.config.pin_names:
-            self.logger.warning('New "pin_names" {} for pin {} is different from known "pin_names" {}'.format(config.pin_names, self.config.pin, self.config.pin_names))
-            return False        
+            self.logger.warning(
+                'New "pin_names" {} for pin {} is different from known "pin_names" {}'.format(
+                    config.pin_names, self.config.pin, self.config.pin_names
+                )
+            )
+            return False
         return True
-    
+
     def ConfigurePin(self):
         """
         Configure the de GPIO as the rigth type.
 
         """
         n = self.GetPinIndex(self.config.pin)
-        self.pin_device = DigitalOutputDevice(pin = self.config.pin,
-                                              active_high = self.config.active_state[n],
-                                              initial_value = self.config.initial[n]) #, 
-                                            #  pin_factory = LGPIOFactory(chip=0))
+        self.pin_device = DigitalOutputDevice(
+            pin=self.config.pin,
+            active_high=self.config.active_state[n],
+            initial_value=self.config.initial[n],
+        )  # ,
+        #  pin_factory = LGPIOFactory(chip=0))
 
     def GetPinValue(self) -> dict:
         """
@@ -62,7 +84,7 @@ class Pin_N_way_out(Pin):
         Returns:
         dict: The current value of the pin.
         """
-        
+
         res = bool(self.pin_device.value)
         for p in self.Pins:
             res = res or bool(p.pin_device.value)
@@ -71,7 +93,7 @@ class Pin_N_way_out(Pin):
         #     res = bool(self.value)
         # elif isinstance(self.value, bool):
         #     res = self.value
-        # else: 
+        # else:
         #     res = IOT_tools.strtobool(self.value)
 
         if self.config.active_pin is None:
@@ -82,9 +104,13 @@ class Pin_N_way_out(Pin):
             active_pin = self.config.pin_list[n]
             active_pin_name = self.config.pin_names[n]
 
-        return {"is_active": res, "active_pin": active_pin, "active_pin_name": active_pin_name}
-    
-    def GetPinIndex(self, active_pin) -> int: 
+        return {
+            "is_active": res,
+            "active_pin": active_pin,
+            "active_pin_name": active_pin_name,
+        }
+
+    def GetPinIndex(self, active_pin) -> int:
         n = -1
         if isinstance(active_pin, str):
             if active_pin in self.config.pin_names:
@@ -94,12 +120,15 @@ class Pin_N_way_out(Pin):
                 n = self.config.pin_list.index(active_pin)
         return n
 
-    def GenerateSubPinConfig(self, n:int) -> PinModel:
-        return PinModel({ "pin": self.config.pin_list[n], 
-                "ptype": PinType.pinout.value, 
-                "initial": self.config.initial[n], 
-                "active_state": self.config.active_state[n], 
-                "initial": self.config.initial[n]})
+    def GenerateSubPinConfig(self, n: int) -> PinModel:
+        return PinModel(
+            {
+                "pin": self.config.pin_list[n],
+                "ptype": PinType.pinout.value,
+                "initial": self.config.initial[n],
+                "active_state": self.config.active_state[n],
+            }
+        )
 
     # def blink(self, blink:int = None) -> bool:
     #     if blink is None  and self.blink is None:
@@ -109,15 +138,15 @@ class Pin_N_way_out(Pin):
     #         on_time = blink
     #     else :
     #         on_time = self.blink
-        
+
     #     self.pin_device.blink(on_time=on_time,
-    #                             off_time=on_time, 
+    #                             off_time=on_time,
     #                             n=1,
     #                             background=True)
     #     self.logger.info('pin {} has value {} for {} seconds'.format(self.config.pin, 1, on_time))
     #     return True
-    
-    def on(self, active_pin:int) -> bool:
+
+    def on(self, active_pin: int) -> bool:
         self.off()
 
         if active_pin is None:
@@ -128,7 +157,11 @@ class Pin_N_way_out(Pin):
         if n == -1:
             return False
         if self.config.pin_list[n] == -1:
-            self.logger.info('N Way Out dummy pin with name "{}" turned on'.format(self.config.pin_names[n]) )
+            self.logger.info(
+                'N Way Out dummy pin with name "{}" turned on'.format(
+                    self.config.pin_names[n]
+                )
+            )
             self.config.active_pin = active_pin
             return True
 
@@ -139,9 +172,13 @@ class Pin_N_way_out(Pin):
         else:
             self.pin_device.on()
             self.config.value = 1
-        
-        self.logger.info('N Way Out pin {} with name "{}" turned on'.format(self.config.pin_list[n], self.config.pin_names[n]) )
-        
+
+        self.logger.info(
+            'N Way Out pin {} with name "{}" turned on'.format(
+                self.config.pin_list[n], self.config.pin_names[n]
+            )
+        )
+
         self.config.active_pin = active_pin
 
         return True
@@ -151,13 +188,13 @@ class Pin_N_way_out(Pin):
             p.off(is_PinNWayOut=True)
         self.pin_device.off()
         self.config.value = 0
-        self.logger.info('All N Way Out pins turned off')
+        self.logger.info("All N Way Out pins turned off")
         return True
 
-    def ProcessPinUpdate(self, config:PinModel) -> bool:
+    def ProcessPinUpdate(self, config: PinModel) -> bool:
         """
-        Process the new optained value of the pin configuration. Gennerally 
-        this only works for output pins. Input pins wil only show a log 
+        Process the new optained value of the pin configuration. Gennerally
+        this only works for output pins. Input pins wil only show a log
         message with their current state.
 
         Parameters:
@@ -165,7 +202,5 @@ class Pin_N_way_out(Pin):
 
         Returns:
         bool: True if update succesful, otherwise False.
-        """       
-        return self.on(active_pin = config.active_pin)
-    
-
+        """
+        return self.on(active_pin=config.active_pin)

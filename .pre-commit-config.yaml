@@ -21,7 +21,7 @@ repos:
         entry: pytest
         language: system
         pass_filenames: false
-  
+
   - repo: local
     hooks:
       - id: build

@@ -11,13 +11,13 @@ cd /lib/systemd/system/
 echo "[Unit]
 Description=Python service om de $service_doel
 After=multi-user.target
- 
+
 [Service]
 Type=simple
 WorkingDirectory=$global_path
 ExecStart=$global_path/venv/bin/python3 $global_path/$script_name
 Restart=on-abort
- 
+
 [Install]
 WantedBy=multi-user.target" | sudo tee $service_name.service
 
@@ -33,4 +33,4 @@ sudo systemctl enable $service_name.service
 cd global_path
 sudo systemctl start $service_name.service
 echo "service started, showing output. You can safely press ctrl+c or close the terminal."
-journalctl -f -u $service_name.service 
+journalctl -f -u $service_name.service

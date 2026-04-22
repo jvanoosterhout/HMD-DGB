@@ -1,17 +1,17 @@
 # HMD-DGB: Home Assistant MQTT-Discoverable Device GPIO Binder
 
-Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverable devices. Bridge your custom hardware to smart home automation through declarative device bindings via durable rules.  
+Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverable devices. Bridge your custom hardware to smart home automation through declarative device bindings via durable rules.
 
 ## Overview
 
-**HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi with Home Assistant integration via MQTT discoverable devices. Unique to this package is that it is an end-to-end solution reling on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins . This eliminats manual programing via easy configuration. While developping this package over the years, I learned that this resembles several aspects of ESP Home. 
+**HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi with Home Assistant integration via MQTT discoverable devices. Unique to this package is that it is an end-to-end solution reling on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins . This eliminats manual programing via easy configuration. While developping this package over the years, I learned that this resembles several aspects of ESP Home.
 
 The system consists of four core concepts:
 
 - **MQTT Discoverable Devices**: Devices that automatically appear in Home Assistant via MQTT discovery protocol
 - **Durable Binding Rules**: Define relationships and actions between physical GPIO pins and Home Assistant devices
 - **GPIOzero Devices**: configuration of GPIO pins to proform meaningfull action in the real world
-- **on the fly configuration**: send device, binding and GPIO configurations over MQTT to your Raspberry Pi (you still need to install this package, configure HA, and setup a service) 
+- **on the fly configuration**: send device, binding and GPIO configurations over MQTT to your Raspberry Pi (you still need to install this package, configure HA, and setup a service)
 
 ## Requirements
 
@@ -21,17 +21,17 @@ The system consists of four core concepts:
 - **Operating System**: Bookworm recommended
   - Bullseye may work with GPIOZERO fallback to RPI.GPIO
   - Not tested on older versions
-  
+
 ### Software
 
 - **Python**: 3.10.0 or higher
   - Required for Pydantic v2 compatibility (only used for fastapi legacy implementation)
   - Tested on Python 3.10.0 and 3.11.2
-  
+
 - **MQTT Broker**: Mosquitto or compatible
   - Can be local or remote
   - Required for device communication
-  
+
 - **Home Assistant**: 2023.1 or later
   - MQTT integration/addon required
   - For automatic device discovery
@@ -71,7 +71,7 @@ cd Examples/[your_example_of_choise]
 journalctl -u hmd-dgb -f
 ```
 
-### Option 3: instal from project folder 
+### Option 3: instal from project folder
 ```bash
 mkdir hmd-dgb-project && cd hmd-dgb-project
 git clone https://github.com/jvanoosterhout/HMD-DGB.git
@@ -154,14 +154,14 @@ This provides:
 
 HMD-DGB publishes and subscribes to the following MQTT topics:
 
-- the default homeassistant discoverable topics (publishe and subscribe) 
-- the "config/[RPI-name]/devices/[sub-topic]" topic (subscribe) to recieve configurations for devices, bindings and GPIO. 
+- the default homeassistant discoverable topics (publishe and subscribe)
+- the "config/[RPI-name]/devices/[sub-topic]" topic (subscribe) to recieve configurations for devices, bindings and GPIO.
 
 ## Roadmap / planes
 
 - Add RPI device action (e.g. restart, update, reload, ...)
 - Add log messages over MQTT in RPI device
-- GPIO upgrade (custom or an available package) 
+- GPIO upgrade (custom or an available package)
   - Count-type pins: Finalization for water flow meters and pulse counters
   - Time-series I/O: RF signal handling for advanced sensor integration
   - PWM support: LED brightness and voltage regulation control

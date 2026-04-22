@@ -32,7 +32,8 @@ GitHub = "https://github.com/jvanoosterhout/HMD-DGB"
 dev = [
     "pre-commit>=4.5.1",
     "ruff>=0.15.11",
-    "pytest>=9.0.3"
+    "pytest>=9.0.3",
+    "build>=1.4.3"
 ]
 test = ["pytest>=9.0.3"]
 

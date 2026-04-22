@@ -119,8 +119,8 @@ class DeviceKeeper(object):
             self.datastore.put_to_queue("post", {"unique_id": device._entity.unique_id, "payload":  payload}) 
             if payload == "ON":
                 device.on()
-            elif payload == "OFF":
-                device.off()
+            # elif payload == "OFF":
+            #     device.off()
 
         device = sensors.Switch(Settings(mqtt=self.mqtt_settings, entity=switch_info), my_callback)
         self.datastore.add_device(device._entity.unique_id, device, {"on": device.on, "off": device.off})

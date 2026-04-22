@@ -28,7 +28,8 @@ import pkg_resources
 
 
 def main():
-    dgb = Pin_mqtt(name = "rpi", broker="ip-adres",username="mqtt_user", password="mqtt_pw", port=1882)
+    dgb = Pin_mqtt(name = "rpi20", broker="192.168.70.100",username="mqtt_broker", password="mqtt_broker", port=1882)
+    # dgb = Pin_mqtt(name = "rpi", broker="ip-adres",username="mqtt_user", password="mqtt_pw", port=1882)
     atexit.register(dgb.__del__)
     DeviceInfo = { 
                 "name": "HMD-DGB-test-device" ,

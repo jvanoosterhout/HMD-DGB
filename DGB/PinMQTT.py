@@ -174,7 +174,11 @@ class Pin_mqtt:
             identifiers="device_id_{}_001".format(self.name),
             model="HMD-DGB",
             manufacturer="J van Oosterhout",
-            sw_version=str(pkg_resources.get_distribution("pinAPI").version),
+            sw_version=str(
+                pkg_resources.get_distribution(
+                    "ha-mqtt-discoverable-device-gpio-binder"
+                ).version
+            ),
             configuration_url=str(s.getsockname()[0]),
         )
         logging.info(device_info.identifiers)

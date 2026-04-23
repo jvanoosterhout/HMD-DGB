@@ -1,0 +1,43 @@
+
+[project]
+name = "ha-mqtt-discoverable-device-gpio-binder"
+version = "1.0.0"
+description = "A durable rules binder between ha devices and GPIO on RPI-like devices"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ['license.txt']
+authors = [
+    {name = "Jeroen van Oosterhout", email = "18647330+jvanoosterhout@users.noreply.github.com"}
+]
+dependencies = [
+    "fastapi>=0.115.6,<1",
+    "uvicorn>=0.34.0,<1",
+    "psutil==6.1.1",
+    "gpiozero==2.0.1",
+    "lgpio==0.2.2.0",
+    "homeassistant-api==5.0.2",
+    "ha-mqtt-discoverable==0.23.0",
+    "durable-rules==2.0.28"
+]
+
+[tool.setuptools]
+packages = ["DGB"]
+
+
+[project.urls]
+GitHub = "https://github.com/jvanoosterhout/HMD-DGB"
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.11",
+    "pytest>=9.0.3",
+    "build>=1.4.3"
+]
+test = ["pytest>=9.0.3"]
+
+
+[build-system]
+requires = ["setuptools>=66.1.1"]
+build-backend = "setuptools.build_meta"

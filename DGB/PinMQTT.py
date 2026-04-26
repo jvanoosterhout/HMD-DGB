@@ -243,8 +243,8 @@ class Pin_mqtt:
         self.logger.info("system sensor updates stoped")
 
     def run(self):
-        self.client.loop_start()
         self.binder.start_event_dispatcher()
+        self.client.loop_start()
         t = threading.Thread(target=self.update_system_sensors)
         t.start()
         # while True:

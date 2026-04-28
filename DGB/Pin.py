@@ -10,11 +10,11 @@ import json
 import time
 import logging
 from DGB.PinModels import PinModel
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 
 
 class Pin(object):
-    def __init__(self, config: PinModel, datastore: DataStore):
+    def __init__(self, config: PinModel, dgb_context: DGBContext):
         """
         Initialiseer the Pin class.
 
@@ -30,7 +30,7 @@ class Pin(object):
         self.last_changed = time.monotonic()
         self.pw = {}
         self.HASS_interface = None
-        self.datastore = datastore
+        self.dgb_context = dgb_context
 
         self.logger = logging.getLogger(
             "pin_{}_{}".format(self.config.ptype, self.config.pin)

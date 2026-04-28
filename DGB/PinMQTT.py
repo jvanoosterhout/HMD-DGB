@@ -17,7 +17,7 @@ import json
 from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import PinModel
 from DGB.Binder import Binder
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 import pkg_resources
 import socket
 import threading
@@ -63,10 +63,14 @@ class Pin_mqtt:
 
         self.config_brokker()
 
-        self.datastore = DataStore()
-        self.devicekeeper = DeviceKeeper(self.mqtt_settings, datastore=self.datastore)
-        self.pinkeeper = PinKeeper(pin_pw_list=pin_pw_list, datastore=self.datastore)
-        self.binder = Binder(datastore=self.datastore)
+        self.dgb_context = DGBContext()
+        self.devicekeeper = DeviceKeeper(
+            self.mqtt_settings, dgb_context=self.dgb_context
+        )
+        self.pinkeeper = PinKeeper(
+            pin_pw_list=pin_pw_list, dgb_context=self.dgb_context
+        )
+        self.binder = Binder(dgb_context=self.dgb_context)
         self.shutdown = False
 
         self.config_system_sensors()
@@ -77,7 +81,7 @@ class Pin_mqtt:
         self.client.loop_stop()
         self.client.disconnect()
         self.logger.info("unscribed and disconnected")
-        self.datastore.put_to_queue("shutdown", {})
+        self.dgb_context.put_to_binder_queue("shutdown", {})
 
     def config_brokker(self):
         def on_connect(client, userdata, flags, rc, properties):

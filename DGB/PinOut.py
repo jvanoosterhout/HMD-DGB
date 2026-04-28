@@ -9,12 +9,12 @@ Jeroen van Oosterhout, 15-07-2024
 from DGB.Pin import Pin
 from gpiozero import DigitalOutputDevice
 from DGB.PinModels import PinModel
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 
 
 class Pin_out(Pin):
     def __init__(
-        self, config: PinModel, datastore: DataStore, is_PinNWayOut: bool = False
+        self, config: PinModel, dgb_context: DGBContext, is_PinNWayOut: bool = False
     ):
         """
         Initialiseer de Pin_out klasse met standaardwaarden.
@@ -23,7 +23,7 @@ class Pin_out(Pin):
         pin (int): Het pin nummer.
         ptype (str): Het type pin, moet "out" zijn.
         """
-        super().__init__(config=config, datastore=datastore)
+        super().__init__(config=config, dgb_context=dgb_context)
         self.is_PinNWayOut = is_PinNWayOut
 
     def HasSameConfig(self, config: PinModel) -> bool:

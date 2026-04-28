@@ -2,7 +2,7 @@
 Stand-alone Binder test example
 
 This script provides a stand-alone test environment for the HMD-DGB Binder. Its goal is to offer example bindings and make it easy to experiment with custom bindings before running them in an integrated setup (e.g. with Home Assistant, MQTT, or physical GPIO).
-The script initializes the Binder with an in-memory DataStore and defines several dummy devices. These devices simulate both event sources and actors, allowing Binder behavior to be tested without external dependencies. Some dummy devices expose callable actions (on, off) to act as controllable outputs.
+The script initializes the Binder with an in-memory dgb_context and defines several dummy devices. These devices simulate both event sources and actors, allowing Binder behavior to be tested without external dependencies. Some dummy devices expose callable actions (on, off) to act as controllable outputs.
 Four binding patterns are demonstrated:
 
 Direct durable binding
@@ -27,12 +27,12 @@ This setup offers a compact sandbox for validating Binder logic and experimentin
 
 import time
 import DGB.Binder
-import DGB.DataStore
+import DGB.DGBContext
 import logging
 
 
 # setup the binder class with durable rules
-binder = DGB.Binder.Binder(DGB.DataStore.DataStore())
+binder = DGB.Binder.Binder(DGB.DGBContext.DGBContext())
 logging.basicConfig(level=logging.INFO)
 binder.logger.setLevel("INFO")
 binder.logger.info("starting test_binder")
@@ -61,14 +61,14 @@ s4 = dummy_device("source4")
 pw1 = dummy_device("pw1")
 pw2 = dummy_device("pw2")
 
-# add instances with theire calable functions (if any) to the datastore
-binder.datastore.add_device("p1", p1, {"on": p1.on, "off": p1.off})
-binder.datastore.add_device("s1", s1)
-binder.datastore.add_device("s2", s2)
-binder.datastore.add_device("s3", s3)
-binder.datastore.add_device("s4", s4)
-binder.datastore.add_device("pw1", pw1)
-binder.datastore.add_device("pw2", pw2)
+# add instances with theire calable functions (if any) to the dgb_context
+binder.dgb_context.add_device("p1", p1, {"on": p1.on, "off": p1.off})
+binder.dgb_context.add_device("s1", s1)
+binder.dgb_context.add_device("s2", s2)
+binder.dgb_context.add_device("s3", s3)
+binder.dgb_context.add_device("s4", s4)
+binder.dgb_context.add_device("pw1", pw1)
+binder.dgb_context.add_device("pw2", pw2)
 
 # define durable rules in json format
 # this is a standart rule, all conditions must match at the same time
@@ -186,19 +186,23 @@ binding_to_pin_with_pw_with_timeout = {
 binder.start_event_dispatcher()
 
 # load the rulesets
-binder.datastore.put_to_queue("ruleset", binding_to_pin)
-binder.datastore.put_to_queue("ruleset", binding_to_pin_with_pw)
-binder.datastore.put_to_queue("ruleset", binding_auto_off)
-binder.datastore.put_to_queue("ruleset", binding_to_pin_with_pw_with_timeout)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin_with_pw)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_auto_off)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin_with_pw_with_timeout)
 
 # post the events
-binder.datastore.put_to_queue("post", {"unique_id": "s1", "payload": "on"})
-binder.datastore.put_to_queue("post", {"unique_id": "s2", "payload": "on"})
-binder.datastore.put_to_queue("post", {"unique_id": "pw1", "payload": "secret"})
-binder.datastore.put_to_queue("post", {"unique_id": "s3", "payload": "on"})
-binder.datastore.put_to_queue("post", {"unique_id": "pw2", "payload": "secret"})
-binder.datastore.put_to_queue("post", {"unique_id": "s4", "payload": "on"})
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s1", "payload": "on"})
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s2", "payload": "on"})
+binder.dgb_context.put_to_binder_queue(
+    "post", {"unique_id": "pw1", "payload": "secret"}
+)
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s3", "payload": "on"})
+binder.dgb_context.put_to_binder_queue(
+    "post", {"unique_id": "pw2", "payload": "secret"}
+)
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s4", "payload": "on"})
 
 time.sleep(10)
 # shutdown the main binder thread
-binder.datastore.put_to_queue("shutdown", {})
+binder.dgb_context.put_to_binder_queue("shutdown", {})

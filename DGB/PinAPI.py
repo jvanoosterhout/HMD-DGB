@@ -16,6 +16,7 @@ from gpiozero import CPUTemperature
 from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import PinModel, PinType, PinCount, PinIn, PinNWayOut, PinOut
 from pydantic import ValidationError
+from DGB.DGBContext import DGBContext
 
 logging.basicConfig(level="INFO")
 
@@ -29,8 +30,12 @@ class Pin_api:
         pin_pw_list: dict = {},
     ):
         self.name = name
+        self.dgb_context = DGBContext()
         self.pin_keeper = PinKeeper(
-            api_url=api_url, token=token, pin_pw_list=pin_pw_list
+            api_url=api_url,
+            token=token,
+            pin_pw_list=pin_pw_list,
+            dgb_context=self.dgb_context,
         )
         self.logger = logging.getLogger("{}_log".format(self.name))
         self.logger.info("starting {}".format(self.name))

@@ -9,12 +9,12 @@ Jeroen van Oosterhout, 15-07-2024
 from DGB.Pin import Pin
 from gpiozero import DigitalInputDevice
 from DGB.PinModels import PinModel
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 
 
 class Pin_in(Pin):
-    def __init__(self, config: PinModel, datastore: DataStore):
-        super().__init__(config=config, datastore=datastore)
+    def __init__(self, config: PinModel, dgb_context: DGBContext):
+        super().__init__(config=config, dgb_context=dgb_context)
 
     def HasSameConfig(self, config: PinModel) -> bool:
         """
@@ -77,7 +77,7 @@ class Pin_in(Pin):
         # self.value = value
 
         self.logger.info("Pin {} is: {}".format(self.config.pin, value))
-        self.datastore.put_to_queue(
+        self.dgb_context.put_to_binder_queue(
             "post", {"unique_id": str(self.config.pin), "payload": value}
         )
 

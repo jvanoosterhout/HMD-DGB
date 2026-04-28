@@ -9,17 +9,17 @@ Jeroen van Oosterhout, 24-12-2025
 import logging
 from ha_mqtt_discoverable import Settings, sensors
 from paho.mqtt.client import Client, MQTTMessage
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 # from DGB.Binder import post_event
 
 logging.basicConfig(level="INFO")
 
 
 class DeviceKeeper(object):
-    def __init__(self, mqtt_settings: Settings, datastore: DataStore):
+    def __init__(self, mqtt_settings: Settings, dgb_context: DGBContext):
         self.entities = []
         self.mqtt_settings = mqtt_settings
-        self.datastore = datastore
+        self.dgb_context = dgb_context
 
         # self.switches:list[sensors.Switch] = []
         # self.switches_dict:dict[str, any] = {}
@@ -91,7 +91,7 @@ class DeviceKeeper(object):
                 "turn cover {}: {}".format(device._entity.unique_id, payload)
             )
 
-            self.datastore.put_to_queue(
+            self.dgb_context.put_to_binder_queue(
                 "post", {"unique_id": device._entity.unique_id, "payload": payload}
             )
 
@@ -110,7 +110,7 @@ class DeviceKeeper(object):
         device = sensors.Cover(
             Settings(mqtt=self.mqtt_settings, entity=cover_info), my_callback
         )
-        self.datastore.add_device(
+        self.dgb_context.add_device(
             device._entity.unique_id,
             device,
             {
@@ -140,18 +140,18 @@ class DeviceKeeper(object):
             self.logger.info(
                 "turn switch {}: {}".format(device._entity.unique_id, payload)
             )
-            self.datastore.put_to_queue(
+            self.dgb_context.put_to_binder_queue(
                 "post", {"unique_id": device._entity.unique_id, "payload": payload}
             )
             if payload == "ON":
                 device.on()
-            # elif payload == "OFF":
-            #     device.off()
+            elif payload == "OFF":
+                device.off()
 
         device = sensors.Switch(
             Settings(mqtt=self.mqtt_settings, entity=switch_info), my_callback
         )
-        self.datastore.add_device(
+        self.dgb_context.add_device(
             device._entity.unique_id, device, {"on": device.on, "off": device.off}
         )
         device.off()
@@ -182,7 +182,7 @@ class DeviceKeeper(object):
         device = sensors.BinarySensor(
             Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
         )
-        self.datastore.add_device(
+        self.dgb_context.add_device(
             device._entity.unique_id, device, {"on": device.on, "off": device.off}
         )
         self.logger.info(

@@ -9,13 +9,13 @@ Jeroen van Oosterhout, 15-07-2024
 from DGB.Pin import Pin
 from gpiozero import DigitalInputDevice
 from DGB.PinModels import PinModel
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 import time
 
 
 class Pin_count(Pin):
-    def __init__(self, config: PinModel, datastore: DataStore):
-        super().__init__(config=config, datastore=datastore)
+    def __init__(self, config: PinModel, dgb_context: DGBContext):
+        super().__init__(config=config, dgb_context=dgb_context)
         self.count_totaal = 0
         self.tijd_laatste_count = time.monotonic()
         self.count_laatste_blok = 0

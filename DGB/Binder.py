@@ -21,7 +21,7 @@ from typing import Any
 from durable.lang import post, get_host
 from durable.engine import MessageNotHandledException, MessageObservedException
 
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext, BinderMessage
 
 
 # ---------------------------------------------------------------------------
@@ -88,10 +88,10 @@ class TimerRegistry:
 class Binder:
     def __init__(
         self,
-        datastore: DataStore,
+        dgb_context: DGBContext,
         timer_registry: TimerRegistry | None = None,
     ):
-        self.datastore = datastore
+        self.dgb_context = dgb_context
         self.timers = timer_registry or TimerRegistry()
         self.logger = logging.getLogger("Binder")
 
@@ -163,7 +163,7 @@ class Binder:
         if not isinstance(call_name, str) or not call_name:
             raise ValueError(f"action.call must be non-empty str (rule '{rule_name}')")
 
-        action_fn = self.datastore.get_functions(unique_id).get(call_name)
+        action_fn = self.dgb_context.get_functions(unique_id).get(call_name)
         if action_fn is None:
             raise KeyError(
                 f"No action function '{call_name}' for device '{unique_id}' "
@@ -219,7 +219,7 @@ class Binder:
 
             def callback():
                 base_ruleset = _ruleset.split("$", 1)[0]
-                self.datastore.put_to_queue(
+                self.dgb_context.put_to_binder_queue(
                     "post",
                     {"timeout": _name, "rulesetname": base_ruleset},
                 )
@@ -284,27 +284,28 @@ class Binder:
         t.start()
 
     def event_dispatcher(self):
+        msg = BinderMessage("", {"", ""})
         while True:
-            cmd, payload = self.datastore.post_queue.get()
+            msg = self.dgb_context.binder_queue.get()
 
-            if cmd == "shutdown":
+            if msg.cmd == "shutdown":
                 self.logger.info("Dispatcher shutdown requested")
                 break
 
-            if cmd == "post":
-                self._handle_post(payload)
-                self.datastore.post_queue.task_done()
+            if msg.cmd == "post":
+                self._handle_post(msg.payload)
+                self.dgb_context.binder_queue.task_done()
 
-            if cmd == "ruleset":
+            if msg.cmd == "ruleset":
                 self.logger.info("Adding new binding ruleset")
-                self.new_binding(payload)
+                self.new_binding(msg.payload)
 
     def _handle_post(self, payload: dict):
         if "unique_id" not in payload and "rulesetname" not in payload:
             raise ValueError("post payload requires unique_id or rulesetname")
 
         if "unique_id" in payload:
-            rulesets = self.datastore.get_bindings(payload["unique_id"])
+            rulesets = self.dgb_context.get_bindings(payload["unique_id"])
             if not rulesets:
                 self.logger.warning(
                     "no rulesets found (Yet) for device %s", payload["unique_id"]
@@ -316,7 +317,7 @@ class Binder:
             rulesets = [payload["rulesetname"]]
 
         try:
-            with self.datastore.engine_lock:
+            with self.dgb_context.engine_lock:
                 for ruleset in rulesets:
                     self.logger.info(
                         "Posting event to ruleset %s: %s", ruleset, payload
@@ -336,11 +337,13 @@ class Binder:
             for _, id_parent in iter_parents(all_parent["all"], "unique_id"):
                 uid = id_parent["unique_id"]
                 if (
-                    uid not in self.datastore.devices_objects
-                    and uid not in self.datastore.pins_objects
+                    self.dgb_context.get_device(uid) is None
+                    and self.dgb_context.get_pin(uid) is None
                 ):
-                    raise KeyError(f"Device '{uid}' not found in datastore for binding")
-                self.datastore.add_binding(uid, path[0])
+                    raise KeyError(
+                        f"Device '{uid}' not found in dgb_context for binding"
+                    )
+                self.dgb_context.add_binding(uid, path[0])
 
         # Build condition handlers
         for path, run_parent in iter_parents(bind, "run"):
@@ -351,5 +354,5 @@ class Binder:
             )
             run_parent["run"] = self.build_condition_handler(path[0], path[1], actions)
 
-        with self.datastore.engine_lock:
+        with self.dgb_context.engine_lock:
             get_host().set_rulesets(bind)

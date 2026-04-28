@@ -10,18 +10,18 @@ from DGB.PinOut import Pin_out
 from DGB.PinModels import PinType, PinModel
 from DGB.Pin import Pin
 from gpiozero import DigitalOutputDevice
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 
 
 class Pin_N_way_out(Pin):
-    def __init__(self, config: PinModel, datastore: DataStore):
+    def __init__(self, config: PinModel, dgb_context: DGBContext):
         """
         Initialiseer the Pin_N_way_out class.
 
         Parameters:
         config (Pin rootmodel): the pin configuration.
         """
-        super().__init__(config=config, datastore=datastore)
+        super().__init__(config=config, dgb_context=dgb_context)
         self.Pins: list[Pin_out] = []
 
     def HasSameConfig(self, config: PinModel) -> bool:

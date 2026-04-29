@@ -22,7 +22,7 @@ from durable.lang import post, get_host
 from durable.engine import MessageNotHandledException, MessageObservedException
 
 from DGB.DGBContext import DGBContext, BinderMessage
-
+from DGB.ActionArguments import ArgumentBuilder
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -86,13 +86,10 @@ class TimerRegistry:
 
 
 class Binder:
-    def __init__(
-        self,
-        dgb_context: DGBContext,
-        timer_registry: TimerRegistry | None = None,
-    ):
+    def __init__(self, dgb_context: DGBContext):
         self.dgb_context = dgb_context
-        self.timers = timer_registry or TimerRegistry()
+        self.timers = TimerRegistry()
+        self.arg_builder = ArgumentBuilder()
         self.logger = logging.getLogger("Binder")
 
     # ------------------------------------------------------------------
@@ -111,6 +108,7 @@ class Binder:
         Supported shapes:
           - {"log": {"msg": str}}
           - {"action": {"unique_id": str, "call": str}}
+          - {"action": {"unique_id": str, "call": str, "args": [{"name": str, "value": Any}]}}
           - {"timer": {"name": str, "action": "start", "seconds": float}}
           - {"timer": {"name": str, "action": "cancel"}}
         """
@@ -118,8 +116,9 @@ class Binder:
             case {"log": {"msg": msg}}:
                 return self._build_log_action(rule_name, msg)
 
-            case {"action": {"unique_id": dev, "call": call}}:
-                return self._build_device_action(rule_name, dev, call)
+            case {"action": {"unique_id": dev, "call": call, **rest}}:
+                args_config = rest.get("args", None)
+                return self._build_device_action(rule_name, dev, call, args_config)
 
             case {"timer": {"name": name, "action": "start", "seconds": secs}}:
                 return self._build_timer_start_action(
@@ -155,7 +154,17 @@ class Binder:
         rule_name: str,
         unique_id: Any,
         call_name: Any,
+        args_config: list[dict[str, Any]] | None = None,
     ) -> Callable[[Any], None]:
+        """
+        Build a device action with optional dynamic arguments.
+
+        Args:
+            rule_name: Name of the rule
+            unique_id: Device/pin unique_id
+            call_name: Function name to call
+            args_config: Optional list of {"name": str, "value": Any} argument definitions
+        """
         if not isinstance(unique_id, str) or not unique_id:
             raise ValueError(
                 f"action.unique_id must be non-empty str (rule '{rule_name}')"
@@ -170,7 +179,15 @@ class Binder:
                 f"(rule '{rule_name}')"
             )
 
-        self.logger.info("building action for %s, %s", unique_id, call_name)
+        # Parse and validate argument definitions
+        arg_defs = self.arg_builder.parse_argument_definitions(args_config, action_fn)
+
+        self.logger.info(
+            "building action for %s.%s with %d args",
+            unique_id,
+            call_name,
+            len(arg_defs),
+        )
 
         def _device_action(
             c,
@@ -178,6 +195,7 @@ class Binder:
             _rule=rule_name,
             _call=call_name,
             _dev=unique_id,
+            _arg_defs=arg_defs,
         ):
             self.logger.info(
                 "rule '%s' fired with action '%s' on device '%s'",

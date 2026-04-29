@@ -159,6 +159,7 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
 
 ## Roadmap / planes
 
+- aad support to use the payload of the triggering device as argument in the action function
 - Add RPI device action (e.g. restart, update, reload, ...)
 - Add log messages over MQTT in RPI device
 - GPIO upgrade (custom or an available package)

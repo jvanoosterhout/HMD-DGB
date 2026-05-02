@@ -81,13 +81,6 @@ def main():
                         },
                     ],
                 },
-                "timeout2": {
-                    "all": [{"m": {"timeout": "timeout2"}}],
-                    "to": "waiting",
-                    "run": [
-                        {"timer": {"name": "timeout1", "action": "start", "seconds": 1}}
-                    ],
-                },
             },
         }
     }

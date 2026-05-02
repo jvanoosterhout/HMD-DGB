@@ -20,17 +20,10 @@ class DeviceKeeper(object):
         self.entities = []
         self.mqtt_settings = mqtt_settings
         self.dgb_context = dgb_context
-
-        # self.switches:list[sensors.Switch] = []
-        # self.switches_dict:dict[str, any] = {}
-        # self.binarysensor_dict:dict[str, any] = {}
-        # self.callable_dict : dict[str, list[callable]] = {} # { "unique_id: [device.on, device.off]"}
         self.logger = logging.getLogger("DeviceKeeper")
         self.logger.info("starting Entitykeeper")
 
     def new_device(self, dev):
-        # print(payload)
-        # for dev in payload:
         if "EntityInfo" in dev:
             if "component" in dev["EntityInfo"]:
                 if dev["EntityInfo"]["component"] == "cover":
@@ -69,7 +62,8 @@ class DeviceKeeper(object):
     def configure_cover(self, payload):
         self.logger.info("creating cover")
         # time_based_state = False
-        # password_check = False
+        direct_state_transition = True
+        state_transition_after_action_succes = False
 
         if "time_based_state" in payload["EntityInfo"]:
             self.logger.info("cover has time_based_state, adding to settings")
@@ -77,39 +71,54 @@ class DeviceKeeper(object):
             # time_based_duration = payload["EntityInfo"]["time_based_state"]
             del payload["EntityInfo"]["time_based_state"]
 
-        if "password" in payload["EntityInfo"]:
-            self.logger.info("cover has password, adding to settings")
-            # password_check = True
-            # password = payload["EntityInfo"]["password"]
-            del payload["EntityInfo"]["password"]
+        if "direct_state_transition" in payload["EntityInfo"]:
+            direct_state_transition = payload["EntityInfo"]["direct_state_transition"]
+            del payload["EntityInfo"]["direct_state_transition"]
+
+        # if "state_transition_after_action_succes" in payload["EntityInfo"]:
+        #     state_transition_after_action_succes = payload["EntityInfo"]["state_transition_after_action_succes"]
+        #     del payload["EntityInfo"]["state_transition_after_action_succes"]
+
+        if direct_state_transition:
+            self.logger.info(
+                "cover states will change directly based on paload commands"
+            )
+        else:
+            if state_transition_after_action_succes:
+                self.logger.info(
+                    "cover state changes occure after succesfull binder action"
+                )
+            else:
+                self.logger.info(
+                    "cover state changes must be managed via binder actions"
+                )
 
         cover_info = sensors.CoverInfo(**payload["EntityInfo"])
 
         def my_callback(client: Client, user_data, message: MQTTMessage):
             payload = message.payload.decode()
             self.logger.info(
-                "turn cover {}: {}".format(device._entity.unique_id, payload)
+                "Cover {} commanded: {}".format(device._entity.unique_id, payload)
             )
 
             self.dgb_context.put_to_binder_queue(
                 "post", {"unique_id": device._entity.unique_id, "payload": payload}
             )
 
-            if payload == "OPEN":
-                device.opening()
-                device.open()
-                self.logger.info("ik open")
-            elif payload == "CLOSE":
-                device.closing()
-                device.closed()
-                self.logger.info("ik sluit")
-            elif payload == "STOP":
-                device.stopped()
-                self.logger.info("ik stop")
+            if direct_state_transition:
+                if payload == device._entity.payload_open:
+                    device.opening()
+                    device.open()
+                elif payload == device._entity.payload_close:
+                    device.closing()
+                    device.closed()
+                elif payload == device._entity.payload_stop:
+                    device.stopped()
 
         device = sensors.Cover(
             Settings(mqtt=self.mqtt_settings, entity=cover_info), my_callback
         )
+
         self.dgb_context.add_device(
             device._entity.unique_id,
             device,
@@ -129,10 +138,27 @@ class DeviceKeeper(object):
         )
 
     def configure_sensor(self, payload):
-        pass
+        self.logger.info("creating sensor")
+        sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
+        device = sensors.Sensor(Settings(mqtt=self.mqtt_settings, entity=sensor_info))
+        self.dgb_context.add_device(
+            device._entity.unique_id, device, {"set_state": device.set_state}
+        )
+        self.logger.info(
+            "Sensor '{}' with unique_id '{}' made and set to ''.".format(
+                device._entity.name, device._entity.unique_id
+            )
+        )
+        device.set_state("")
 
     def configure_switch(self, payload):
         self.logger.info("creating switch")
+        direct_state_transition = True
+
+        if "direct_state_transition" in payload["EntityInfo"]:
+            direct_state_transition = payload["EntityInfo"]["direct_state_transition"]
+            del payload["EntityInfo"]["direct_state_transition"]
+
         switch_info = sensors.SwitchInfo(**payload["EntityInfo"])
 
         def my_callback(client: Client, user_data, message: MQTTMessage):
@@ -143,10 +169,11 @@ class DeviceKeeper(object):
             self.dgb_context.put_to_binder_queue(
                 "post", {"unique_id": device._entity.unique_id, "payload": payload}
             )
-            if payload == "ON":
-                device.on()
-            elif payload == "OFF":
-                device.off()
+            if direct_state_transition:
+                if payload == device._entity.payload_on:
+                    device.on()
+                elif payload == device._entity.payload_off:
+                    device.off()
 
         device = sensors.Switch(
             Settings(mqtt=self.mqtt_settings, entity=switch_info), my_callback

@@ -163,7 +163,7 @@ class Binder:
             rule_name: Name of the rule
             unique_id: Device/pin unique_id
             call_name: Function name to call
-            args_config: Optional list of {"name": str, "value": Any} argument definitions
+            args_config: Optional list of {"name": str, "value": Any or "$c.path_to_value"} argument definitions
         """
         if not isinstance(unique_id, str) or not unique_id:
             raise ValueError(
@@ -203,7 +203,13 @@ class Binder:
                 _call,
                 _dev,
             )
-            result = _fn()
+            # Build call arguments from context and coerce types
+            call_args = self.arg_builder.build_call_args(_arg_defs, c)
+
+            self.logger.debug(f"Calling {_call} with args: {call_args}")
+
+            # Call with resolved arguments
+            result = _fn(**call_args)
             c.s.return_value = {"value": True if result is None else bool(result)}
 
         _device_action.__name__ = f"action__{rule_name}__{unique_id}__{call_name}"
@@ -351,6 +357,7 @@ class Binder:
 
     def new_binding(self, bind: dict):
         # Register bindings
+        self.logger.info(f"building new binding {next(iter(bind))}")
         for path, all_parent in iter_parents(bind, "all"):
             for _, id_parent in iter_parents(all_parent["all"], "unique_id"):
                 uid = id_parent["unique_id"]
@@ -373,4 +380,5 @@ class Binder:
             run_parent["run"] = self.build_condition_handler(path[0], path[1], actions)
 
         with self.dgb_context.engine_lock:
+            self.logger.info(f"Adding binding {next(iter(bind))} to durable rules")
             get_host().set_rulesets(bind)

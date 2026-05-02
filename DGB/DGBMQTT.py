@@ -230,6 +230,8 @@ class DGBMQTT:
 
     def _handle_bindings(self, payload: dict) -> None:
         for bind in payload.get("Bindings", []):
+            self.logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            self.logger.info(bind["BindInfo"])
             self.binder.new_binding(bind["BindInfo"])
 
     # ------------------------------------------------------------------

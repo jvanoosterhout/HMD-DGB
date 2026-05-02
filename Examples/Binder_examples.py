@@ -51,6 +51,25 @@ class dummy_device:
         print("{} is off".format(self.id))
         return True
 
+    def log(
+        self,
+        integer: int | None = None,
+        string: str | None = None,
+        boolean: bool | None = None,
+        floatingpoint: float | None = None,
+    ):
+        if integer:
+            print(f"recieved integer: {integer}. with type {type(integer)}")
+        if string:
+            print(f"recieved string: {string}. with type {type(string)}")
+        if boolean:
+            print(f"recieved boolean: {boolean}. with type {type(boolean)}")
+        if floatingpoint:
+            print(
+                f"recieved floatingpoint: {floatingpoint}. with type {type(floatingpoint)}"
+            )
+        return True
+
 
 # make instances of the dummy device
 p1 = dummy_device("pin1")
@@ -58,15 +77,17 @@ s1 = dummy_device("source1")
 s2 = dummy_device("source2")
 s3 = dummy_device("source3")
 s4 = dummy_device("source4")
+s5 = dummy_device("source5")
 pw1 = dummy_device("pw1")
 pw2 = dummy_device("pw2")
 
 # add instances with theire calable functions (if any) to the dgb_context
-binder.dgb_context.add_device("p1", p1, {"on": p1.on, "off": p1.off})
+binder.dgb_context.add_device("p1", p1, {"on": p1.on, "off": p1.off, "log": p1.log})
 binder.dgb_context.add_device("s1", s1)
 binder.dgb_context.add_device("s2", s2)
 binder.dgb_context.add_device("s3", s3)
 binder.dgb_context.add_device("s4", s4)
+binder.dgb_context.add_device("s5", s5)
 binder.dgb_context.add_device("pw1", pw1)
 binder.dgb_context.add_device("pw2", pw2)
 
@@ -182,6 +203,57 @@ binding_to_pin_with_pw_with_timeout = {
 }
 
 
+# Test binding with arguments
+binding_with_args = {
+    "number_to_output": {
+        "rule_1": {
+            "all": [{"m": {"$and": [{"unique_id": "s5"}, {"$ex": {"payload": 1}}]}}],
+            "run": [
+                {"log": {"msg": "use payload as arguments"}},
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "log",
+                        "args": [
+                            {"name": "integer", "value": "$m.payload"},
+                            {"name": "string", "value": "$m.payload"},
+                            {"name": "boolean", "value": "$m.payload"},
+                            {"name": "floatingpoint", "value": "$m.payload"},
+                        ],
+                    }
+                },
+                {"log": {"msg": "use correct values as arguments"}},
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "log",
+                        "args": [
+                            {"name": "integer", "value": 1},
+                            {"name": "string", "value": "1"},
+                            {"name": "boolean", "value": True},
+                            {"name": "floatingpoint", "value": 1.0},
+                        ],
+                    }
+                },
+                {"log": {"msg": "use incorrect values as arguments"}},
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "log",
+                        "args": [
+                            {"name": "integer", "value": "1"},
+                            {"name": "string", "value": 1},
+                            {"name": "boolean", "value": "No"},
+                            {"name": "floatingpoint", "value": "1"},
+                        ],
+                    }
+                },
+            ],
+        }
+    }
+}
+
+
 # start the binder
 binder.start_event_dispatcher()
 
@@ -190,6 +262,7 @@ binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin)
 binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin_with_pw)
 binder.dgb_context.put_to_binder_queue("ruleset", binding_auto_off)
 binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin_with_pw_with_timeout)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_with_args)
 
 # post the events
 binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s1", "payload": "on"})
@@ -202,6 +275,10 @@ binder.dgb_context.put_to_binder_queue(
     "post", {"unique_id": "pw2", "payload": "secret"}
 )
 binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s4", "payload": "on"})
+
+time.sleep(1)
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "1"})
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "no"})
 
 time.sleep(10)
 # shutdown the main binder thread

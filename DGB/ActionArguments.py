@@ -2,17 +2,17 @@
 # encoding: utf-8
 """
 Argument handling for dynamic function calls in actions.
-Supports type coercion and payload references.
+Supports durable.lang context path resolution and type coercion.
 
-Jeroen van Oosterhout, 28-04-2026
+Jeroen van Oosterhout, 30-04-2026
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, get_type_hints
+from typing import Any, Callable, get_type_hints, get_origin, get_args, Union
+import types
 from dataclasses import dataclass
-from pydantic import BaseModel, Field, field_validator
 
 
 @dataclass
@@ -21,42 +21,67 @@ class ArgDefinition:
 
     name: str
     value: Any
-    is_payload_ref: bool = False
-    payload_key: str | None = None
+    is_context_ref: bool = False
+    context_path: str | None = None  # e.g., "m.payload" or "first.payload"
     target_type: type | None = None
-
-
-class ActionArgumentSchema(BaseModel):
-    """Schema for action arguments in JSON config."""
-
-    args: list[dict[str, Any]] | None = Field(
-        default=None, description="List of arguments to pass to the function"
-    )
-
-    @field_validator("args", mode="before")
-    @classmethod
-    def validate_args(cls, v):
-        if v is None:
-            return None
-        if not isinstance(v, list):
-            raise ValueError("args must be a list")
-        for i, arg in enumerate(v):
-            if not isinstance(arg, dict):
-                raise ValueError(f"arg {i} must be a dict with 'name' and 'value' keys")
-            if "name" not in arg:
-                raise ValueError(f"arg {i} missing 'name' key")
-            if "value" not in arg:
-                raise ValueError(f"arg {i} missing 'value' key")
-        return v
+    accepts_none: bool = False  # True if type is Optional or Union with None
 
 
 class ArgumentBuilder:
-    """Builds and coerces arguments for function calls."""
+    """
+    Builds and coerces arguments for function calls from durable.lang context.
 
-    PAYLOAD_REF_PREFIX = "$payload:"
+    Syntax:
+    - Literal: {"name": "active_pin", "value": 5}
+    - Context: {"name": "active_pin", "value": "$m.payload"}
+    - Context: {"name": "active_pin", "value": "$first.payload"}
+    """
+
+    CONTEXT_REF_PREFIX = "$"
 
     def __init__(self):
-        self._logger = logging.getLogger(f"{__name__}.ArgumentBuilder")
+        self.logger = logging.getLogger(f"{__name__}.ArgumentBuilder")
+
+    @staticmethod
+    def _extract_non_none_type(annotation: Any) -> tuple[type | None, bool]:
+        """
+        Extract the non-None type from a Union/Optional annotation.
+
+        Examples:
+        - int -> (int, False)
+        - int | None -> (int, True)
+        - Optional[str] -> (str, True)
+        - str | int | None -> (str, True) [uses first non-None]
+        - None -> (None, True)
+        - str | int -> (str, False) [uses first, no None]
+
+        Args:
+            annotation: Type annotation (possibly Union/Optional)
+
+        Returns:
+            Tuple of (extracted_type, accepts_none)
+        """
+        # Handle None directly
+        if annotation is None or annotation is type(None):
+            return (None, True)
+
+        # Get origin and args (works for Union, Optional, etc.)
+        origin = get_origin(annotation)
+        args = get_args(annotation)
+
+        # Not a Union/Optional - return as-is
+        if origin not in (Union, types.UnionType):
+            return (annotation, False)
+
+        # Extract non-None types from Union
+        non_none_types = [arg for arg in args if arg is not type(None)]
+        accepts_none = len(non_none_types) < len(args)
+        # Return first non-None type, or None if only None in union
+        if non_none_types:
+            # Prefer more useful types: int over str, bool over others
+            return (non_none_types[0], accepts_none)
+        else:
+            return (None, True)
 
     def parse_argument_definitions(
         self,
@@ -67,7 +92,7 @@ class ArgumentBuilder:
         Parse argument definitions from config and match to function signature.
 
         Args:
-            args_config: List of {"name": str, "value": Any} dicts
+            args_config: List of {"name": str, "value": Any or "$context.path"} dicts
             function: The target function to get type hints from
 
         Returns:
@@ -80,38 +105,45 @@ class ArgumentBuilder:
         try:
             hints = get_type_hints(function)
         except Exception as e:
-            self._logger.warning(f"Could not get type hints for {function}: {e}")
+            self.logger.debug(f"Could not get type hints for {function}: {e}")
             hints = {}
 
         arg_defs = []
         for arg_config in args_config:
-            name = arg_config["name"]
-            value = arg_config["value"]
+            name = arg_config.get("name")
+            value = arg_config.get("value")
 
-            # Check if this is a payload reference
-            is_payload_ref = isinstance(value, str) and value.startswith(
-                self.PAYLOAD_REF_PREFIX
+            if not name:
+                raise ValueError(f"Argument missing 'name' key: {arg_config}")
+            if value is None:
+                raise ValueError(f"Argument '{name}' missing 'value' key")
+
+            # Check if this is a context reference
+            is_context_ref = isinstance(value, str) and value.startswith(
+                self.CONTEXT_REF_PREFIX
             )
-            payload_key = None
+            context_path = None
 
-            if is_payload_ref:
-                payload_key = value[len(self.PAYLOAD_REF_PREFIX) :]
+            if is_context_ref:
+                context_path = value[len(self.CONTEXT_REF_PREFIX) :]
 
             # Get target type from function hints
-            target_type = hints.get(name, None)
+            annotation = hints.get(name, None)
+            target_type, accepts_none = self._extract_non_none_type(annotation)
 
             arg_def = ArgDefinition(
                 name=name,
                 value=value,
-                is_payload_ref=is_payload_ref,
-                payload_key=payload_key,
+                is_context_ref=is_context_ref,
+                context_path=context_path,
                 target_type=target_type,
+                accepts_none=accepts_none,
             )
             arg_defs.append(arg_def)
 
-            self._logger.debug(
-                f"Parsed arg '{name}': payload_ref={is_payload_ref}, "
-                f"target_type={target_type}"
+            self.logger.debug(
+                f"Parsed arg '{name}': context_ref={is_context_ref}, "
+                f"path={context_path}, target_type={target_type}"
             )
 
         return arg_defs
@@ -125,9 +157,10 @@ class ArgumentBuilder:
         Coerce a value to the target type.
 
         Supports:
-        - str -> bool ("true"/"false", "1"/"0", "on"/"off" - case insensitive)
+        - str -> bool ("true"/"false", "1"/"0", "on"/"off", "yes"/"no" - case insensitive)
         - str -> int/float (via float() then int() if needed)
         - Any -> Any (identity if no target_type)
+        - None passthrough
 
         Args:
             value: The value to coerce
@@ -136,35 +169,48 @@ class ArgumentBuilder:
         Returns:
             Coerced value
         """
-        if target_type is None or value is None:
+        # self.logger.info(f"Coercing value {value} to type {target_type}")
+        if value is None or target_type is None:
             return value
 
         # If already correct type, return as-is
         if isinstance(value, target_type):
             return value
 
-        # Handle bool (special case - many representations)
-        if isinstance(target_type, bool):
+        # Handle bool (special case - many string representations)
+        if target_type is bool:
             return self._coerce_to_bool(value)
 
         # Handle int
-        if isinstance(target_type, int):
-            return int(float(value))
+        if target_type is int:
+            if isinstance(value, bool):
+                return int(value)
+            return int(self._coerce_to_float(value))
 
         # Handle float
-        if isinstance(target_type, float):
-            return float(value)
+        if target_type is float:
+            return self._coerce_to_float(value)
 
         # Handle str
-        if isinstance(target_type, str):
+        if target_type is str:
             return str(value)
 
         # Default: try direct conversion
         try:
             return target_type(value)
         except (TypeError, ValueError) as e:
-            self._logger.warning(f"Could not coerce {value!r} to {target_type}: {e}")
-            return value
+            self.logger.error(
+                f"Could not coerce {value!r} to {target_type}: {e}. Returning False."
+            )
+            return False
+
+    @staticmethod
+    def _coerce_to_float(value: Any) -> float:
+        try:
+            return float(value)
+        except ValueError as e:
+            print(f"ERROR!: Could not coerce {value!r} to float: {e}. Returning False.")
+            return False
 
     @staticmethod
     def _coerce_to_bool(value: Any) -> bool:
@@ -179,43 +225,100 @@ class ArgumentBuilder:
                 return True
             if s in ("false", "0", "no", "off"):
                 return False
-            raise ValueError(f"Cannot convert {value!r} to bool")
-        raise ValueError(f"Cannot convert {type(value)} to bool")
+            # raise ValueError(f"Cannot convert {value!r} to bool")
+        # raise ValueError(f"Cannot convert type {type(value).__name__} to bool")
+        print(f"ERROR!: Could not coerce {value!r} to bool. Returning False.")
+        return False
+
+    def resolve_context_value(
+        self,
+        context_path: str,
+        c: Any,
+    ) -> Any:
+        """
+        Resolve a value from durable.lang context using dot notation.
+
+        Examples:
+        - "c.m.payload"        -> c.m['payload'] or c.m.payload
+        - "c.first.c.payload"  -> c.first['payload'] or c.first.payload
+        - "c.second.payload"   -> c.second.payload
+
+        Args:
+            context_path: Dot-separated path like "c.m.payload"
+            c: Durable.lang context object
+
+        Returns:
+            Resolved value or None if path not found
+        """
+        parts = context_path.split(".")
+        current = c
+
+        for part in parts:
+            if current is None:
+                self.logger.warning(
+                    f"Context path resolution stopped at None "
+                    f"(remaining: {'.'.join(parts[parts.index(part) :])})"
+                )
+                return None
+
+            # Try dict-style access first (more common in durable.lang)
+            if isinstance(current, dict):
+                if part not in current:
+                    self.logger.warning(
+                        f"Key '{part}' not found in dict. "
+                        f"Available keys: {list(current.keys())}"
+                    )
+                    return None
+                current = current[part]
+            else:
+                # Fall back to attribute access
+                if not hasattr(current, part):
+                    self.logger.warning(
+                        f"Attribute '{part}' not found on {type(current).__name__}. "
+                        f"Available: {[x for x in dir(current) if not x.startswith('_')]}"
+                    )
+                    return None
+                current = getattr(current, part)
+
+        return current
 
     def build_call_args(
         self,
         arg_defs: list[ArgDefinition],
-        payload: dict[str, Any] | None = None,
+        c: Any,
     ) -> dict[str, Any]:
         """
-        Build actual arguments by resolving payload references and coercing types.
+        Build actual arguments by resolving context references and coercing types.
+
+        Called within durable.lang action handler with full context `c`.
 
         Args:
             arg_defs: List of parsed argument definitions
-            payload: Optional payload dict for resolving $payload: references
+            c: Durable.lang context object (contains c.m, c.first, etc.)
 
         Returns:
             Dict of {"arg_name": coerced_value}
         """
         call_args = {}
-        payload = payload or {}
 
         for arg_def in arg_defs:
-            if arg_def.is_payload_ref:
-                # Resolve from payload
-                if arg_def.payload_key not in payload:
-                    self._logger.warning(
-                        f"Payload key '{arg_def.payload_key}' not found in payload. "
-                        f"Using None."
-                    )
-                    value = None
-                else:
-                    value = payload[arg_def.payload_key]
+            if arg_def.is_context_ref:
+                # Resolve from durable context
+                self.logger.debug(
+                    f"Resolving context ref for '{arg_def.name}': "
+                    f"path='{arg_def.context_path}'"
+                )
+                value = self.resolve_context_value(arg_def.context_path, c)
             else:
                 value = arg_def.value
 
             # Coerce to target type
             coerced = self.coerce_value(value, arg_def.target_type)
             call_args[arg_def.name] = coerced
+
+            self.logger.debug(
+                f"Arg '{arg_def.name}': "
+                f"raw={value!r}, coerced={coerced!r}, type={arg_def.target_type}"
+            )
 
         return call_args

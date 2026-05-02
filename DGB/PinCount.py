@@ -84,7 +84,9 @@ class Pin_count(Pin):
         self.count_totaal = self.count_totaal + 1
         self.tijd_laatste_count = time.monotonic()
 
-        self.binder.execute_all(self.count_totaal)
+        self.dgb_context.put_to_binder_queue(
+            "post", {"unique_id": str(self.config.pin), "payload": self.count_totaal}
+        )
         self.sendWebhook(self.GetPinValue())
 
     def is_update_relevant(self):

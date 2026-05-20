@@ -18,7 +18,11 @@ The system consists of four core concepts:
 ### Hardware & OS
 
 - **Raspberry Pi**: Pi 4 or Pi Zero 2 W (or compatible board)
-- **Operating System**: Bookworm recommended
+  - Pi Zero may require to buil some packages like psutil
+  ```bash
+  sudo apt install -y gcc python3-dev build-essential
+  ```
+- **Operating System**: Bookworm or newer recommended
   - Bullseye may work with GPIOZERO fallback to RPI.GPIO
   - Not tested on older versions
 
@@ -157,18 +161,54 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
 - the default homeassistant discoverable topics (publishe and subscribe)
 - the "config/[RPI-name]/devices/[sub-topic]" topic (subscribe) to recieve configurations for devices, bindings and GPIO.
 
-## Roadmap / planes
+## Ideas for improvement (unsorted in priority) 
 
-- aad support to use the payload of the triggering device as argument in the action function
-- Add RPI device action (e.g. restart, update, reload, ...)
-- Add log messages over MQTT in RPI device
-- GPIO upgrade (custom or an available package)
+- Triggering payload as argument in action
+  - <del>Add support to use the payload of the triggering device as argument in the action function</del>
+  - Match best type of arg for multi type function args (naow: payload = int & function accepts str|int|bool --> convert int to str; should be pass int)
+  - Make it posible to define case type in configuration (e.g. "value": "$m.payload|int")
+  - Provide readme / log feedback on posible arg names and types per fuction
+- Improve run actions
+  - create readme documentation on the posible actions (log, action, timer, ...)
+  - Extend run action with the option to perform a post to a ruleset with specific context 
+- Improve device, GPIO and binder configuration
+  - Make configuration possible from yaml
+  - Allow to delete objects:
+    - device (incl ha entitys by cleaning up topics)
+    - rules 
+    - gpio pins
+- Improve systems capabilities and robustness
+  - Make system sensors configurable
+  - Add RPI device action (e.g. restart, update, reload, ...)
+  - Add log messages over MQTT in RPI device
+  - Splitt loading and active phase: prevent post from being evaluated while rules may not be in place (e.g. set a system flag: loading = true while new mqtt config messages are being  processed)
+  - Make pytest for all files.
+- Improve GPIO (custom or an available package)
   - Count-type pins: Finalization for water flow meters and pulse counters
   - Time-series I/O: RF signal handling for advanced sensor integration
   - PWM support: LED brightness and voltage regulation control
-- Docker deployment: Streamlined container-based setup with pre-configured environment
+  - Replace gpio module for use on diffferent single board coputers (e.g. Mqtt-io, Adafruit Blinka, Libgpio)
+- Improve system setup:
+  - Make example with arg configuration of system name, mqtt and some other system settings (acount for secure passwords)
+    - Potentially include a local webserver to set wifi and mqtt credentials and store them encrypted 
+  - Docker deployment: Streamlined container-based setup with pre-configured environment
+  - Define cloud-init (e.g. for Trixi)
+  - (external project) Make tool to write Device, GPIO and Binder configurations (host on local webserver)
+- Improve Devices
+  - Support more HMD device (focus on valve)
+  - Implement time based cover/valve
+  - Implement (distinguish and document) Device configuration specific to HMD-DGB
+    - time_based_state (for cover & valve)
+    - direct_state_transition (for all devices with callback: acknowlegde state to HA directly or via binding action)
 
 ## Known Issues & Limitations
+
+### Loading configurations & runtime
+
+**Status:** Needs split of operational phases or robust error handling
+
+Currently devices and pins can emit posts directly after creation, rules/bindings can only be set once all included devices and pins are defind --> early posts fail. 
+
 
 ### Count-Type Pin Device
 

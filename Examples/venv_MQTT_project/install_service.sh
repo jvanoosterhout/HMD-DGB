@@ -1,6 +1,6 @@
-script_name=API_example.py
-service_name=API_example
-service_doel="GPIOpinAPI"
+script_name=MQTT_duration_run.py
+service_name=HMD-DGB
+service_doel="DGB"
 
 # get curent path and set the system path
 global_path=`pwd`

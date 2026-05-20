@@ -10,23 +10,19 @@ from __future__ import annotations
 
 import json
 import logging
-import socket
 import threading
-import time
 from typing import Optional
 
-import psutil
-import pkg_resources
 import paho.mqtt.client as mqtt
-from gpiozero import CPUTemperature
 from pydantic import ValidationError
-from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
+from ha_mqtt_discoverable import Settings
 
 from DGB.DeviceKeeper import DeviceKeeper
 from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import PinModel
 from DGB.Binder import Binder
 from DGB.DGBContext import DGBContext
+from DGB.SystemDevices import SystemDevices
 
 
 class DGBMQTT:
@@ -55,18 +51,29 @@ class DGBMQTT:
 
         # Core context
         self.dgb_context = DGBContext()
-        self.devicekeeper = DeviceKeeper(None, dgb_context=self.dgb_context)
         self.pinkeeper = PinKeeper(dgb_context=self.dgb_context)
         self.binder = Binder(dgb_context=self.dgb_context)
 
         # MQTT
         self.client: mqtt.Client = self._create_mqtt_client()
         self.mqtt_settings = Settings.MQTT(client=self.client)
-        self.devicekeeper.mqtt_settings = self.mqtt_settings
 
-        # Sensors
-        self._init_system_sensors()
+        # System devices (platform + app) - create before DeviceKeeper
+        self.system_devices = SystemDevices(
+            mqtt_settings=self.mqtt_settings,
+            dgb_context=self.dgb_context,
+            device_name=name,
+            location=None,  # Can be configured from MQTT topic
+            dgb_mqtt_instance=self,  # Pass reference for restart callback
+        )
+        self.system_devices.create_devices()
 
+        # User-defined devices (from config topic)
+        self.devicekeeper = DeviceKeeper(
+            self.mqtt_settings, dgb_context=self.dgb_context
+        )
+
+        # Sensor update loop
         self.sensor_thread = threading.Thread(
             target=self._system_sensor_loop,
             name="system-sensors",
@@ -99,6 +106,17 @@ class DGBMQTT:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.stop()
 
+    def _set_all_unavailable(self):
+        self.logger.info("test")
+        for unique_id, device_obj in list(self.dgb_context._devices_objects.items()):
+            try:
+                if device_obj._settings.manual_availability:
+                    self.logger.info(device_obj.availability_topic)
+                    self.client.publish(device_obj.availability_topic, "offline")
+                    self.logger.info("Setting device %s unavailable", unique_id)
+            except Exception as e:
+                self.logger.warning("Error unpublishing devices: %s", e)
+
     def run_forever(self) -> None:
         self.start()
         self.logger.info("Runtime started, entering main loop")
@@ -109,6 +127,7 @@ class DGBMQTT:
         except KeyboardInterrupt:
             self.logger.info("KeyboardInterrupt received")
         finally:
+            self._set_all_unavailable()
             self.stop()
             self.logger.info("Runtime stopped")
 
@@ -128,7 +147,6 @@ class DGBMQTT:
         client.on_connect = self._on_connect
         client.on_message = self._on_message
         client.on_subscribe = self._on_subscribe
-        # client.on_disconnect = self._on_disconnect
 
         client.will_set(
             f"sys/{self.name}/status",
@@ -161,57 +179,6 @@ class DGBMQTT:
         self._handle_pins(payload)
         self._handle_bindings(payload)
 
-    def _on_disconnect(
-        self,
-        client,
-        userdata,
-        rc,
-        *,
-        first_reconnect_delay: int = 10,
-        reconnect_rate: int = 2,
-        max_reconnect_count: int = 10_000,
-        max_reconnect_delay: int = 600,
-    ) -> None:
-        """MQTT disconnect callback with bounded exponential backoff reconnect.
-
-        Stops trying when:
-        - reconnect succeeds
-        - max_reconnect_count is reached
-        - shutdown_event is set (graceful stop)
-        """
-        self.logger.info("Disconnected from MQTT (rc=%s)", rc)
-
-        reconnect_count = 0
-        reconnect_delay = first_reconnect_delay
-
-        while (
-            reconnect_count < max_reconnect_count and not self.shutdown_event.is_set()
-        ):
-            self.logger.info("Reconnecting in %s seconds...", reconnect_delay)
-
-            # shutdown-aware sleep (so stop() can interrupt wait)
-            self.shutdown_event.wait(reconnect_delay)
-            if self.shutdown_event.is_set():
-                break
-
-            try:
-                client.reconnect()
-                self.logger.info("Reconnected successfully.")
-                return
-            except Exception as err:
-                # keep as warning: it's recoverable, but worth surfacing
-                self.logger.warning("Reconnect failed (%s). Retrying...", err)
-
-            reconnect_delay = min(reconnect_delay * reconnect_rate, max_reconnect_delay)
-            reconnect_count += 1
-
-        if self.shutdown_event.is_set():
-            self.logger.info("Reconnect loop stopped due to shutdown request.")
-        else:
-            self.logger.error(
-                "Reconnect failed after %s attempts. Giving up.", reconnect_count
-            )
-
     # ------------------------------------------------------------------
     # Payload handlers
     # ------------------------------------------------------------------
@@ -230,90 +197,41 @@ class DGBMQTT:
 
     def _handle_bindings(self, payload: dict) -> None:
         for bind in payload.get("Bindings", []):
-            self.logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             self.logger.info(bind["BindInfo"])
             self.binder.new_binding(bind["BindInfo"])
 
     # ------------------------------------------------------------------
-    # System sensors
+    # App control (restart)
     # ------------------------------------------------------------------
 
-    def _init_system_sensors(self) -> None:
-        ip = self._get_ip()
+    def restart(self) -> None:
+        """
+        Stop the DGB app, restart is handeled by systemd.
 
-        device_info = DeviceInfo(
-            name=f"{self.name} main device",
-            identifiers=f"dgb-{self.name}",
-            model="HMD-DGB",
-            manufacturer="J van Oosterhout",
-            sw_version=pkg_resources.get_distribution(
-                "ha-mqtt-discoverable-device-gpio-binder"
-            ).version,
-            configuration_url=ip,
-        )
+        """
+        self.logger.info("Restarting DGB app - full reinitialization and cleanup")
 
-        self.cpu_temp = sensors.Sensor(
-            Settings(
-                mqtt=self.mqtt_settings,
-                entity=sensors.SensorInfo(
-                    name="CPU temperature",
-                    unit_of_measurement="°C",
-                    device_class="temperature",
-                    unique_id=f"{self.name}_cpu_temp",
-                    device=device_info,
-                ),
-            )
-        )
+        # Step 4: Unpublish devices from HA
+        # Send empty retained messages to MQTT discovery topics
+        self.logger.info("Unpublishing devices from Home Assistant")
+        for unique_id, device_obj in list(self.dgb_context._devices_objects.items()):
+            try:
+                self.logger.info(device_obj.config_topic)
+                self.client.publish(device_obj.config_topic, "")
+                self.logger.info("Cleared device %s from registry", unique_id)
+            except Exception as e:
+                self.logger.warning("Error unpublishing devices: %s", e)
 
-        self.uptime = sensors.Sensor(
-            Settings(
-                mqtt=self.mqtt_settings,
-                entity=sensors.SensorInfo(
-                    name="Uptime",
-                    unit_of_measurement="h",
-                    device_class="duration",
-                    unique_id=f"{self.name}_uptime",
-                    device=device_info,
-                ),
-            )
-        )
+        self.stop()
 
-        self.cpu_usage = sensors.Sensor(
-            Settings(
-                mqtt=self.mqtt_settings,
-                entity=sensors.SensorInfo(
-                    name="CPU usage",
-                    unit_of_measurement="%",
-                    unique_id=f"{self.name}_cpu_usage",
-                    device=device_info,
-                ),
-            )
-        )
-
-        self.mem_usage = sensors.Sensor(
-            Settings(
-                mqtt=self.mqtt_settings,
-                entity=sensors.SensorInfo(
-                    name="Memory usage",
-                    unit_of_measurement="%",
-                    unique_id=f"{self.name}_mem_usage",
-                    device=device_info,
-                ),
-            )
-        )
+    # ------------------------------------------------------------------
+    # System sensor updates
+    # ------------------------------------------------------------------
 
     def _system_sensor_loop(self) -> None:
+        """Update system sensor values periodically (every 60 seconds)."""
         self.logger.info("System sensor loop started")
         while not self.shutdown_event.is_set():
-            self.cpu_temp.set_state(CPUTemperature().temperature)
-            self.uptime.set_state(time.monotonic() / 3600)
-            self.cpu_usage.set_state(psutil.cpu_percent(interval=1))
-            self.mem_usage.set_state(psutil.virtual_memory().percent)
+            self.system_devices.update_sensor_values()
             self.shutdown_event.wait(60)
         self.logger.info("System sensor loop stopped")
-
-    @staticmethod
-    def _get_ip() -> str:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]

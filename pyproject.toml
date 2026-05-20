@@ -1,8 +1,8 @@
 
 [project]
-name = "ha-mqtt-discoverable-device-gpio-binder"
+name = "HMD-DGB"
 version = "1.0.0"
-description = "A durable rules binder between ha devices and GPIO on RPI-like devices"
+description = "A durable rules binder between HA discoverable devices and GPIO on RPI-like devices"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

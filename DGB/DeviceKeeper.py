@@ -26,6 +26,8 @@ class DeviceKeeper(object):
     def new_device(self, dev):
         if "EntityInfo" in dev:
             if "component" in dev["EntityInfo"]:
+                if "device" in dev["EntityInfo"]:
+                    dev["EntityInfo"]["device"]["via_device"] = "dgb-app"
                 if dev["EntityInfo"]["component"] == "cover":
                     self.configure_cover(dev)
                 elif dev["EntityInfo"]["component"] == "sensor":
@@ -116,7 +118,10 @@ class DeviceKeeper(object):
                     device.stopped()
 
         device = sensors.Cover(
-            Settings(mqtt=self.mqtt_settings, entity=cover_info), my_callback
+            Settings(
+                mqtt=self.mqtt_settings, entity=cover_info, manual_availability=True
+            ),
+            my_callback,
         )
 
         self.dgb_context.add_device(
@@ -131,6 +136,7 @@ class DeviceKeeper(object):
             },
         )
         device.closed()
+        device.set_availability(True)
         self.logger.info(
             "Cover '{}' with unique_id '{}' made and closed.".format(
                 device._entity.name, device._entity.unique_id
@@ -140,7 +146,11 @@ class DeviceKeeper(object):
     def configure_sensor(self, payload):
         self.logger.info("creating sensor")
         sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
-        device = sensors.Sensor(Settings(mqtt=self.mqtt_settings, entity=sensor_info))
+        device = sensors.Sensor(
+            Settings(
+                mqtt=self.mqtt_settings, entity=sensor_info, manual_availability=True
+            ),
+        )
         self.dgb_context.add_device(
             device._entity.unique_id, device, {"set_state": device.set_state}
         )
@@ -150,6 +160,7 @@ class DeviceKeeper(object):
             )
         )
         device.set_state("")
+        device.set_availability(True)
 
     def configure_switch(self, payload):
         self.logger.info("creating switch")
@@ -176,12 +187,18 @@ class DeviceKeeper(object):
                     device.off()
 
         device = sensors.Switch(
-            Settings(mqtt=self.mqtt_settings, entity=switch_info), my_callback
+            Settings(
+                mqtt=self.mqtt_settings,
+                entity=switch_info,
+                manual_availability=True,
+            ),
+            my_callback,
         )
         self.dgb_context.add_device(
             device._entity.unique_id, device, {"on": device.on, "off": device.off}
         )
         device.off()
+        device.set_availability(True)
         self.logger.info(
             "Switch '{}' with unique_id '{}' made and turned off.".format(
                 device._entity.name, device._entity.unique_id
@@ -207,7 +224,11 @@ class DeviceKeeper(object):
         self.logger.info("creating binary sensor")
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
         device = sensors.BinarySensor(
-            Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
+            Settings(
+                mqtt=self.mqtt_settings,
+                entity=binarysensor_info,
+                manual_availability=True,
+            ),
         )
         self.dgb_context.add_device(
             device._entity.unique_id, device, {"on": device.on, "off": device.off}
@@ -218,3 +239,4 @@ class DeviceKeeper(object):
             )
         )
         device.off()
+        device.set_availability(True)

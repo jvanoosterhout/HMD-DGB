@@ -25,7 +25,7 @@ from DGB.DGBContext import DGBContext
 from DGB.SystemDevices import SystemDevices
 
 
-class DGBMQTT:
+class DGBservice:
     def __init__(
         self,
         name: str,

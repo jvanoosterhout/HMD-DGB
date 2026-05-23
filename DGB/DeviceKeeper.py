@@ -27,9 +27,13 @@ class DeviceKeeper(object):
         if "EntityInfo" in dev:
             if "component" in dev["EntityInfo"]:
                 if "device" in dev["EntityInfo"]:
-                    dev["EntityInfo"]["device"]["via_device"] = "dgb-app"
+                    dev["EntityInfo"]["device"]["via_device"] = (
+                        self.dgb_context.device_registry["service"]
+                    )
                 if dev["EntityInfo"]["component"] == "cover":
                     self.configure_cover(dev)
+                elif dev["EntityInfo"]["component"] == "valve":
+                    self.configure_valve(dev)
                 elif dev["EntityInfo"]["component"] == "sensor":
                     self.configure_sensor(dev)
                 elif dev["EntityInfo"]["component"] == "switch":
@@ -139,6 +143,88 @@ class DeviceKeeper(object):
         device.set_availability(True)
         self.logger.info(
             "Cover '{}' with unique_id '{}' made and closed.".format(
+                device._entity.name, device._entity.unique_id
+            )
+        )
+
+    def configure_valve(self, payload):
+        self.logger.info("creating valev")
+        # time_based_state = False
+        direct_state_transition = True
+        state_transition_after_action_succes = False
+
+        if "time_based_state" in payload["EntityInfo"]:
+            self.logger.info("valve has time_based_state, adding to settings")
+            # time_based_state = True
+            # time_based_duration = payload["EntityInfo"]["time_based_state"]
+            del payload["EntityInfo"]["time_based_state"]
+
+        if "direct_state_transition" in payload["EntityInfo"]:
+            direct_state_transition = payload["EntityInfo"]["direct_state_transition"]
+            del payload["EntityInfo"]["direct_state_transition"]
+
+        # if "state_transition_after_action_succes" in payload["EntityInfo"]:
+        #     state_transition_after_action_succes = payload["EntityInfo"]["state_transition_after_action_succes"]
+        #     del payload["EntityInfo"]["state_transition_after_action_succes"]
+
+        if direct_state_transition:
+            self.logger.info(
+                "valve states will change directly based on paload commands"
+            )
+        else:
+            if state_transition_after_action_succes:
+                self.logger.info(
+                    "valve state changes occure after succesfull binder action"
+                )
+            else:
+                self.logger.info(
+                    "valve state changes must be managed via binder actions"
+                )
+
+        valve_info = sensors.ValveInfo(**payload["EntityInfo"])
+
+        def my_callback(client: Client, user_data, message: MQTTMessage):
+            payload = message.payload.decode()
+            self.logger.info(
+                "Valve {} commanded: {}".format(device._entity.unique_id, payload)
+            )
+
+            self.dgb_context.put_to_binder_queue(
+                "post", {"unique_id": device._entity.unique_id, "payload": payload}
+            )
+
+            if direct_state_transition:
+                if payload == device._entity.payload_open:
+                    device.opening()
+                    device.open()
+                elif payload == device._entity.payload_close:
+                    device.closing()
+                    device.closed()
+                elif payload == device._entity.payload_stop:
+                    device.stopped()
+
+        device = sensors.Valve(
+            Settings(
+                mqtt=self.mqtt_settings, entity=valve_info, manual_availability=True
+            ),
+            my_callback,
+        )
+
+        self.dgb_context.add_device(
+            device._entity.unique_id,
+            device,
+            {
+                "open": device.open,
+                "closed": device.closed,
+                "stopped": device.stopped,
+                "opening": device.opening,
+                "closing": device.closing,
+            },
+        )
+        device.closed()
+        device.set_availability(True)
+        self.logger.info(
+            "Valve '{}' with unique_id '{}' made and closed.".format(
                 device._entity.name, device._entity.unique_id
             )
         )

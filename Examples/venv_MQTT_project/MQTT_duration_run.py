@@ -4,14 +4,14 @@ This example is meant to testrun the package over a longer periode of time with 
 timer → GPIO output → GPIO input → Sensor
 """
 
-from DGB.DGBMQTT import DGBMQTT
+from DGB.DGBservice import DGBservice
 import json
 import pkg_resources
 import threading
 
 
 def main():
-    dgb = DGBMQTT(
+    dgb = DGBservice(
         name="rpi28",
         broker="192.168.70.100",
         username="mqtt_broker",
@@ -36,8 +36,8 @@ def main():
         "component": "sensor",  # """One of the supported MQTT components, for instance `binary_sensor`"""
         "name": "sensor duration test",  # """Name of the sensor inside Home Assistant"""
         "unique_id": "rpi0-sensor-duration-test",
-	"value_template": "{{value | int(0)}}",
-	"state_class": "measurement"
+        "value_template": "{{value | int(0)}}",
+        "state_class": "measurement",
     }  # """Set this to enable editing sensor from the HA ui and to integrate with a device"""
 
     SensorInfo = {"component": "sensor"}

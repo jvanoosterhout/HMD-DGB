@@ -21,13 +21,13 @@ This closes the loop: a virtual switch triggers a physical output, which is read
 Switch → GPIO output → GPIO input → Sensor
 """
 
-from DGB.DGBMQTT import DGBMQTT
+from DGB.DGBservice import DGBservice
 import json
 import pkg_resources
 
 
 def main():
-    dgb = DGBMQTT(
+    dgb = DGBservice(
         name="rpi20",
         broker="192.168.70.100",
         username="mqtt_broker",

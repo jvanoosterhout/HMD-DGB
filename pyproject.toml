@@ -17,7 +17,7 @@ dependencies = [
     "gpiozero==2.0.1",
     "lgpio==0.2.2.0",
     "homeassistant-api==5.0.2",
-    "ha-mqtt-discoverable==0.23.0",
+    "ha-mqtt-discoverable==0.25.2",
     "durable-rules==2.0.28"
 ]
 

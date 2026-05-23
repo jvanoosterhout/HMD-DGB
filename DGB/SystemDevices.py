@@ -1,14 +1,21 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-System devices template for HMD-DGB platform and application monitoring.
+System devices template for HMD-DGB node and service and application monitoring.
 
-Defines two static devices:
-1. Platform device: hardware metrics (CPU, RAM, uptime, temperature)
-2. DGB App device: application version and update controls
+Defines two static devices with entities:
+1. node device: representing the SBC with hardware metrics (CPU, RAM, uptime, temperature) and controls (reboot)
+2. DGB service device: representing the application with metrics (version) and controls (update, restart service)
 
-These devices are managed separately from user-defined devices to keep
-concerns clean and provide a standard interface for system monitoring.
+These devices are on the top of the hierarchical device model and separately from user-defined devices to  provide a standard interface for system monitoring and control.
+
+Basic model
+Node (root device)
+  ├─ Node entities (SBC info and control)
+  └─> Service (Runtime service)
+        ├─ Service entities (SBC info and control)
+        └─> User defined device
+             Entities
 
 Jeroen van Oosterhout, 2026
 """
@@ -29,17 +36,17 @@ from DGB.DGBContext import DGBContext
 
 
 # Fixed device identifiers - these never change
-PLATFORM_DEVICE_ID = "dgb-platform"
-DGB_APP_DEVICE_ID = "dgb-app"
+NODE_ID = "dgb-node"
+SERVICE_ID = "dgb-service"
 
 
 class SystemDevices:
     """
-    Manages creation and lifecycle of system devices (platform + app).
+    Manages creation and lifecycle of system devices (platform + service).
 
     Responsibilities:
-    - Create/recreate platform device with hardware sensors
-    - Create/recreate DGB app device with version/update controls
+    - Create/recreate node device with hardware sensors
+    - Create/recreate DGB service device with version/update controls
     - Maintain device ID registry in DGBContext
     - Expose parent device IDs for user-defined devices
     """
@@ -82,40 +89,40 @@ class SystemDevices:
 
     def create_devices(self) -> None:
         """
-        Create or recreate platform and DGB app devices.
+        Create or recreate node and DGB service devices.
 
         Called once on startup and again if system config changes.
         Clears old device references and rebuilds from scratch.
         """
-        self.logger.info("Creating system devices (platform + app)")
+        self.logger.info("Creating system devices (node + service)")
 
-        # Create platform device with hardware sensors
-        self._create_platform_device()
+        # Create node device with hardware sensors
+        self._create_node_device()
 
-        # Create app device with version/update controls
-        self._create_app_device()
+        # Create service device with version/update controls
+        self._create_service_device()
 
         # Register device IDs in context so user devices can reference them
         self.dgb_context.device_registry = {
-            "platform": PLATFORM_DEVICE_ID,
-            "dgb_app": DGB_APP_DEVICE_ID,
+            "node": NODE_ID,
+            "service": SERVICE_ID,
         }
         self.logger.info(
-            "Device registry updated: platform=%s, dgb_app=%s",
-            PLATFORM_DEVICE_ID,
-            DGB_APP_DEVICE_ID,
+            "Device registry updated: node=%s, service=%s",
+            NODE_ID,
+            SERVICE_ID,
         )
 
-    def _create_platform_device(self) -> None:
-        """Create the platform device with hardware monitoring sensors."""
-        self.logger.info("Creating platform device")
+    def _create_node_device(self) -> None:
+        """Create the node device with hardware monitoring sensors."""
+        self.logger.info("Creating node device")
 
         ip = self._get_ip()
         system = platform.uname()
 
         device_info = DeviceInfo(
-            name=f"{self.name_with_location()} platform",
-            identifiers=PLATFORM_DEVICE_ID,
+            name=f"{self.device_name} node",
+            identifiers=NODE_ID,
             model=system[1],
             manufacturer=system[1],
             sw_version=system[3],
@@ -190,31 +197,29 @@ class SystemDevices:
         self.uptime.set_availability(True)
         self.dgb_context.add_device(self.uptime._entity.unique_id, self.uptime)
 
-        self.logger.info("Platform device created with 4 sensors")
+        self.logger.info("Node device created with 4 sensors")
 
-    def _create_app_device(self) -> None:
-        """Create the DGB app device with version and restart button."""
-        self.logger.info("Creating DGB app device")
-
-        ip = self._get_ip()
+    def _create_service_device(self) -> None:
+        """Create the DGB service device with version and restart button."""
+        self.logger.info("Creating DGB service device")
 
         # Get installed version
         try:
-            app_version = pkg_resources.get_distribution("HMD-DGB").version
+            service_version = pkg_resources.get_distribution("HMD-DGB").version
         except Exception as e:
-            self.logger.warning("Could not get app version: %s", e)
-            app_version = "unknown"
+            self.logger.warning("Could not get service version: %s", e)
+            service_version = "unknown"
 
         device_info = DeviceInfo(
-            name=f"{self.name_with_location()} DGB app",
-            identifiers=DGB_APP_DEVICE_ID,
+            name=f"DGB {self.device_name} service",
+            identifiers=SERVICE_ID,
             model="HMD-DGB",
             manufacturer="J van Oosterhout",
-            sw_version=app_version,
-            configuration_url=ip,
+            sw_version=service_version,
+            configuration_url="https://github.com/jvanoosterhout/HMD-DGB",
             suggested_area=self.location,
-            # Parent device: platform must be created first
-            via_device=PLATFORM_DEVICE_ID,
+            # Parent device: node must be created first
+            via_device=NODE_ID,
         )
 
         # Version sensor (read-only)
@@ -223,24 +228,24 @@ class SystemDevices:
                 mqtt=self.mqtt_settings,
                 entity=sensors.SensorInfo(
                     name="Current version",
-                    unique_id=f"{self.device_name}_app_version",
+                    unique_id=f"{self.device_name}_service_version",
                     device=device_info,
                 ),
                 manual_availability=True,
             )
         )
-        self.version_sensor.set_state(app_version)
+        self.version_sensor.set_state(service_version)
         self.version_sensor.set_availability(True)
         self.dgb_context.add_device(
             self.version_sensor._entity.unique_id, self.version_sensor
         )
 
-        # Restart button - triggers full app reinitialization
+        # Restart button - triggers full service reinitialization
         def restart_callback(client, userdata, message):
-            """Callback for restart button press: full app reinit."""
+            """Callback for restart button press: full service reinit."""
             self.logger.info("Restart button pressed via MQTT")
             if self.dgb_mqtt:
-                self._restart_app()
+                self._restart_service()
             else:
                 self.logger.warning("DGBMQTT instance not available for restart")
 
@@ -248,7 +253,7 @@ class SystemDevices:
             Settings(
                 mqtt=self.mqtt_settings,
                 entity=sensors.ButtonInfo(
-                    name="Restart app",
+                    name="Restart service",
                     unique_id=f"{self.device_name}_restart",
                     device=device_info,
                     icon="mdi:restart",
@@ -264,7 +269,7 @@ class SystemDevices:
         )
 
         self.logger.info(
-            "DGB app device created with version sensor and restart button"
+            "DGB service device created with version sensor and restart button"
         )
 
     def update_sensor_values(self) -> None:
@@ -300,24 +305,24 @@ class SystemDevices:
         except Exception as e:
             self.logger.warning("Could not read uptime: %s", e)
 
-    def _restart_app(self) -> None:
-        """Trigger app restart: stop, clear devices, and reconnect to MQTT."""
+    def _restart_service(self) -> None:
+        """Trigger service restart: stop, clear devices, and reconnect to MQTT."""
         if not self.dgb_mqtt:
             self.logger.error("Cannot restart: DGBMQTT instance not available")
             return
 
-        self.logger.info("Starting app restart sequence")
+        self.logger.info("Starting service restart sequence")
         try:
             self.dgb_mqtt.restart()
         except Exception as e:
             self.logger.error("Error during restart: %s", e)
 
-    def get_parent_device_id(self, device_type: str = "dgb_app") -> str:
+    def get_parent_device_id(self, device_type: str = "service") -> str:
         """
         Get parent device ID for user-defined child devices.
 
         Args:
-            device_type: Type of parent ('dgb_app' or 'platform')
+            device_type: Type of parent ('service' or 'node')
 
         Returns:
             Device ID string suitable for via_device in DeviceInfo
@@ -325,10 +330,10 @@ class SystemDevices:
         Raises:
             ValueError: If device type unknown or not created
         """
-        if device_type == "dgb_app":
-            return DGB_APP_DEVICE_ID
-        elif device_type == "platform":
-            return PLATFORM_DEVICE_ID
+        if device_type == "service":
+            return SERVICE_ID
+        elif device_type == "node":
+            return NODE_ID
         else:
             raise ValueError(f"Unknown device type: {device_type}")
 

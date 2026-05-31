@@ -1,6 +1,5 @@
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-from threading import Event
+from unittest.mock import MagicMock, patch
 
 from DGB.DGBservice import DGBservice
 

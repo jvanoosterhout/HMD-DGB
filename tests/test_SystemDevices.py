@@ -1,6 +1,5 @@
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from DGB.SystemDevices import SystemDevices, NODE_ID, SERVICE_ID
 from DGB.DGBContext import DGBContext

@@ -18,7 +18,8 @@ dependencies = [
     "lgpio==0.2.2.0",
     "homeassistant-api==5.0.2",
     "ha-mqtt-discoverable==0.25.2",
-    "durable-rules==2.0.28"
+    "durable-rules==2.0.28",
+    "setuptools>=66.1.1"
 ]
 
 [tool.setuptools]

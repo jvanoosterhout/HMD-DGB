@@ -19,7 +19,7 @@ dependencies = [
     "homeassistant-api==5.0.2",
     "ha-mqtt-discoverable==0.25.2",
     "durable-rules==2.0.28",
-    "setuptools>=66.1.1"
+    "ghapi>=1.0.3"
 ]
 
 [tool.setuptools]

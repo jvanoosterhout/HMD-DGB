@@ -152,19 +152,22 @@ def test_get_ip_fallback_on_error():
 
 
 @patch("DGB.SystemDevices.Settings")
-@patch("DGB.SystemDevices.pkg_resources.get_distribution")
+@patch("DGB.SystemDevices.GhApi")
 @patch("DGB.SystemDevices.sensors.Sensor")
 @patch("DGB.SystemDevices.sensors.Button")
 def test_create_devices_sets_registry(
     mock_button_class,
     mock_sensor_class,
-    mock_get_dist,
+    mock_ghapi_class,
     mock_settings_class,
     mock_mqtt_settings,
     dgb_context,
 ):
     """Test create_devices initializes device registry"""
-    mock_get_dist.return_value = MagicMock(version="1.0.0")
+    mock_api = MagicMock()
+    mock_release = MagicMock(tag_name="v1.0.0")
+    mock_api.repos.list_releases.return_value = [mock_release]
+    mock_ghapi_class.return_value = mock_api
     mock_settings_class.return_value = MagicMock()
 
     mock_sensor = MagicMock()
@@ -233,19 +236,19 @@ def test_update_sensor_values_without_initialization(
 
 
 @patch("DGB.SystemDevices.Settings")
-@patch("DGB.SystemDevices.pkg_resources.get_distribution")
+@patch("DGB.SystemDevices.GhApi")
 @patch("DGB.SystemDevices.sensors.Sensor")
 @patch("DGB.SystemDevices.sensors.Button")
 def test_create_service_device_version_unknown_on_error(
     mock_button_class,
     mock_sensor_class,
-    mock_get_dist,
+    mock_ghapi_class,
     mock_settings_class,
     mock_mqtt_settings,
     dgb_context,
 ):
     """Test service device version defaults to unknown on error"""
-    mock_get_dist.side_effect = Exception("Package not found")
+    mock_ghapi_class.side_effect = Exception("GitHub API error")
     mock_settings_class.return_value = MagicMock()
 
     mock_sensor = MagicMock()
@@ -296,8 +299,11 @@ def test_restart_service_without_dgb_mqtt_logs_error(
 
     with patch("DGB.SystemDevices.platform.uname") as mock_uname:
         mock_uname.return_value = ("Linux", "RPi", "5.10.0", "arm64", "armv7l")
-        with patch("DGB.SystemDevices.pkg_resources.get_distribution") as mock_get_dist:
-            mock_get_dist.return_value = MagicMock(version="1.0.0")
+        with patch("DGB.SystemDevices.GhApi") as mock_ghapi_class:
+            mock_api = MagicMock()
+            mock_release = MagicMock(tag_name="v1.0.0")
+            mock_api.repos.list_releases.return_value = [mock_release]
+            mock_ghapi_class.return_value = mock_api
             system_devices = SystemDevices(
                 mqtt_settings=mock_mqtt_settings,
                 dgb_context=dgb_context,

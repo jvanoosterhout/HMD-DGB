@@ -27,7 +27,7 @@ import platform
 import socket
 from typing import Optional
 
-import pkg_resources
+from ghapi.all import GhApi
 import psutil
 from gpiozero import CPUTemperature
 from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
@@ -203,11 +203,13 @@ class SystemDevices:
         """Create the DGB service device with version and restart button."""
         self.logger.info("Creating DGB service device")
 
-        # Get installed version
+        # Get current version from GitHub releases
         try:
-            service_version = pkg_resources.get_distribution("HMD-DGB").version
+            api = GhApi(owner="jvanoosterhout", repo="HMD-DGB")
+            releases = api.repos.list_releases(per_page=1)
+            service_version = releases[0].tag_name if releases else "unknown"
         except Exception as e:
-            self.logger.warning("Could not get service version: %s", e)
+            self.logger.warning("Could not fetch service version from GitHub: %s", e)
             service_version = "unknown"
 
         device_info = DeviceInfo(

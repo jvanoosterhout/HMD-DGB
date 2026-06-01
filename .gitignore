@@ -7,3 +7,8 @@ docs/*
 .vscode/*
 */__pycache__/*
 venv
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/

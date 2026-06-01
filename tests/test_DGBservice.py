@@ -28,12 +28,17 @@ def mock_mqtt_settings():
 # ---------------------------------------------------------------------------
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_init(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_init(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test DGBservice initialization sets core attributes"""
     mock_client_class.return_value = MagicMock()
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices = MagicMock()
+    mock_system_devices_class.return_value = mock_system_devices
 
     service = DGBservice(
         name="test-device",
@@ -50,12 +55,16 @@ def test_dgbservice_init(mock_settings_mqtt, mock_client_class):
     assert service.password == "pass"
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_client_id_format(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_client_id_format(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test MQTT client ID follows expected format"""
     mock_client_class.return_value = MagicMock()
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
     service = DGBservice(
         name="garage",
@@ -65,12 +74,16 @@ def test_dgbservice_client_id_format(mock_settings_mqtt, mock_client_class):
     assert service.client_id == "dgb-garage"
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_config_topic_default(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_config_topic_default(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test default config topic format"""
     mock_client_class.return_value = MagicMock()
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
     service = DGBservice(
         name="test",
@@ -80,12 +93,16 @@ def test_dgbservice_config_topic_default(mock_settings_mqtt, mock_client_class):
     assert service.config_topic == "config/test/devices/"
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_config_topic_custom(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_config_topic_custom(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test custom config topic"""
     mock_client_class.return_value = MagicMock()
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
     service = DGBservice(
         name="test",
@@ -96,14 +113,16 @@ def test_dgbservice_config_topic_custom(mock_settings_mqtt, mock_client_class):
     assert service.config_topic == "custom/topic/"
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
 def test_dgbservice_shutdown_event_not_set_initially(
-    mock_settings_mqtt, mock_client_class
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
 ):
     """Test shutdown event is not set on initialization"""
     mock_client_class.return_value = MagicMock()
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
     service = DGBservice(
         name="test",
@@ -118,13 +137,17 @@ def test_dgbservice_shutdown_event_not_set_initially(
 # ---------------------------------------------------------------------------
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_stop_sets_shutdown_event(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_stop_sets_shutdown_event(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test stop() sets shutdown event"""
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
     service = DGBservice(
         name="test",
@@ -136,13 +159,17 @@ def test_dgbservice_stop_sets_shutdown_event(mock_settings_mqtt, mock_client_cla
     assert service.shutdown_event.is_set()
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_stop_is_idempotent(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_stop_is_idempotent(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test calling stop() twice doesn't cause issues"""
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
     service = DGBservice(
         name="test",
@@ -155,13 +182,17 @@ def test_dgbservice_stop_is_idempotent(mock_settings_mqtt, mock_client_class):
     assert service.shutdown_event.is_set()
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_exit_calls_stop(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_exit_calls_stop(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test __exit__ calls stop()"""
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
     service = DGBservice(
         name="test",
@@ -178,13 +209,17 @@ def test_dgbservice_exit_calls_stop(mock_settings_mqtt, mock_client_class):
 # ---------------------------------------------------------------------------
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_stop_before_start(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_stop_before_start(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test stopping service without starting it"""
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
     service = DGBservice(
         name="test",
@@ -196,15 +231,19 @@ def test_dgbservice_stop_before_start(mock_settings_mqtt, mock_client_class):
     assert service.shutdown_event.is_set()
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_on_connect_callback_exists(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_on_connect_callback_exists(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test on_connect callback is registered"""
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
-    service = DGBservice(
+    DGBservice(
         name="test",
         broker="localhost",
     )
@@ -213,15 +252,19 @@ def test_dgbservice_on_connect_callback_exists(mock_settings_mqtt, mock_client_c
     assert mock_client.on_connect is not None
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_on_message_callback_exists(mock_settings_mqtt, mock_client_class):
+def test_dgbservice_on_message_callback_exists(
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
+):
     """Test on_message callback is registered"""
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
-    service = DGBservice(
+    DGBservice(
         name="test",
         broker="localhost",
     )
@@ -230,17 +273,19 @@ def test_dgbservice_on_message_callback_exists(mock_settings_mqtt, mock_client_c
     assert mock_client.on_message is not None
 
 
+@patch("DGB.DGBservice.SystemDevices")
 @patch("DGB.DGBservice.mqtt.Client")
 @patch("DGB.DGBservice.Settings.MQTT")
 def test_dgbservice_create_mqtt_client_calls_connect(
-    mock_settings_mqtt, mock_client_class
+    mock_settings_mqtt, mock_client_class, mock_system_devices_class
 ):
     """Test _create_mqtt_client connects to broker"""
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
     mock_settings_mqtt.return_value = MagicMock()
+    mock_system_devices_class.return_value = MagicMock()
 
-    service = DGBservice(
+    DGBservice(
         name="test",
         broker="broker.local",
         port=1883,

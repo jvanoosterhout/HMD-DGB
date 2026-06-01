@@ -39,7 +39,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest -v
+          pytest --cov=DGB --cov-report=term-missing
 
   build:
     name: Build package (tags only)

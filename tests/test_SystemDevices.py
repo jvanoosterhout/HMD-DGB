@@ -151,12 +151,22 @@ def test_get_ip_fallback_on_error():
 # ---------------------------------------------------------------------------
 
 
+@patch("DGB.SystemDevices.Settings")
+@patch("DGB.SystemDevices.pkg_resources.get_distribution")
 @patch("DGB.SystemDevices.sensors.Sensor")
 @patch("DGB.SystemDevices.sensors.Button")
 def test_create_devices_sets_registry(
-    mock_button_class, mock_sensor_class, mock_mqtt_settings, dgb_context
+    mock_button_class,
+    mock_sensor_class,
+    mock_get_dist,
+    mock_settings_class,
+    mock_mqtt_settings,
+    dgb_context,
 ):
     """Test create_devices initializes device registry"""
+    mock_get_dist.return_value = MagicMock(version="1.0.0")
+    mock_settings_class.return_value = MagicMock()
+
     mock_sensor = MagicMock()
     mock_sensor._entity = MagicMock()
     mock_sensor._entity.unique_id = "test_id"
@@ -169,7 +179,7 @@ def test_create_devices_sets_registry(
 
     with patch("DGB.SystemDevices.CPUTemperature"):
         with patch("DGB.SystemDevices.platform.uname") as mock_uname:
-            mock_uname.return_value = ("", "RPi", "", "", "")
+            mock_uname.return_value = ("Linux", "RPi", "5.10.0", "arm64", "armv7l")
 
             system_devices = SystemDevices(
                 mqtt_settings=mock_mqtt_settings,
@@ -222,43 +232,58 @@ def test_update_sensor_values_without_initialization(
         system_devices.update_sensor_values()
 
 
+@patch("DGB.SystemDevices.Settings")
 @patch("DGB.SystemDevices.pkg_resources.get_distribution")
+@patch("DGB.SystemDevices.sensors.Sensor")
+@patch("DGB.SystemDevices.sensors.Button")
 def test_create_service_device_version_unknown_on_error(
-    mock_get_dist, mock_mqtt_settings, dgb_context
+    mock_button_class,
+    mock_sensor_class,
+    mock_get_dist,
+    mock_settings_class,
+    mock_mqtt_settings,
+    dgb_context,
 ):
     """Test service device version defaults to unknown on error"""
     mock_get_dist.side_effect = Exception("Package not found")
+    mock_settings_class.return_value = MagicMock()
 
-    with patch("DGB.SystemDevices.sensors.Sensor") as mock_sensor_class:
-        with patch("DGB.SystemDevices.sensors.Button") as mock_button_class:
-            mock_sensor = MagicMock()
-            mock_sensor._entity = MagicMock()
-            mock_sensor._entity.unique_id = "sensor_id"
-            mock_sensor_class.return_value = mock_sensor
+    mock_sensor = MagicMock()
+    mock_sensor._entity = MagicMock()
+    mock_sensor._entity.unique_id = "sensor_id"
+    mock_sensor_class.return_value = mock_sensor
 
-            mock_button = MagicMock()
-            mock_button._entity = MagicMock()
-            mock_button._entity.unique_id = "button_id"
-            mock_button_class.return_value = mock_button
+    mock_button = MagicMock()
+    mock_button._entity = MagicMock()
+    mock_button._entity.unique_id = "button_id"
+    mock_button_class.return_value = mock_button
 
-            with patch("DGB.SystemDevices.platform.uname"):
-                system_devices = SystemDevices(
-                    mqtt_settings=mock_mqtt_settings,
-                    dgb_context=dgb_context,
-                    device_name="test",
-                )
-                system_devices.create_devices()
+    with patch("DGB.SystemDevices.platform.uname") as mock_uname:
+        mock_uname.return_value = ("Linux", "RPi", "5.10.0", "arm64", "armv7l")
+        system_devices = SystemDevices(
+            mqtt_settings=mock_mqtt_settings,
+            dgb_context=dgb_context,
+            device_name="test",
+        )
+        system_devices.create_devices()
 
-                # Version sensor should exist and have been set
-                assert system_devices.version_sensor is not None
+        # Version sensor should exist and have been set
+        assert system_devices.version_sensor is not None
 
 
+@patch("DGB.SystemDevices.Settings")
 @patch("DGB.SystemDevices.sensors.Sensor")
 @patch("DGB.SystemDevices.sensors.Button")
 def test_restart_service_without_dgb_mqtt_logs_error(
-    mock_button_class, mock_sensor_class, mock_mqtt_settings, dgb_context
+    mock_button_class,
+    mock_sensor_class,
+    mock_settings_class,
+    mock_mqtt_settings,
+    dgb_context,
 ):
     """Test restart with no DGBMQTT instance available"""
+    mock_settings_class.return_value = MagicMock()
+
     mock_sensor = MagicMock()
     mock_sensor._entity = MagicMock()
     mock_sensor._entity.unique_id = "id"
@@ -269,14 +294,17 @@ def test_restart_service_without_dgb_mqtt_logs_error(
     mock_button._entity.unique_id = "button_id"
     mock_button_class.return_value = mock_button
 
-    with patch("DGB.SystemDevices.platform.uname"):
-        system_devices = SystemDevices(
-            mqtt_settings=mock_mqtt_settings,
-            dgb_context=dgb_context,
-            device_name="test",
-            dgb_mqtt_instance=None,
-        )
-        system_devices.create_devices()
+    with patch("DGB.SystemDevices.platform.uname") as mock_uname:
+        mock_uname.return_value = ("Linux", "RPi", "5.10.0", "arm64", "armv7l")
+        with patch("DGB.SystemDevices.pkg_resources.get_distribution") as mock_get_dist:
+            mock_get_dist.return_value = MagicMock(version="1.0.0")
+            system_devices = SystemDevices(
+                mqtt_settings=mock_mqtt_settings,
+                dgb_context=dgb_context,
+                device_name="test",
+                dgb_mqtt_instance=None,
+            )
+            system_devices.create_devices()
 
-        # Should return early without raising
-        system_devices._restart_service()
+            # Should return early without raising
+            system_devices._restart_service()

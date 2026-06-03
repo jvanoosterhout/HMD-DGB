@@ -26,14 +26,13 @@ import logging
 import platform
 import socket
 from typing import Optional
-
-from ghapi.all import GhApi
+from collections.abc import Callable
+from ghapi.core import GhApi
+from importlib.metadata import version, PackageNotFoundError
 import psutil
 from gpiozero import CPUTemperature
 from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
-
 from DGB.DGBContext import DGBContext
-
 
 # Fixed device identifiers - these never change
 NODE_ID = "dgb-node"
@@ -53,11 +52,11 @@ class SystemDevices:
 
     def __init__(
         self,
-        mqtt_settings: Settings,
+        mqtt_settings: Settings.MQTT,
         dgb_context: DGBContext,
         device_name: str,
+        dgb_restart: Callable[[], None],
         location: Optional[str] = None,
-        dgb_mqtt_instance: Optional[object] = None,
     ) -> None:
         """
         Initialize system devices manager.
@@ -67,13 +66,13 @@ class SystemDevices:
             dgb_context: Shared DGB runtime context
             device_name: Base name for the DGB instance (e.g., 'rpi-garage')
             location: Optional Home Assistant location (room/area)
-            dgb_mqtt_instance: Reference to DGBMQTT instance for restart callbacks
+            dgb_restart: Reference to the restart callback
         """
         self.mqtt_settings = mqtt_settings
         self.dgb_context = dgb_context
         self.device_name = device_name
         self.location = location
-        self.dgb_mqtt = dgb_mqtt_instance
+        self.dgb_restart = dgb_restart
 
         self.logger = logging.getLogger(f"SystemDevices[{device_name}]")
         self.logger.info("SystemDevices initialized")
@@ -145,7 +144,7 @@ class SystemDevices:
                 manual_availability=True,
             )
         )
-        self.dgb_context.add_device(self.cpu_temp._entity.unique_id, self.cpu_temp)
+        self.dgb_context.add_device(str(self.cpu_temp._entity.unique_id), self.cpu_temp)
         self.cpu_temp.set_availability(True)
 
         # CPU Usage Sensor
@@ -161,7 +160,9 @@ class SystemDevices:
                 manual_availability=True,
             )
         )
-        self.dgb_context.add_device(self.cpu_usage._entity.unique_id, self.cpu_usage)
+        self.dgb_context.add_device(
+            str(self.cpu_usage._entity.unique_id), self.cpu_usage
+        )
         self.cpu_usage.set_availability(True)
 
         # Memory Usage Sensor
@@ -177,7 +178,9 @@ class SystemDevices:
                 manual_availability=True,
             )
         )
-        self.dgb_context.add_device(self.mem_usage._entity.unique_id, self.mem_usage)
+        self.dgb_context.add_device(
+            str(self.mem_usage._entity.unique_id), self.mem_usage
+        )
         self.mem_usage.set_availability(True)
 
         # Uptime Sensor
@@ -195,7 +198,7 @@ class SystemDevices:
             )
         )
         self.uptime.set_availability(True)
-        self.dgb_context.add_device(self.uptime._entity.unique_id, self.uptime)
+        self.dgb_context.add_device(str(self.uptime._entity.unique_id), self.uptime)
 
         self.logger.info("Node device created with 4 sensors")
 
@@ -203,14 +206,22 @@ class SystemDevices:
         """Create the DGB service device with version and restart button."""
         self.logger.info("Creating DGB service device")
 
-        # Get current version from GitHub releases
+        # Get installed version
+        try:
+            service_version = version("HMD-DGB")
+        except PackageNotFoundError as e:
+            self.logger.warning("Could not fetch installed service version: %s", e)
+            service_version = "unknown"
+
+        # Get release from GitHub
         try:
             api = GhApi(owner="jvanoosterhout", repo="HMD-DGB")
-            releases = api.repos.list_releases(per_page=1)
-            service_version = releases[0].tag_name if releases else "unknown"
+            releases = api.repos.list_releases(per_page=5)
+            latest_release = releases[0].tag_name if releases else "unknown"
         except Exception as e:
-            self.logger.warning("Could not fetch service version from GitHub: %s", e)
-            service_version = "unknown"
+            self.logger.warning("Could not fetch release versions from GitHub: %s", e)
+            latest_release = "unknown"
+        self.logger.info(f"latest_release: {latest_release}")
 
         device_info = DeviceInfo(
             name=f"DGB {self.device_name} service",
@@ -239,17 +250,17 @@ class SystemDevices:
         self.version_sensor.set_state(service_version)
         self.version_sensor.set_availability(True)
         self.dgb_context.add_device(
-            self.version_sensor._entity.unique_id, self.version_sensor
+            str(self.version_sensor._entity.unique_id), self.version_sensor
         )
 
         # Restart button - triggers full service reinitialization
         def restart_callback(client, userdata, message):
             """Callback for restart button press: full service reinit."""
-            self.logger.info("Restart button pressed via MQTT")
-            if self.dgb_mqtt:
-                self._restart_service()
-            else:
-                self.logger.warning("DGBMQTT instance not available for restart")
+            self.logger.info("Starting service restart sequence")
+            try:
+                self.dgb_restart()
+            except Exception as e:
+                self.logger.error("Error during restart: %s", e)
 
         self.restart_button = sensors.Button(
             Settings(
@@ -267,7 +278,7 @@ class SystemDevices:
         self.restart_button.write_config()
         self.restart_button.set_availability(True)
         self.dgb_context.add_device(
-            self.restart_button._entity.unique_id, self.restart_button
+            str(self.restart_button._entity.unique_id), self.restart_button
         )
 
         self.logger.info(
@@ -306,18 +317,6 @@ class SystemDevices:
             self.uptime.set_state(round(time.monotonic() / 3600, 1))
         except Exception as e:
             self.logger.warning("Could not read uptime: %s", e)
-
-    def _restart_service(self) -> None:
-        """Trigger service restart: stop, clear devices, and reconnect to MQTT."""
-        if not self.dgb_mqtt:
-            self.logger.error("Cannot restart: DGBMQTT instance not available")
-            return
-
-        self.logger.info("Starting service restart sequence")
-        try:
-            self.dgb_mqtt.restart()
-        except Exception as e:
-            self.logger.error("Error during restart: %s", e)
 
     def get_parent_device_id(self, device_type: str = "service") -> str:
         """

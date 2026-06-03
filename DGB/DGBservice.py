@@ -64,7 +64,7 @@ class DGBservice:
             dgb_context=self.dgb_context,
             device_name=name,
             location=None,  # Can be configured from MQTT topic
-            dgb_mqtt_instance=self,  # Pass reference for restart callback
+            dgb_restart=self.restart,  # Pass reference to restart callback
         )
         self.system_devices.create_devices()
 

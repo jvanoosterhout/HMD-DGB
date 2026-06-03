@@ -23,7 +23,6 @@ Switch → GPIO output → GPIO input → Sensor
 
 from DGB.DGBservice import DGBservice
 import json
-import pkg_resources
 
 
 def main():
@@ -40,9 +39,7 @@ def main():
         "name": "HMD-DGB-test-device",
         "model": "Raspberry Pi 4",
         "manufacturer": "Raspberry Pi Holdings",
-        "sw_version": pkg_resources.get_distribution(
-            "ha-mqtt-discoverable-device-gpio-binder"
-        ).version,  # """Firmware version of the device"""
+        "sw_version": "none",  # """Firmware version of the device"""
         "hw_version": "RPi4",  # """Hardware version of the device"""
         "identifiers": "rpi4_test",  # """A list of IDs that uniquely identify the device. For example a serial number."""
     }

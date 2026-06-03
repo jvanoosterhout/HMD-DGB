@@ -161,7 +161,7 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
 - the default homeassistant discoverable topics (publishe and subscribe)
 - the "config/[RPI-name]/devices/[sub-topic]" topic (subscribe) to recieve configurations for devices, bindings and GPIO.
 
-## Ideas for improvement (unsorted in priority) 
+## Ideas for improvement (unsorted in priority)
 
 - Triggering payload as argument in action
   - <del>Add support to use the payload of the triggering device as argument in the action function</del>
@@ -170,12 +170,12 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
   - Provide readme / log feedback on posible arg names and types per fuction
 - Improve run actions
   - create readme documentation on the posible actions (log, action, timer, ...)
-  - Extend run action with the option to perform a post to a ruleset with specific context 
+  - Extend run action with the option to perform a post to a ruleset with specific context
 - Improve device, GPIO and binder configuration
   - Make configuration possible from yaml
   - Allow to delete objects:
     - device (incl ha entitys by cleaning up topics)
-    - rules 
+    - rules
     - gpio pins
 - Improve systems capabilities and robustness
   - Make system sensors configurable
@@ -190,7 +190,7 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
   - Replace gpio module for use on diffferent single board coputers (e.g. Mqtt-io, Adafruit Blinka, Libgpio)
 - Improve system setup:
   - Make example with arg configuration of system name, mqtt and some other system settings (acount for secure passwords)
-    - Potentially include a local webserver to set wifi and mqtt credentials and store them encrypted 
+    - Potentially include a local webserver to set wifi and mqtt credentials and store them encrypted
   - Docker deployment: Streamlined container-based setup with pre-configured environment
   - Define cloud-init (e.g. for Trixi)
   - (external project) Make tool to write Device, GPIO and Binder configurations (host on local webserver)
@@ -207,7 +207,7 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
 
 **Status:** Needs split of operational phases or robust error handling
 
-Currently devices and pins can emit posts directly after creation, rules/bindings can only be set once all included devices and pins are defind --> early posts fail. 
+Currently devices and pins can emit posts directly after creation, rules/bindings can only be set once all included devices and pins are defind --> early posts fail.
 
 
 ### Count-Type Pin Device

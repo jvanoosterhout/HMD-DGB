@@ -17,6 +17,9 @@ def mock_mqtt_settings():
     return settings
 
 
+dgb_restart = MagicMock()
+
+
 @pytest.fixture
 def dgb_context():
     """Create a fresh DGBContext for each test"""
@@ -34,6 +37,7 @@ def test_system_devices_init(mock_mqtt_settings, dgb_context):
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="test-device",
         )
 
@@ -49,6 +53,7 @@ def test_system_devices_init_with_location(mock_mqtt_settings, dgb_context):
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="garage",
             location="garage",
         )
@@ -65,10 +70,10 @@ def test_system_devices_init_with_dgb_mqtt_instance(mock_mqtt_settings, dgb_cont
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
             device_name="test",
-            dgb_mqtt_instance=dgb_mqtt,
+            dgb_restart=dgb_mqtt,
         )
 
-        assert system_devices.dgb_mqtt == dgb_mqtt
+        assert system_devices.dgb_restart == dgb_mqtt
 
 
 def test_get_parent_device_id_service(mock_mqtt_settings, dgb_context):
@@ -77,6 +82,7 @@ def test_get_parent_device_id_service(mock_mqtt_settings, dgb_context):
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="test",
         )
 
@@ -90,6 +96,7 @@ def test_get_parent_device_id_node(mock_mqtt_settings, dgb_context):
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="test",
         )
 
@@ -103,6 +110,7 @@ def test_name_with_location_without_location(mock_mqtt_settings, dgb_context):
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="test-device",
         )
 
@@ -116,6 +124,7 @@ def test_name_with_location_with_location(mock_mqtt_settings, dgb_context):
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="device",
             location="garage",
         )
@@ -187,6 +196,7 @@ def test_create_devices_sets_registry(
             system_devices = SystemDevices(
                 mqtt_settings=mock_mqtt_settings,
                 dgb_context=dgb_context,
+                dgb_restart=dgb_restart,
                 device_name="test",
             )
             system_devices.create_devices()
@@ -209,6 +219,7 @@ def test_get_parent_device_id_invalid_type_raises_value_error(
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="test",
         )
 
@@ -225,6 +236,7 @@ def test_update_sensor_values_without_initialization(
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="test",
         )
 
@@ -266,51 +278,10 @@ def test_create_service_device_version_unknown_on_error(
         system_devices = SystemDevices(
             mqtt_settings=mock_mqtt_settings,
             dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
             device_name="test",
         )
         system_devices.create_devices()
 
         # Version sensor should exist and have been set
         assert system_devices.version_sensor is not None
-
-
-@patch("DGB.SystemDevices.Settings")
-@patch("DGB.SystemDevices.sensors.Sensor")
-@patch("DGB.SystemDevices.sensors.Button")
-def test_restart_service_without_dgb_mqtt_logs_error(
-    mock_button_class,
-    mock_sensor_class,
-    mock_settings_class,
-    mock_mqtt_settings,
-    dgb_context,
-):
-    """Test restart with no DGBMQTT instance available"""
-    mock_settings_class.return_value = MagicMock()
-
-    mock_sensor = MagicMock()
-    mock_sensor._entity = MagicMock()
-    mock_sensor._entity.unique_id = "id"
-    mock_sensor_class.return_value = mock_sensor
-
-    mock_button = MagicMock()
-    mock_button._entity = MagicMock()
-    mock_button._entity.unique_id = "button_id"
-    mock_button_class.return_value = mock_button
-
-    with patch("DGB.SystemDevices.platform.uname") as mock_uname:
-        mock_uname.return_value = ("Linux", "RPi", "5.10.0", "arm64", "armv7l")
-        with patch("DGB.SystemDevices.GhApi") as mock_ghapi_class:
-            mock_api = MagicMock()
-            mock_release = MagicMock(tag_name="v1.0.0")
-            mock_api.repos.list_releases.return_value = [mock_release]
-            mock_ghapi_class.return_value = mock_api
-            system_devices = SystemDevices(
-                mqtt_settings=mock_mqtt_settings,
-                dgb_context=dgb_context,
-                device_name="test",
-                dgb_mqtt_instance=None,
-            )
-            system_devices.create_devices()
-
-            # Should return early without raising
-            system_devices._restart_service()

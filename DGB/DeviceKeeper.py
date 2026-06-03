@@ -16,7 +16,7 @@ logging.basicConfig(level="INFO")
 
 
 class DeviceKeeper(object):
-    def __init__(self, mqtt_settings: Settings, dgb_context: DGBContext):
+    def __init__(self, mqtt_settings: Settings.MQTT, dgb_context: DGBContext):
         self.entities = []
         self.mqtt_settings = mqtt_settings
         self.dgb_context = dgb_context
@@ -129,7 +129,7 @@ class DeviceKeeper(object):
         )
 
         self.dgb_context.add_device(
-            device._entity.unique_id,
+            str(device._entity.unique_id),
             device,
             {
                 "open": device.open,
@@ -201,7 +201,7 @@ class DeviceKeeper(object):
                     device.closing()
                     device.closed()
                 elif payload == device._entity.payload_stop:
-                    device.stopped()
+                    pass
 
         device = sensors.Valve(
             Settings(
@@ -211,12 +211,11 @@ class DeviceKeeper(object):
         )
 
         self.dgb_context.add_device(
-            device._entity.unique_id,
+            str(device._entity.unique_id),
             device,
             {
                 "open": device.open,
                 "closed": device.closed,
-                "stopped": device.stopped,
                 "opening": device.opening,
                 "closing": device.closing,
             },
@@ -238,7 +237,7 @@ class DeviceKeeper(object):
             ),
         )
         self.dgb_context.add_device(
-            device._entity.unique_id, device, {"set_state": device.set_state}
+            str(device._entity.unique_id), device, {"set_state": device.set_state}
         )
         self.logger.info(
             "Sensor '{}' with unique_id '{}' made and set to ''.".format(
@@ -281,7 +280,7 @@ class DeviceKeeper(object):
             my_callback,
         )
         self.dgb_context.add_device(
-            device._entity.unique_id, device, {"on": device.on, "off": device.off}
+            str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
         )
         device.off()
         device.set_availability(True)
@@ -317,7 +316,7 @@ class DeviceKeeper(object):
             ),
         )
         self.dgb_context.add_device(
-            device._entity.unique_id, device, {"on": device.on, "off": device.off}
+            str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
         )
         self.logger.info(
             "Binary sensor '{}' with unique_id '{}' made and deactivated.".format(

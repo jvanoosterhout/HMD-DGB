@@ -40,6 +40,8 @@ class DGBContext:
         # Bindings should be unique: device_id -> set(ruleset_name)
         self._bindings: Dict[str, Set[str]] = {}
 
+        self.device_registry: dict[str, str] = {}
+
         self.binder_queue: "queue.Queue[BinderMessage]" = queue.Queue()
         self.engine_lock: threading.Lock = threading.Lock()
 

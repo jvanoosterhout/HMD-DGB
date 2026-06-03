@@ -49,8 +49,9 @@ build-backend = "setuptools.build_meta"
 # `1.2.3` or `v1.2.3` are recognised. The `write_to` file will be generated
 # at build time and can be imported as `DGB._version.version`.
 write_to = "DGB/_version.py"
-version_scheme = "guess-next-dev"
+version_scheme = "no-guess-dev"
 local_scheme = "no-local-version"
+fallback_version = "v0.0.0"
 
 
 [tool.ruff.format]

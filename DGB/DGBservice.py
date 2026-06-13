@@ -12,6 +12,7 @@ import json
 import logging
 import threading
 from typing import Optional
+import argparse
 
 import paho.mqtt.client as mqtt
 from pydantic import ValidationError
@@ -34,8 +35,10 @@ class DGBservice:
         topic: Optional[str] = None,
         username: str = "me",
         password: str = "secret",
+        location: str = "home",
     ) -> None:
         self.name = name
+        self.location = location
         self.broker = broker
         self.port = port
         self.username = username
@@ -63,7 +66,7 @@ class DGBservice:
             mqtt_settings=self.mqtt_settings,
             dgb_context=self.dgb_context,
             device_name=name,
-            location=None,  # Can be configured from MQTT topic
+            location=self.location,
             dgb_restart=self.restart,  # Pass reference to restart callback
         )
         self.system_devices.create_devices()
@@ -235,3 +238,33 @@ class DGBservice:
             self.system_devices.update_sensor_values()
             self.shutdown_event.wait(60)
         self.logger.info("System sensor loop stopped")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Start DGB MQTT service")
+    parser.add_argument("--name", required=True, help="Device name")
+    parser.add_argument("--broker", required=True, help="MQTT broker address")
+    parser.add_argument("--port", type=int, default=1883, help="MQTT port")
+    parser.add_argument("--topic", default=None, help="MQTT topic")
+    parser.add_argument("--username", default="me", help="MQTT username")
+    parser.add_argument("--password", default="secret", help="MQTT password")
+    parser.add_argument("--location", default="home", help="Device location")
+
+    args = parser.parse_args()
+
+    service = DGBservice(
+        name=args.name,
+        broker=args.broker,
+        port=args.port,
+        topic=args.topic,
+        username=args.username,
+        password=args.password,
+        location=args.location,
+    )
+
+    # start service if needed
+    service.run_forever()
+
+
+if __name__ == "__main__":
+    main()

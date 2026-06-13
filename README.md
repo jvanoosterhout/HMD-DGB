@@ -2,6 +2,67 @@
 
 Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverable devices. Bridge your hardware to smart home automation through declarative device bindings via durable rules.
 
+
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Table of Contents
+
+- [Overview](#overview)
+- [Requirements](#requirements)
+  - [Hardware & OS](#hardware--os)
+  - [Software](#software)
+  - [Tested Platforms](#tested-platforms)
+- [Installation](#installation)
+  - [Option 1: venv](#option-1-venv)
+  - [Option 2: Docker](#option-2-docker)
+- [Quick Start](#quick-start)
+- [Basic Configuration](#basic-configuration)
+  - [Devices with EntityInfo](#devices-with-entityinfo)
+    - [Device](#device)
+    - [Basic parameters (alle entities)](#basic-parameters-alle-entities)
+    - [Binary sensor](#binary-sensor)
+    - [Button](#button)
+    - [Camera (not implemented yet)](#camera-not-implemented-yet)
+    - [Cover](#cover)
+    - [Device trigger (not implemented yet)](#device-trigger-not-implemented-yet)
+    - [Image (not implemented yet)](#image-not-implemented-yet)
+    - [Light (not implemented yet)](#light-not-implemented-yet)
+    - [Lock (not implemented yet)](#lock-not-implemented-yet)
+    - [Number (not implemented yet)](#number-not-implemented-yet)
+    - [Select (not implemented yet)](#select-not-implemented-yet)
+    - [Sensor](#sensor)
+    - [Switch](#switch)
+    - [Text (not implemented yet)](#text-not-implemented-yet)
+    - [Valve](#valve)
+  - [Pins with PinInfo](#pins-with-pininfo)
+    - [PinIn](#pinin)
+    - [PinOut](#pinout)
+    - [PinCount](#pincount)
+    - [PinNWayOut](#pinnwayout)
+  - [Bindings with BindInfo](#bindings-with-bindinfo)
+    - [Ruleset](#ruleset)
+    - [Rule conditions](#rule-conditions)
+    - [Rule run actions](#rule-run-actions)
+      - [Log](#log)
+      - [timer](#timer)
+      - [action](#action)
+- [Architecture](#architecture)
+- [Usage](#usage)
+  - [API Documentation (legacy fastapi implementation)](#api-documentation-legacy-fastapi-implementation)
+  - [MQTT Topics](#mqtt-topics)
+- [Ideas for improvement (unsorted in priority)](#ideas-for-improvement-unsorted-in-priority)
+- [Known Issues & Limitations](#known-issues--limitations)
+  - [Loading configurations & runtime](#loading-configurations--runtime)
+  - [Count-Type Pin Device](#count-type-pin-device)
+  - [Home Assistant Offline During Webhook Update](#home-assistant-offline-during-webhook-update)
+- [Contributing](#contributing)
+- [License](#license)
+- [Project Status](#project-status)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
 ## Overview
 
 **HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi with Home Assistant integration via MQTT discoverable devices. Unique to this package is that it is an end-to-end solution reling on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins. This eliminats manual programing via easy json configuration. While developping this package over the years, I learned that this resembles several aspects of ESP Home.

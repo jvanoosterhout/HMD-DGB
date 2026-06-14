@@ -1,24 +1,33 @@
-#!/usr/bin/env python
-# encoding: utf-8
-"""
-System devices template for HMD-DGB node and service and application monitoring.
+#
+#    Copyright 2026 Jeroen van Oosterhout <18647330+jvanoosterhout@users.noreply.github.com>
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#
+#    System devices template for HMD-DGB node and service and application monitoring.
 
-Defines two static devices with entities:
-1. node device: representing the SBC with hardware metrics (CPU, RAM, uptime, temperature) and controls (reboot)
-2. DGB service device: representing the application with metrics (version) and controls (update, restart service)
+#    Defines two static devices with entities:
+#    1. node device: representing the SBC with hardware metrics (CPU, RAM, uptime, temperature) and controls (reboot)
+#    2. DGB service device: representing the application with metrics (version) and controls (update, restart service)
 
-These devices are on the top of the hierarchical device model and separately from user-defined devices to  provide a standard interface for system monitoring and control.
+#    These devices are on the top of the hierarchical device model and separately from user-defined devices to  provide a standard interface for system monitoring and control.
 
-Basic model
-Node (root device)
-  ├─ Node entities (SBC info and control)
-  └─> Service (Runtime service)
-        ├─ Service entities (SBC info and control)
-        └─> User defined device
-             Entities
-
-Jeroen van Oosterhout, 2026
-"""
+#    Basic model
+#    Node (root device)
+#      ├─ Node entities (SBC info and control)
+#      └─> Service (Runtime service)
+#            ├─ Service entities (SBC info and control)
+#            └─> User defined device
+#                 Entities
 
 from __future__ import annotations
 

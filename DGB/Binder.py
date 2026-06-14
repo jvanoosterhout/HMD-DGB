@@ -1,15 +1,25 @@
-#!/usr/bin/env python
-# encoding: utf-8
-"""
-Binder to manage actions to execute on specific triggers.
+#
+#    Copyright 2024-2026 Jeroen van Oosterhout <18647330+jvanoosterhout@users.noreply.github.com>
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#
+#    Binder to manage actions to execute on specific triggers.
 
-The triggers are assumed to originate from a device or pin, which holds the binder.
-The binder keeps a list of actions (references to functions of the target device)
-that will execute when a specific trigger/callback of the holding device fires.
-This means that one device has multiple binders: one per trigger.
+#    The triggers are assumed to originate from a device or pin, which holds the binder.
+#    The binder keeps a list of actions (references to functions of the target device)
+#    that will execute when a specific trigger/callback of the holding device fires.
+#    This means that one device has multiple binders: one per trigger.
 
-Jeroen van Oosterhout, 24-01-2026
-"""
 
 from __future__ import annotations
 

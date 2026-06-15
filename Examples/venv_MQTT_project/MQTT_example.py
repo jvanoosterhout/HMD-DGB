@@ -21,14 +21,12 @@ This closes the loop: a virtual switch triggers a physical output, which is read
 Switch → GPIO output → GPIO input → Sensor
 """
 
-from DGB.PinMQTT import Pin_mqtt
+from DGB.DGBservice import DGBservice
 import json
-import atexit
-import pkg_resources
 
 
 def main():
-    dgb = Pin_mqtt(
+    dgb = DGBservice(
         name="rpi20",
         broker="192.168.70.100",
         username="mqtt_broker",
@@ -36,14 +34,12 @@ def main():
         port=1882,
     )
     # dgb = Pin_mqtt(name = "rpi", broker="ip-adres",username="mqtt_user", password="mqtt_pw", port=1882)
-    atexit.register(dgb.__del__)
+    # atexit.register(dgb.__del__)
     DeviceInfo = {
         "name": "HMD-DGB-test-device",
         "model": "Raspberry Pi 4",
         "manufacturer": "Raspberry Pi Holdings",
-        "sw_version": pkg_resources.get_distribution(
-            "ha-mqtt-discoverable-device-gpio-binder"
-        ).version,  # """Firmware version of the device"""
+        "sw_version": "none",  # """Firmware version of the device"""
         "hw_version": "RPi4",  # """Hardware version of the device"""
         "identifiers": "rpi4_test",  # """A list of IDs that uniquely identify the device. For example a serial number."""
     }
@@ -143,7 +139,7 @@ def main():
         ),
     )
 
-    dgb.run()
+    dgb.run_forever()
 
 
 if __name__ == "__main__":

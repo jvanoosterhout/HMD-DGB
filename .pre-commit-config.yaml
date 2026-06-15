@@ -29,3 +29,10 @@ repos:
         entry: python -m build
         language: system
         pass_filenames: false
+
+  - repo: https://github.com/thlorenz/doctoc
+    rev: v2.4.1
+    hooks:
+      - id: doctoc
+        args:
+          - "--update-only"

@@ -1,10 +1,19 @@
-#!/usr/bin/env python
-# encoding: utf-8
-"""
-Pin keeper class to create and manage all pins
-
-Jeroen van Oosterhout, 15-07-2024
-"""
+#
+#    Copyright 2024-2026 Jeroen van Oosterhout <18647330+jvanoosterhout@users.noreply.github.com>
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#
+#    Pin keeper class to create and manage all pins
 
 from DGB.PinOut import Pin_out
 from DGB.PinIn import Pin_in
@@ -12,7 +21,7 @@ from DGB.PinCount import Pin_count
 from DGB.PinNWayOut import Pin_N_way_out
 from DGB.Pin import Pin
 from DGB.PinModels import PinType, PinModel
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 import logging
 import time
 from homeassistant_api import Client
@@ -21,7 +30,7 @@ from homeassistant_api import Client
 class PinKeeper(object):
     def __init__(
         self,
-        datastore: DataStore,
+        dgb_context: DGBContext,
         api_url: str = "",
         token: str = "secret",
         pin_pw_list: dict = {},
@@ -33,7 +42,7 @@ class PinKeeper(object):
         self.PinList: list[Pin] = []
         # self.PinDict: dict[str, any] = {}
         self.logger = logging.getLogger("PinKeeper")
-        self.datastore = datastore
+        self.dgb_context = dgb_context
         logging.getLogger().setLevel(logging.INFO)
 
         if api_url == "":
@@ -189,19 +198,19 @@ class PinKeeper(object):
                 )
                 return False
         if config.ptype is PinType.pinout.value:
-            P = Pin_out(config=config, datastore=self.datastore)
-            self.datastore.add_pin(
+            P = Pin_out(config=config, dgb_context=self.dgb_context)
+            self.dgb_context.add_pin(
                 str(config.pin), P, {"on": P.on, "off": P.off, "blink": P.blink}
             )
         elif config.ptype is PinType.pinin.value:
-            P = Pin_in(config=config, datastore=self.datastore)
-            self.datastore.add_pin(str(config.pin), P)
+            P = Pin_in(config=config, dgb_context=self.dgb_context)
+            self.dgb_context.add_pin(str(config.pin), P)
         elif config.ptype is PinType.pincount.value:
-            P = Pin_count(config=config, datastore=self.datastore)
-            self.datastore.add_pin(str(config.pin), P)
+            P = Pin_count(config=config, dgb_context=self.dgb_context)
+            self.dgb_context.add_pin(str(config.pin), P)
         elif config.ptype is PinType.pinnwayout.value:
-            P = Pin_N_way_out(config=config, datastore=self.datastore)
-            self.datastore.add_pin(
+            P = Pin_N_way_out(config=config, dgb_context=self.dgb_context)
+            self.dgb_context.add_pin(
                 str(config.pin), P, {"on": P.on, "off": P.off, "blink": P.blink}
             )
             for lst in range(len(config.pin_list)):
@@ -209,12 +218,14 @@ class PinKeeper(object):
                     sub_config = P.GenerateSubPinConfig(lst)
                     self.logger.info("Configure sub pin {}.".format(sub_config))
                     N = Pin_out(
-                        config=sub_config, is_PinNWayOut=True, datastore=self.datastore
+                        config=sub_config,
+                        is_PinNWayOut=True,
+                        dgb_context=self.dgb_context,
                     )
                     N.ConfigurePin()
                     P.Pins.append(N)
                     self.PinList.append(N)
-                    self.datastore.add_pin(str(sub_config.pin), N)
+                    self.dgb_context.add_pin(str(sub_config.pin), N)
         else:
             return False
         if self.HASS_interface is not None:
@@ -228,7 +239,7 @@ class PinKeeper(object):
         self.logger.info("Add pin {} to PinList".format(P.config.pin))
         self.PinList.append(P)
         # self.PinDict[str(sub_config.pin)]["pin"] = P
-        self.logger.info(self.datastore.pins_objects)
-        self.logger.info(self.datastore.get_pin(str(P.config.pin)).config)
+        self.logger.info(self.dgb_context._pins_objects)
+        self.logger.info(self.dgb_context.get_pin(str(P.config.pin)).config)
         self.logger.info("Pin {} added to PinList.".format(P.config.pin))
         return True

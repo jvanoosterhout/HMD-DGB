@@ -1,21 +1,30 @@
-#!/usr/bin/env python
-# encoding: utf-8
-"""
-Generieke pin configurator class
-
-Jeroen van Oosterhout, 15-07-2024
-"""
+#
+#    Copyright 2024-2026 Jeroen van Oosterhout <18647330+jvanoosterhout@users.noreply.github.com>
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#
+#    Pin count configurator class
 
 from DGB.Pin import Pin
 from gpiozero import DigitalInputDevice
 from DGB.PinModels import PinModel
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 import time
 
 
 class Pin_count(Pin):
-    def __init__(self, config: PinModel, datastore: DataStore):
-        super().__init__(config=config, datastore=datastore)
+    def __init__(self, config: PinModel, dgb_context: DGBContext):
+        super().__init__(config=config, dgb_context=dgb_context)
         self.count_totaal = 0
         self.tijd_laatste_count = time.monotonic()
         self.count_laatste_blok = 0
@@ -84,7 +93,9 @@ class Pin_count(Pin):
         self.count_totaal = self.count_totaal + 1
         self.tijd_laatste_count = time.monotonic()
 
-        self.binder.execute_all(self.count_totaal)
+        self.dgb_context.put_to_binder_queue(
+            "post", {"unique_id": str(self.config.pin), "payload": self.count_totaal}
+        )
         self.sendWebhook(self.GetPinValue())
 
     def is_update_relevant(self):

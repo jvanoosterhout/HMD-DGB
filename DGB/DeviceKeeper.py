@@ -1,40 +1,48 @@
-#!/usr/bin/env python
-# encoding: utf-8
-"""
-Device keeper to manage home assistant device and entity configurations.
-
-Jeroen van Oosterhout, 24-12-2025
-"""
+#
+#    Copyright 2026 Jeroen van Oosterhout <18647330+jvanoosterhout@users.noreply.github.com>
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#
+#    Device keeper to manage home assistant device and entity configurations.
 
 import logging
 from ha_mqtt_discoverable import Settings, sensors
 from paho.mqtt.client import Client, MQTTMessage
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 # from DGB.Binder import post_event
 
 logging.basicConfig(level="INFO")
 
 
 class DeviceKeeper(object):
-    def __init__(self, mqtt_settings: Settings, datastore: DataStore):
+    def __init__(self, mqtt_settings: Settings.MQTT, dgb_context: DGBContext):
         self.entities = []
         self.mqtt_settings = mqtt_settings
-        self.datastore = datastore
-
-        # self.switches:list[sensors.Switch] = []
-        # self.switches_dict:dict[str, any] = {}
-        # self.binarysensor_dict:dict[str, any] = {}
-        # self.callable_dict : dict[str, list[callable]] = {} # { "unique_id: [device.on, device.off]"}
+        self.dgb_context = dgb_context
         self.logger = logging.getLogger("DeviceKeeper")
         self.logger.info("starting Entitykeeper")
 
     def new_device(self, dev):
-        # print(payload)
-        # for dev in payload:
         if "EntityInfo" in dev:
             if "component" in dev["EntityInfo"]:
+                if "device" in dev["EntityInfo"]:
+                    dev["EntityInfo"]["device"]["via_device"] = (
+                        self.dgb_context.device_registry["service"]
+                    )
                 if dev["EntityInfo"]["component"] == "cover":
                     self.configure_cover(dev)
+                elif dev["EntityInfo"]["component"] == "valve":
+                    self.configure_valve(dev)
                 elif dev["EntityInfo"]["component"] == "sensor":
                     self.configure_sensor(dev)
                 elif dev["EntityInfo"]["component"] == "switch":
@@ -69,7 +77,8 @@ class DeviceKeeper(object):
     def configure_cover(self, payload):
         self.logger.info("creating cover")
         # time_based_state = False
-        # password_check = False
+        direct_state_transition = True
+        state_transition_after_action_succes = False
 
         if "time_based_state" in payload["EntityInfo"]:
             self.logger.info("cover has time_based_state, adding to settings")
@@ -77,41 +86,59 @@ class DeviceKeeper(object):
             # time_based_duration = payload["EntityInfo"]["time_based_state"]
             del payload["EntityInfo"]["time_based_state"]
 
-        if "password" in payload["EntityInfo"]:
-            self.logger.info("cover has password, adding to settings")
-            # password_check = True
-            # password = payload["EntityInfo"]["password"]
-            del payload["EntityInfo"]["password"]
+        if "direct_state_transition" in payload["EntityInfo"]:
+            direct_state_transition = payload["EntityInfo"]["direct_state_transition"]
+            del payload["EntityInfo"]["direct_state_transition"]
+
+        # if "state_transition_after_action_succes" in payload["EntityInfo"]:
+        #     state_transition_after_action_succes = payload["EntityInfo"]["state_transition_after_action_succes"]
+        #     del payload["EntityInfo"]["state_transition_after_action_succes"]
+
+        if direct_state_transition:
+            self.logger.info(
+                "cover states will change directly based on paload commands"
+            )
+        else:
+            if state_transition_after_action_succes:
+                self.logger.info(
+                    "cover state changes occure after succesfull binder action"
+                )
+            else:
+                self.logger.info(
+                    "cover state changes must be managed via binder actions"
+                )
 
         cover_info = sensors.CoverInfo(**payload["EntityInfo"])
 
         def my_callback(client: Client, user_data, message: MQTTMessage):
             payload = message.payload.decode()
             self.logger.info(
-                "turn cover {}: {}".format(device._entity.unique_id, payload)
+                "Cover {} commanded: {}".format(device._entity.unique_id, payload)
             )
 
-            self.datastore.put_to_queue(
+            self.dgb_context.put_to_binder_queue(
                 "post", {"unique_id": device._entity.unique_id, "payload": payload}
             )
 
-            if payload == "OPEN":
-                device.opening()
-                device.open()
-                self.logger.info("ik open")
-            elif payload == "CLOSE":
-                device.closing()
-                device.closed()
-                self.logger.info("ik sluit")
-            elif payload == "STOP":
-                device.stopped()
-                self.logger.info("ik stop")
+            if direct_state_transition:
+                if payload == device._entity.payload_open:
+                    device.opening()
+                    device.open()
+                elif payload == device._entity.payload_close:
+                    device.closing()
+                    device.closed()
+                elif payload == device._entity.payload_stop:
+                    device.stopped()
 
         device = sensors.Cover(
-            Settings(mqtt=self.mqtt_settings, entity=cover_info), my_callback
+            Settings(
+                mqtt=self.mqtt_settings, entity=cover_info, manual_availability=True
+            ),
+            my_callback,
         )
-        self.datastore.add_device(
-            device._entity.unique_id,
+
+        self.dgb_context.add_device(
+            str(device._entity.unique_id),
             device,
             {
                 "open": device.open,
@@ -122,17 +149,121 @@ class DeviceKeeper(object):
             },
         )
         device.closed()
+        device.set_availability(True)
         self.logger.info(
             "Cover '{}' with unique_id '{}' made and closed.".format(
                 device._entity.name, device._entity.unique_id
             )
         )
 
+    def configure_valve(self, payload):
+        self.logger.info("creating valev")
+        # time_based_state = False
+        direct_state_transition = True
+        state_transition_after_action_succes = False
+
+        if "time_based_state" in payload["EntityInfo"]:
+            self.logger.info("valve has time_based_state, adding to settings")
+            # time_based_state = True
+            # time_based_duration = payload["EntityInfo"]["time_based_state"]
+            del payload["EntityInfo"]["time_based_state"]
+
+        if "direct_state_transition" in payload["EntityInfo"]:
+            direct_state_transition = payload["EntityInfo"]["direct_state_transition"]
+            del payload["EntityInfo"]["direct_state_transition"]
+
+        # if "state_transition_after_action_succes" in payload["EntityInfo"]:
+        #     state_transition_after_action_succes = payload["EntityInfo"]["state_transition_after_action_succes"]
+        #     del payload["EntityInfo"]["state_transition_after_action_succes"]
+
+        if direct_state_transition:
+            self.logger.info(
+                "valve states will change directly based on paload commands"
+            )
+        else:
+            if state_transition_after_action_succes:
+                self.logger.info(
+                    "valve state changes occure after succesfull binder action"
+                )
+            else:
+                self.logger.info(
+                    "valve state changes must be managed via binder actions"
+                )
+
+        valve_info = sensors.ValveInfo(**payload["EntityInfo"])
+
+        def my_callback(client: Client, user_data, message: MQTTMessage):
+            payload = message.payload.decode()
+            self.logger.info(
+                "Valve {} commanded: {}".format(device._entity.unique_id, payload)
+            )
+
+            self.dgb_context.put_to_binder_queue(
+                "post", {"unique_id": device._entity.unique_id, "payload": payload}
+            )
+
+            if direct_state_transition:
+                if payload == device._entity.payload_open:
+                    device.opening()
+                    device.open()
+                elif payload == device._entity.payload_close:
+                    device.closing()
+                    device.closed()
+                elif payload == device._entity.payload_stop:
+                    pass
+
+        device = sensors.Valve(
+            Settings(
+                mqtt=self.mqtt_settings, entity=valve_info, manual_availability=True
+            ),
+            my_callback,
+        )
+
+        self.dgb_context.add_device(
+            str(device._entity.unique_id),
+            device,
+            {
+                "open": device.open,
+                "closed": device.closed,
+                "opening": device.opening,
+                "closing": device.closing,
+            },
+        )
+        device.closed()
+        device.set_availability(True)
+        self.logger.info(
+            "Valve '{}' with unique_id '{}' made and closed.".format(
+                device._entity.name, device._entity.unique_id
+            )
+        )
+
     def configure_sensor(self, payload):
-        pass
+        self.logger.info("creating sensor")
+        sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
+        device = sensors.Sensor(
+            Settings(
+                mqtt=self.mqtt_settings, entity=sensor_info, manual_availability=True
+            ),
+        )
+        self.dgb_context.add_device(
+            str(device._entity.unique_id), device, {"set_state": device.set_state}
+        )
+        self.logger.info(
+            "Sensor '{}' with unique_id '{}' made and set to ''.".format(
+                device._entity.name, device._entity.unique_id
+            )
+        )
+        device.set_state("")
+        device.set_availability(True)
 
     def configure_switch(self, payload):
         self.logger.info("creating switch")
+        direct_state_transition = True
+
+        if "direct_state_transition" in payload["EntityInfo"]:
+            direct_state_transition = payload["EntityInfo"]["direct_state_transition"]
+            del payload["EntityInfo"]["direct_state_transition"]
+
         switch_info = sensors.SwitchInfo(**payload["EntityInfo"])
 
         def my_callback(client: Client, user_data, message: MQTTMessage):
@@ -140,21 +271,28 @@ class DeviceKeeper(object):
             self.logger.info(
                 "turn switch {}: {}".format(device._entity.unique_id, payload)
             )
-            self.datastore.put_to_queue(
+            self.dgb_context.put_to_binder_queue(
                 "post", {"unique_id": device._entity.unique_id, "payload": payload}
             )
-            if payload == "ON":
-                device.on()
-            # elif payload == "OFF":
-            #     device.off()
+            if direct_state_transition:
+                if payload == device._entity.payload_on:
+                    device.on()
+                elif payload == device._entity.payload_off:
+                    device.off()
 
         device = sensors.Switch(
-            Settings(mqtt=self.mqtt_settings, entity=switch_info), my_callback
+            Settings(
+                mqtt=self.mqtt_settings,
+                entity=switch_info,
+                manual_availability=True,
+            ),
+            my_callback,
         )
-        self.datastore.add_device(
-            device._entity.unique_id, device, {"on": device.on, "off": device.off}
+        self.dgb_context.add_device(
+            str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
         )
         device.off()
+        device.set_availability(True)
         self.logger.info(
             "Switch '{}' with unique_id '{}' made and turned off.".format(
                 device._entity.name, device._entity.unique_id
@@ -180,10 +318,14 @@ class DeviceKeeper(object):
         self.logger.info("creating binary sensor")
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
         device = sensors.BinarySensor(
-            Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
+            Settings(
+                mqtt=self.mqtt_settings,
+                entity=binarysensor_info,
+                manual_availability=True,
+            ),
         )
-        self.datastore.add_device(
-            device._entity.unique_id, device, {"on": device.on, "off": device.off}
+        self.dgb_context.add_device(
+            str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
         )
         self.logger.info(
             "Binary sensor '{}' with unique_id '{}' made and deactivated.".format(
@@ -191,3 +333,4 @@ class DeviceKeeper(object):
             )
         )
         device.off()
+        device.set_availability(True)

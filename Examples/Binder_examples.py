@@ -1,8 +1,23 @@
+#
+#    Copyright 2026 Jeroen van Oosterhout <18647330+jvanoosterhout@users.noreply.github.com>
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#
 """
 Stand-alone Binder test example
 
 This script provides a stand-alone test environment for the HMD-DGB Binder. Its goal is to offer example bindings and make it easy to experiment with custom bindings before running them in an integrated setup (e.g. with Home Assistant, MQTT, or physical GPIO).
-The script initializes the Binder with an in-memory DataStore and defines several dummy devices. These devices simulate both event sources and actors, allowing Binder behavior to be tested without external dependencies. Some dummy devices expose callable actions (on, off) to act as controllable outputs.
+The script initializes the Binder with an in-memory dgb_context and defines several dummy devices. These devices simulate both event sources and actors, allowing Binder behavior to be tested without external dependencies. Some dummy devices expose callable actions (on, off) to act as controllable outputs.
 Four binding patterns are demonstrated:
 
 Direct durable binding
@@ -27,12 +42,12 @@ This setup offers a compact sandbox for validating Binder logic and experimentin
 
 import time
 import DGB.Binder
-import DGB.DataStore
+import DGB.DGBContext
 import logging
 
 
 # setup the binder class with durable rules
-binder = DGB.Binder.Binder(DGB.DataStore.DataStore())
+binder = DGB.Binder.Binder(DGB.DGBContext.DGBContext())
 logging.basicConfig(level=logging.INFO)
 binder.logger.setLevel("INFO")
 binder.logger.info("starting test_binder")
@@ -51,6 +66,25 @@ class dummy_device:
         print("{} is off".format(self.id))
         return True
 
+    def log(
+        self,
+        integer: int | None = None,
+        string: str | None = None,
+        boolean: bool | None = None,
+        floatingpoint: float | None = None,
+    ):
+        if integer:
+            print(f"recieved integer: {integer}. with type {type(integer)}")
+        if string:
+            print(f"recieved string: {string}. with type {type(string)}")
+        if boolean:
+            print(f"recieved boolean: {boolean}. with type {type(boolean)}")
+        if floatingpoint:
+            print(
+                f"recieved floatingpoint: {floatingpoint}. with type {type(floatingpoint)}"
+            )
+        return True
+
 
 # make instances of the dummy device
 p1 = dummy_device("pin1")
@@ -58,17 +92,19 @@ s1 = dummy_device("source1")
 s2 = dummy_device("source2")
 s3 = dummy_device("source3")
 s4 = dummy_device("source4")
+s5 = dummy_device("source5")
 pw1 = dummy_device("pw1")
 pw2 = dummy_device("pw2")
 
-# add instances with theire calable functions (if any) to the datastore
-binder.datastore.add_device("p1", p1, {"on": p1.on, "off": p1.off})
-binder.datastore.add_device("s1", s1)
-binder.datastore.add_device("s2", s2)
-binder.datastore.add_device("s3", s3)
-binder.datastore.add_device("s4", s4)
-binder.datastore.add_device("pw1", pw1)
-binder.datastore.add_device("pw2", pw2)
+# add instances with theire calable functions (if any) to the dgb_context
+binder.dgb_context.add_device("p1", p1, {"on": p1.on, "off": p1.off, "log": p1.log})
+binder.dgb_context.add_device("s1", s1)
+binder.dgb_context.add_device("s2", s2)
+binder.dgb_context.add_device("s3", s3)
+binder.dgb_context.add_device("s4", s4)
+binder.dgb_context.add_device("s5", s5)
+binder.dgb_context.add_device("pw1", pw1)
+binder.dgb_context.add_device("pw2", pw2)
 
 # define durable rules in json format
 # this is a standart rule, all conditions must match at the same time
@@ -182,23 +218,83 @@ binding_to_pin_with_pw_with_timeout = {
 }
 
 
+# Test binding with arguments
+binding_with_args = {
+    "number_to_output": {
+        "rule_1": {
+            "all": [{"m": {"$and": [{"unique_id": "s5"}, {"$ex": {"payload": 1}}]}}],
+            "run": [
+                {"log": {"msg": "use payload as arguments"}},
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "log",
+                        "args": [
+                            {"name": "integer", "value": "$m.payload"},
+                            {"name": "string", "value": "$m.payload"},
+                            {"name": "boolean", "value": "$m.payload"},
+                            {"name": "floatingpoint", "value": "$m.payload"},
+                        ],
+                    }
+                },
+                {"log": {"msg": "use correct values as arguments"}},
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "log",
+                        "args": [
+                            {"name": "integer", "value": 1},
+                            {"name": "string", "value": "1"},
+                            {"name": "boolean", "value": True},
+                            {"name": "floatingpoint", "value": 1.0},
+                        ],
+                    }
+                },
+                {"log": {"msg": "use incorrect values as arguments"}},
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "log",
+                        "args": [
+                            {"name": "integer", "value": "1"},
+                            {"name": "string", "value": 1},
+                            {"name": "boolean", "value": "No"},
+                            {"name": "floatingpoint", "value": "1"},
+                        ],
+                    }
+                },
+            ],
+        }
+    }
+}
+
+
 # start the binder
 binder.start_event_dispatcher()
 
 # load the rulesets
-binder.datastore.put_to_queue("ruleset", binding_to_pin)
-binder.datastore.put_to_queue("ruleset", binding_to_pin_with_pw)
-binder.datastore.put_to_queue("ruleset", binding_auto_off)
-binder.datastore.put_to_queue("ruleset", binding_to_pin_with_pw_with_timeout)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin_with_pw)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_auto_off)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin_with_pw_with_timeout)
+binder.dgb_context.put_to_binder_queue("ruleset", binding_with_args)
 
 # post the events
-binder.datastore.put_to_queue("post", {"unique_id": "s1", "payload": "on"})
-binder.datastore.put_to_queue("post", {"unique_id": "s2", "payload": "on"})
-binder.datastore.put_to_queue("post", {"unique_id": "pw1", "payload": "secret"})
-binder.datastore.put_to_queue("post", {"unique_id": "s3", "payload": "on"})
-binder.datastore.put_to_queue("post", {"unique_id": "pw2", "payload": "secret"})
-binder.datastore.put_to_queue("post", {"unique_id": "s4", "payload": "on"})
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s1", "payload": "on"})
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s2", "payload": "on"})
+binder.dgb_context.put_to_binder_queue(
+    "post", {"unique_id": "pw1", "payload": "secret"}
+)
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s3", "payload": "on"})
+binder.dgb_context.put_to_binder_queue(
+    "post", {"unique_id": "pw2", "payload": "secret"}
+)
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s4", "payload": "on"})
+
+time.sleep(1)
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "1"})
+binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "no"})
 
 time.sleep(10)
 # shutdown the main binder thread
-binder.datastore.put_to_queue("shutdown", {})
+binder.dgb_context.put_to_binder_queue("shutdown", {})

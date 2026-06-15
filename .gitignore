@@ -1,7 +1,14 @@
 build/*
 dist/*
 docs/*
+
 *.egg-info/
 .eggs/*
+.vscode/*
 */__pycache__/*
 venv
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/

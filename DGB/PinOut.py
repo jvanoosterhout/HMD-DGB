@@ -1,20 +1,29 @@
-#!/usr/bin/env python
-# encoding: utf-8
-"""
-Pin uit class om GPIO pinnen in te stellen als output
-
-Jeroen van Oosterhout, 15-07-2024
-"""
+#
+#    Copyright 2024-2026 Jeroen van Oosterhout <18647330+jvanoosterhout@users.noreply.github.com>
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#
+#    Pin uit class om GPIO pinnen in te stellen als output
 
 from DGB.Pin import Pin
 from gpiozero import DigitalOutputDevice
 from DGB.PinModels import PinModel
-from DGB.DataStore import DataStore
+from DGB.DGBContext import DGBContext
 
 
 class Pin_out(Pin):
     def __init__(
-        self, config: PinModel, datastore: DataStore, is_PinNWayOut: bool = False
+        self, config: PinModel, dgb_context: DGBContext, is_PinNWayOut: bool = False
     ):
         """
         Initialiseer de Pin_out klasse met standaardwaarden.
@@ -23,7 +32,7 @@ class Pin_out(Pin):
         pin (int): Het pin nummer.
         ptype (str): Het type pin, moet "out" zijn.
         """
-        super().__init__(config=config, datastore=datastore)
+        super().__init__(config=config, dgb_context=dgb_context)
         self.is_PinNWayOut = is_PinNWayOut
 
     def HasSameConfig(self, config: PinModel) -> bool:

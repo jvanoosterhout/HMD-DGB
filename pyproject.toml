@@ -1,8 +1,8 @@
 
 [project]
-name = "ha-mqtt-discoverable-device-gpio-binder"
-version = "1.0.0"
-description = "A durable rules binder between ha devices and GPIO on RPI-like devices"
+name = "HMD-DGB"
+dynamic = ["version"]
+description = "A durable rules binder between HA discoverable devices and GPIO on RPI-like devices"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -17,8 +17,9 @@ dependencies = [
     "gpiozero==2.0.1",
     "lgpio==0.2.2.0",
     "homeassistant-api==5.0.2",
-    "ha-mqtt-discoverable==0.23.0",
-    "durable-rules==2.0.28"
+    "ha-mqtt-discoverable==0.25.2",
+    "durable-rules==2.0.28",
+    "ghapi>=1.0.3"
 ]
 
 [tool.setuptools]
@@ -33,11 +34,25 @@ dev = [
     "pre-commit>=4.5.1",
     "ruff>=0.15.11",
     "pytest>=9.0.3",
+    "pytest-cov>=6.0.0",
     "build>=1.4.3"
 ]
-test = ["pytest>=9.0.3"]
+test = ["pytest>=9.0.3", "pytest-cov>=6.0.0"]
 
 
 [build-system]
-requires = ["setuptools>=66.1.1"]
+requires = ["setuptools>=66.1.1", "setuptools_scm>=7.0.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+# Use tags as the single source of truth for the package version. Tags like
+# `1.2.3` or `v1.2.3` are recognised. The `write_to` file will be generated
+# at build time and can be imported as `DGB._version.version`.
+write_to = "DGB/_version.py"
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
+fallback_version = "v0.0.0"
+
+
+[tool.ruff.format]
+exclude = ["DGB/_version.py"]

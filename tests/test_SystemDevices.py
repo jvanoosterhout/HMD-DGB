@@ -17,7 +17,10 @@ def mock_mqtt_settings():
     return settings
 
 
-dgb_restart = MagicMock()
+@pytest.fixture
+def dgb_restart():
+    """Create a Callable for each test"""
+    return True
 
 
 @pytest.fixture
@@ -63,7 +66,7 @@ def test_system_devices_init_with_location(mock_mqtt_settings, dgb_context):
 
 def test_system_devices_init_with_dgb_mqtt_instance(mock_mqtt_settings, dgb_context):
     """Test SystemDevices initialization with DGBMQTT instance reference"""
-    dgb_mqtt = MagicMock()
+    dgb_mqtt = dgb_restart
 
     with patch("DGB.SystemDevices.sensors"):
         system_devices = SystemDevices(

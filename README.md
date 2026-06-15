@@ -57,7 +57,6 @@ Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverab
   - [Count-Type Pin Device](#count-type-pin-device)
   - [Home Assistant Offline During Webhook Update](#home-assistant-offline-during-webhook-update)
 - [Contributing](#contributing)
-- [License](#license)
 - [Project Status](#project-status)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -1131,18 +1130,7 @@ This is a **spare-time project**, so feedback and suggestions are highly appreci
 - Documentation improvements and examples
 - Testing on different hardware configurations
 
-## License
-
-MIT License - See LICENSE file in the repository for full details.
-
-This license allows:
-- Commercial and private use
-- Modification and distribution
-- Use with warranty disclaimer
-
 ## Project Status
-
-**v0.1 (Develop Branch)** - Active Development
 
 This is the first public iteration of the HMD-DGB project, transitioning from private development to community use. Expect:
 - Ongoing improvements to core functionality

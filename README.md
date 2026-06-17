@@ -2,8 +2,6 @@
 
 Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverable devices. Bridge your hardware to smart home automation through declarative device bindings via durable rules.
 
-
-
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
@@ -16,11 +14,10 @@ Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverab
 - [Installation](#installation)
   - [Option 1: venv](#option-1-venv)
   - [Option 2: Docker](#option-2-docker)
-- [Quick Start](#quick-start)
-- [Basic Configuration](#basic-configuration)
+- [Reference documentation](#reference-documentation)
   - [Devices with EntityInfo](#devices-with-entityinfo)
     - [Device](#device)
-    - [Basic parameters (alle entities)](#basic-parameters-alle-entities)
+    - [Basic parameters (for alle entities)](#basic-parameters-for-alle-entities)
     - [Binary sensor](#binary-sensor)
     - [Button](#button)
     - [Camera (not implemented yet)](#camera-not-implemented-yet)
@@ -48,14 +45,13 @@ Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverab
       - [timer](#timer)
       - [action](#action)
 - [Architecture](#architecture)
-- [Usage](#usage)
-  - [API Documentation (legacy fastapi implementation)](#api-documentation-legacy-fastapi-implementation)
-  - [MQTT Topics](#mqtt-topics)
 - [Ideas for improvement (unsorted in priority)](#ideas-for-improvement-unsorted-in-priority)
 - [Known Issues & Limitations](#known-issues--limitations)
   - [Loading configurations & runtime](#loading-configurations--runtime)
+  - [restart of the system](#restart-of-the-system)
+  - [Loading configurations & runtime](#loading-configurations--runtime-1)
   - [Count-Type Pin Device](#count-type-pin-device)
-  - [Home Assistant Offline During Webhook Update](#home-assistant-offline-during-webhook-update)
+  - [Maintenance/updates of Durable Rules](#maintenanceupdates-of-durable-rules)
 - [Contributing](#contributing)
 - [Project Status](#project-status)
 
@@ -66,12 +62,16 @@ Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverab
 
 **HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi with Home Assistant integration via MQTT discoverable devices. Unique to this package is that it is an end-to-end solution reling on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins. This eliminats manual programing via easy json configuration. While developping this package over the years, I learned that this resembles several aspects of ESP Home.
 
+Future vision is to make a flexable solution to configure and manage edge devices/nodes like Raspberry PI while haveing near-zero need to touch the code on the node. Think of installing the OS including the initial package setup, and then only work from Home Assistant to e.g. update the package or configureing GPIO, devices and bindings.
+
 The system consists of four core concepts:
 
 - **MQTT Discoverable Devices**: Devices that automatically appear in Home Assistant via MQTT discovery protocol
 - **Durable Binding Rules**: Define relationships and actions between physical GPIO pins and Home Assistant devices
 - **GPIOzero Devices**: configuration of GPIO pins to proform meaningfull action in the real world
 - **on the fly configuration**: send device, binding and GPIO configurations over MQTT to your Raspberry Pi (you still need to install this package, configure HA, and setup the MQTT service)
+
+
 
 ## Requirements
 
@@ -118,9 +118,9 @@ python -m DGB.DGBservice --name "my-service-name" --broker "my-broker" [--port "
 Docker support is on the roadmap simplified deployment and consistency across systems.
 
 
-## Quick Start
+## Reference documentation
 
-Publish an MQTT message to the config topic "config/{name}/devices/" to configure devices, GPIO and bindings. The message should be a json payload structured like this:
+Once the HMD-DGB service runs on a pi/SBC, and it is connected to a MQTT broker (with Home Assistant as subscriber), the next step is as simple as publishing a configuration MQTT message to the config topic "config/{name}/devices/". Such a massage can configure devices (i.e Home Assistant entities that are optionally grouped in devices), GPIO pins and bindings between the first two. The message should be a json payload structured like this:
 
 ```json
 {
@@ -135,7 +135,7 @@ Publish an MQTT message to the config topic "config/{name}/devices/" to configur
   ],
 }
 ```
-## Basic Configuration
+How to fill this message is explained in the next sections.
 
 ### Devices with EntityInfo
 
@@ -177,7 +177,7 @@ HMD parameters:
 }
 ```
 
-#### Basic parameters (alle entities)
+#### Basic parameters (for alle entities)
 
 Parameters that all devices (i.e. entities) have, and can thuse be appended to the EntityInfo configuration of each device (i.e. entities) in the following subsections.
 
@@ -693,6 +693,8 @@ DGB binder run.action.call and (optional) run.action.args:
 
 ### Pins with PinInfo
 
+In this section lists the configuration parameters and defaults for GPIO pins. In the background pins are configured and managed by the [GPIOzero](https://github.com/gpiozero/gpiozero) package. HMD-DGB provides an overlay on this package. Most parameters allign with those form [GPIOzero](https://github.com/gpiozero/gpiozero), though al are defined within HMD-DGB and are listed below. Aditionally you find the run.action.call ids and run.action.args that can be used in binding via [Durable Rules](https://github.com/jruizgit/rules).
+
 #### PinIn
 
 DGB parameters:
@@ -715,7 +717,7 @@ DGB parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+PinIn has no binder run.action.call and (optional) run.action.args
 
 #### PinOut
 
@@ -774,6 +776,8 @@ DGB parameters:
   "webhook": "/api/webhook/gpio_counter_5"
 }
 ```
+
+PinCount has no binder run.action.call and (optional) run.action.args
 
 #### PinNWayOut
 
@@ -843,12 +847,12 @@ binding_info =  {
 ```
 #### Rule conditions
 
-A plain ruleset can have multiple rules/condition with antecedent. Durable Rules has two main antecedent: all and any. These can be combined and nested to express richer patterns. The antecedent can have a:
+A **plain ruleset** can have multiple rules/condition with antecedent. Durable Rules has two main antecedent: all and any. These can be combined and nested to express richer patterns. The antecedent can have a:
 - Single message pattern with the 'm' label. All clauses from one event must match to fire the rule.
 - Named correlated pattern (first, second, …). The individual named patterns must match in one message to be true, but the rule only fires if all named patterns match.
 - Nested branch inside all or any.
 
-A simple example
+A simple example of a plain ruleset:
 ```JSON
 {
   "my_plain_ruleset": {
@@ -876,7 +880,125 @@ A simple example
 }
 ```
 
-As shown in the example above, the matching constructs inside the rule is in JSON format. Each key-value pair presents a match patren, e.g.: {"unique_id": "x"}, {"payload": "y"} means Unique_id = "x" and payload = "y". Though many matching constructs are posible. A few of them are:
+A **Statechart** is best defined by [Durable Rules](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) them selfs:
+
+> Rules can be organized using statecharts. A statechart is a deterministic finite automaton (DFA). The state context is in one of a number of possible states with conditional transitions between these states.
+>
+> Statechart rules:
+>
+> - A statechart can have one or more states.
+> - A statechart requires an initial state.
+> - An initial state is defined as a vertex without incoming edges.
+> - A state can have zero or more triggers.
+> - A state can have zero or more states (see nested states).
+> - A trigger has a destination state.
+> - A trigger can have a rule (absence means state enter).
+> - A trigger can have an action.
+
+For a binding, statecharts are especially useful when an actor/device has lifecycle states, for example:
+
+- idle
+- pending
+- active
+- timed_out
+- error
+
+Then transitions can be driven by:
+
+- a specific unique_id,
+- a payload,
+- a timeout/timer signal
+
+This is likely cleaner than plain correlated rules if your logic depends on where the actor currently is in a lifecycle.
+
+A simple example of a statechart:
+```JSON
+{
+    "my_statechart$state": {
+        "start": {"t_0": {"to": "waiting"}},
+        "waiting": {
+            "on": {
+                "all": [...],
+                "to": "got_on",
+                "run": {...},
+            },
+        },
+        "got_on": {
+            "temp_timeout": {
+                "all": [...],
+                "to": "waiting",
+                "run": {...},
+            },
+        },
+    }
+}
+```
+
+A **flowcharts** is best defined by [Durable Rules](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) them selfs:
+> A flowchart is another way of organizing a ruleset flow. In a flowchart each stage represents an action to be executed. So (unlike the statechart state), when applied to the context state, it results in a transition to another stage.
+>
+> Flowchart rules:
+>
+> - A flowchart can have one or more stages.
+> - A flowchart requires an initial stage.
+> - An initial stage is defined as a vertex without incoming edges.
+> - A stage can have an action.
+> - A stage can have zero or more conditions.
+> - A condition has a rule and a destination stage.
+
+For a binding, a flowchart is a better fit (compaired to Statechart) when the logic is more like a process pipeline than a persistent actor state machine. Example shape:
+
+- input
+- validate
+- wait_for_payload
+- timeout_or_accept
+- finalize
+
+So:
+- Statechart = “what state is this actor/device in?”
+- Flowchart = “what processing stage is this event/work item in?”
+
+A simple example of a flowchart:
+```JSON
+{
+  "my_flowcharts$flow": {
+    "input": {
+      "to": {
+        "request_on": {
+          "all": [...]
+        },
+        "off": {
+          "all": [...]
+        }
+      }
+    },
+    "request_on": {
+      "run": "log_request_on",
+      "to": {
+        "on": {
+          "all": [...]
+        },
+        "off": {
+          "all": [...]
+        },
+        "request_on": {
+          "all": [...]
+        }
+      }
+    },
+    "on": {
+      "run": "log_on",
+      "to": {}
+    },
+    "off": {
+      "run": "log_off_",
+      "to": {}
+    }
+  }
+}
+```
+
+As shown in the first example in this section, the matching constructs inside the rule is in JSON format. Each key-value pair presents a match patren, e.g.: {"unique_id": "x"}, {"payload": "y"} means Unique_id = "x" and payload = "y". Though many matching constructs are posible. A few of them are:
 - Logical operators likr negative / absence pattern ($not), or ($or), and ($and), exists ($ex), not exist ($nex),
 - Relational operators like, less than ($lt), greater than ($gt), less than or equal ($lte), greater than or equal ($gte), not equal ($neq)
 - Patrens like match pattern ($mt) and case-insensitive match pattern ($imt)
@@ -989,19 +1111,6 @@ The call functions and args (with name and value) can be found in [Devices with 
 }
 ```
 
-
-
-TODO
-
-**Behavior:**
-- Click → Opening → Wait → Fully opened → Click → Closing → Wait → Fully closed
-- Click → Opening → Click → Stop (somewhere in between) → Click → Closing
-
-**Hardware Notes:**
-- May require a relay board to isolate Pi and door/gate electric circuits
-- Magnetic reed switches recommended for position detection
-- Ensure proper voltage protection for connected devices
-
 ## Architecture
 
 ```
@@ -1034,37 +1143,15 @@ TODO
 └───────────────────────────────┘
 ```
 
-## Usage
-
-### API Documentation (legacy fastapi implementation)
-
-If REST endpoints are available, access the interactive documentation at:
-
-```
-http://<pi-ip>:11411/docs
-```
-
-This provides:
-- View of all available endpoints
-- Ability to test API calls directly
-- Request/response schema documentation
-
-### MQTT Topics
-
-HMD-DGB publishes and subscribes to the following MQTT topics:
-
-- the default homeassistant discoverable topics (publishe and subscribe)
-- the "config/[RPI-name]/devices/[sub-topic]" topic (subscribe) to recieve configurations for devices, bindings and GPIO.
-
 ## Ideas for improvement (unsorted in priority)
 
 - Triggering payload as argument in action
   - <del>Add support to use the payload of the triggering device as argument in the action function</del>
   - Match best type of arg for multi type function args (naow: payload = int & function accepts str|int|bool --> convert int to str; should be pass int)
   - Make it posible to define case type in configuration (e.g. "value": "$m.payload|int")
-  - Provide readme / log feedback on posible arg names and types per fuction
+  - Provide <del>readme</del> / log feedback on posible arg names and types per fuction
 - Improve run actions
-  - create readme documentation on the posible actions (log, action, timer, ...)
+  - <del>create readme documentation on the posible actions (log, action, timer, ...)</del>
   - Extend run action with the option to perform a post to a ruleset with specific context
 - Improve device, GPIO and binder configuration
   - Make configuration possible from yaml
@@ -1073,8 +1160,8 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
     - rules
     - gpio pins
 - Improve systems capabilities and robustness
-  - Make system sensors configurable
-  - Add RPI device action (e.g. restart, update, reload, ...)
+  - <del>Make system sensors configurable</del>
+  - Add RPI device action (e.g. <del>restart</del>, update, reload, ...)
   - Add log messages over MQTT in RPI device
   - Splitt loading and active phase: prevent post from being evaluated while rules may not be in place (e.g. set a system flag: loading = true while new mqtt config messages are being  processed)
   - Make pytest for all files.
@@ -1084,13 +1171,13 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
   - PWM support: LED brightness and voltage regulation control
   - Replace gpio module for use on diffferent single board coputers (e.g. Mqtt-io, Adafruit Blinka, Libgpio)
 - Improve system setup:
-  - Make example with arg configuration of system name, mqtt and some other system settings (acount for secure passwords)
-    - Potentially include a local webserver to set wifi and mqtt credentials and store them encrypted
+  - <del>Make example with arg configuration of system name, mqtt and some other system settings (acount for secure passwords)</del>
+    - [Won't for now: pi zero has no hardware to store secretes truely safe for an automatic system like HMD-DGB] <del>Potentially include a local webserver to set wifi and mqtt credentials and store them encrypted</del>
   - Docker deployment: Streamlined container-based setup with pre-configured environment
-  - Define cloud-init (e.g. for Trixi)
+  - Define cloud-init (e.g. for Trixi) or simmilar script to configure a pi at first boot
   - (external project) Make tool to write Device, GPIO and Binder configurations (host on local webserver)
 - Improve Devices
-  - Support more HMD device (focus on valve)
+  - Support more HMD device <del>(focus on valve)</del>
   - Implement time based cover/valve
   - Implement (distinguish and document) Device configuration specific to HMD-DGB
     - time_based_state (for cover & valve)
@@ -1100,10 +1187,21 @@ HMD-DGB publishes and subscribes to the following MQTT topics:
 
 ### Loading configurations & runtime
 
+**Status:** Needs Testing
+
+For run.action.args the value of "$m.payload" currently only works if the rule has one payload of one device's unique_id.
+
+### restart of the system
+
+**Status:** Needs Testing
+
+What would currently happen, and should happen when the HMD-DGB service restarts (or the system reboots). Whatever happens, should states be stored and restored, set to unknown, or set to default values?
+
+### Loading configurations & runtime
+
 **Status:** Needs split of operational phases or robust error handling
 
 Currently devices and pins can emit posts directly after creation, rules/bindings can only be set once all included devices and pins are defind --> early posts fail.
-
 
 ### Count-Type Pin Device
 
@@ -1111,11 +1209,11 @@ Currently devices and pins can emit posts directly after creation, rules/binding
 
 Currently the count-type pin implementation is incomplete. Water flow meters and other pulse-based sensors may not work reliably. This is targeted for completion in an upcoming release.
 
-### Home Assistant Offline During Webhook Update
+### Maintenance/updates of Durable Rules
 
-**Status:** Needs Testing
+**Status:** unknown
 
-The behavior when Home Assistant is offline while HMD-DGB attempts to send webhook updates is not fully tested. You may experience state synchronization issues. Consider this for critical automations.
+Durable Rules has limited maintenance/updates and no reponces on issues lately. It is unclear how well or how long this package will be able to keep up with updates of other packages.
 
 ## Contributing
 

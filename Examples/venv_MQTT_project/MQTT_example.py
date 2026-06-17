@@ -38,7 +38,7 @@ def main():
     DeviceInfo = {
         "name": "HMD-DGB-test-device",
         "model": "Raspberry Pi 4",
-        "manufacturer": "Raspberry Pi Holdings",
+        "manufacturer": "Jeroen van Oosterhout",
         "sw_version": "none",  # """Firmware version of the device"""
         "hw_version": "RPi4",  # """Hardware version of the device"""
         "identifiers": "rpi4_test",  # """A list of IDs that uniquely identify the device. For example a serial number."""
@@ -122,6 +122,22 @@ def main():
         }
     }
 
+    select_info = {
+        "component": "select",
+        "device": DeviceInfo,  # """Information about the device this sensor belongs to"""
+        "options": ["option_a", "option_b", "option_c"],
+        "name": "select test",
+        "unique_id": "rpi4-select-test",
+    }
+
+    text_info = {
+        "component": "text",
+        "device": DeviceInfo,  # """Information about the device this sensor belongs to"""
+        "name": "text test",
+        "unique_id": "rpi4-text-test",
+        "mode": "text",  # password
+    }
+
     dgb.client.publish(
         topic="config/rpi20/devices/test",
         payload=json.dumps(
@@ -129,6 +145,8 @@ def main():
                 "Devices": [
                     {"EntityInfo": EntityInfo | SwitchInfo},
                     {"EntityInfo": EntityInfo_sensor | SensorInfo},
+                    {"EntityInfo": text_info},
+                    {"EntityInfo": select_info},
                 ],
                 "Pins": [{"PinInfo": pinoutinfo}, {"PinInfo": pinininfo}],
                 "Bindings": [

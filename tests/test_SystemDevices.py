@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from DGB.SystemDevices import SystemDevices, NODE_ID, SERVICE_ID
+from DGB.SystemDevices import SystemDevices
 from DGB.DGBContext import DGBContext
 
 
@@ -90,7 +90,7 @@ def test_get_parent_device_id_service(mock_mqtt_settings, dgb_context):
         )
 
         device_id = system_devices.get_parent_device_id("service")
-        assert device_id == SERVICE_ID
+        assert device_id == system_devices.SERVICE_ID
 
 
 def test_get_parent_device_id_node(mock_mqtt_settings, dgb_context):
@@ -104,7 +104,7 @@ def test_get_parent_device_id_node(mock_mqtt_settings, dgb_context):
         )
 
         device_id = system_devices.get_parent_device_id("node")
-        assert device_id == NODE_ID
+        assert device_id == system_devices.NODE_ID
 
 
 def test_name_with_location_without_location(mock_mqtt_settings, dgb_context):
@@ -205,8 +205,8 @@ def test_create_devices_sets_registry(
             system_devices.create_devices()
 
             assert hasattr(dgb_context, "device_registry")
-            assert dgb_context.device_registry["node"] == NODE_ID
-            assert dgb_context.device_registry["service"] == SERVICE_ID
+            assert dgb_context.device_registry["node"] == system_devices.NODE_ID
+            assert dgb_context.device_registry["service"] == system_devices.SERVICE_ID
 
 
 # ---------------------------------------------------------------------------

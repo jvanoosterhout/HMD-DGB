@@ -45,6 +45,7 @@ class DGBservice:
         username: str = "me",
         password: str = "secret",
         location: str = "home",
+        system_sensor_update_rate: int = 60,
     ) -> None:
         self.name = name
         self.location = location
@@ -52,6 +53,7 @@ class DGBservice:
         self.port = port
         self.username = username
         self.password = password
+        self.system_sensor_update_rate = system_sensor_update_rate
 
         self.config_topic = topic or f"config/{name}/devices/"
         self.client_id = f"dgb-{name}"
@@ -241,11 +243,11 @@ class DGBservice:
     # ------------------------------------------------------------------
 
     def _system_sensor_loop(self) -> None:
-        """Update system sensor values periodically (every 60 seconds)."""
+        """Update system sensor values periodically (default every 60 seconds)."""
         self.logger.info("System sensor loop started")
         while not self.shutdown_event.is_set():
             self.system_devices.update_sensor_values()
-            self.shutdown_event.wait(60)
+            self.shutdown_event.wait(self.system_sensor_update_rate)
         self.logger.info("System sensor loop stopped")
 
 
@@ -258,6 +260,9 @@ def main():
     parser.add_argument("--username", default="me", help="MQTT username")
     parser.add_argument("--password", default="secret", help="MQTT password")
     parser.add_argument("--location", default="home", help="Device location")
+    parser.add_argument(
+        "--rate", default=60, help="System sensor update rate in seconds"
+    )
 
     args = parser.parse_args()
 
@@ -269,6 +274,7 @@ def main():
         username=args.username,
         password=args.password,
         location=args.location,
+        system_sensor_update_rate=args.rate,
     )
 
     # start service if needed

@@ -43,10 +43,6 @@ from gpiozero import CPUTemperature
 from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
 from DGB.DGBContext import DGBContext
 
-# Fixed device identifiers - these never change
-NODE_ID = "dgb-node"
-SERVICE_ID = "dgb-service"
-
 
 class SystemDevices:
     """
@@ -77,11 +73,18 @@ class SystemDevices:
             location: Optional Home Assistant location (room/area)
             dgb_restart: Reference to the restart callback
         """
+
         self.mqtt_settings = mqtt_settings
         self.dgb_context = dgb_context
         self.device_name = device_name
         self.location = location
         self.dgb_restart = dgb_restart
+
+        uid = get_rpi_cpu_serial() or get_machine_id()
+
+        # Fixed device identifiers - these never change for this hardware and device-name
+        self.NODE_ID = f"dgb-node-{device_name}-{uid}"
+        self.SERVICE_ID = f"dgb-service-{device_name}-{uid}"
 
         self.logger = logging.getLogger(f"SystemDevices[{device_name}]")
         self.logger.info("SystemDevices initialized")
@@ -112,13 +115,13 @@ class SystemDevices:
 
         # Register device IDs in context so user devices can reference them
         self.dgb_context.device_registry = {
-            "node": NODE_ID,
-            "service": SERVICE_ID,
+            "node": self.NODE_ID,
+            "service": self.SERVICE_ID,
         }
         self.logger.info(
             "Device registry updated: node=%s, service=%s",
-            NODE_ID,
-            SERVICE_ID,
+            self.NODE_ID,
+            self.SERVICE_ID,
         )
 
     def _create_node_device(self) -> None:
@@ -130,7 +133,7 @@ class SystemDevices:
 
         device_info = DeviceInfo(
             name=f"{self.device_name} node",
-            identifiers=NODE_ID,
+            identifiers=self.NODE_ID,
             model=system[1],
             manufacturer=system[1],
             sw_version=system[3],
@@ -234,14 +237,14 @@ class SystemDevices:
 
         device_info = DeviceInfo(
             name=f"DGB {self.device_name} service",
-            identifiers=SERVICE_ID,
+            identifiers=self.SERVICE_ID,
             model="HMD-DGB",
             manufacturer="J van Oosterhout",
             sw_version=service_version,
             configuration_url="https://github.com/jvanoosterhout/HMD-DGB",
             suggested_area=self.location,
             # Parent device: node must be created first
-            via_device=NODE_ID,
+            via_device=self.NODE_ID,
         )
 
         # Version sensor (read-only)
@@ -341,9 +344,9 @@ class SystemDevices:
             ValueError: If device type unknown or not created
         """
         if device_type == "service":
-            return SERVICE_ID
+            return self.SERVICE_ID
         elif device_type == "node":
-            return NODE_ID
+            return self.NODE_ID
         else:
             raise ValueError(f"Unknown device type: {device_type}")
 
@@ -367,3 +370,22 @@ class SystemDevices:
                 "Could not determine IP address: %s", e
             )
             return "localhost"
+
+
+def get_machine_id():
+    try:
+        with open("/etc/machine-id") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return None
+
+
+def get_rpi_cpu_serial():
+    try:
+        with open("/proc/cpuinfo", "r") as f:
+            for line in f:
+                if line.startswith("Serial"):
+                    return line.split(":")[1].strip()
+    except FileNotFoundError:
+        pass
+    return None

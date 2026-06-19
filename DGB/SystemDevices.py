@@ -132,7 +132,7 @@ class SystemDevices:
         system = platform.uname()
 
         device_info = DeviceInfo(
-            name=f"{self.device_name} node",
+            name=f"DGB node for {self.device_name}",
             identifiers=self.NODE_ID,
             model=system[1],
             manufacturer=system[1],
@@ -236,7 +236,7 @@ class SystemDevices:
         self.logger.info(f"latest_release: {latest_release}")
 
         device_info = DeviceInfo(
-            name=f"DGB {self.device_name} service",
+            name=f"DGB service for {self.device_name}",
             identifiers=self.SERVICE_ID,
             model="HMD-DGB",
             manufacturer="J van Oosterhout",
@@ -265,12 +265,12 @@ class SystemDevices:
             str(self.version_sensor._entity.unique_id), self.version_sensor
         )
 
-        # Restart button - triggers full service reinitialization
-        def restart_callback(client, userdata, message):
-            """Callback for restart button press: full service reinit."""
-            self.logger.info("Starting service restart sequence")
+        # Restart button - triggers service reinitialization, keep config
+        def soft_restart_callback(client, userdata, message):
+            """Callback for restart button press: service reinit."""
+            self.logger.info("Starting soft service restart sequence")
             try:
-                self.dgb_restart()
+                self.dgb_restart(hard_restart=False)
             except Exception as e:
                 self.logger.error("Error during restart: %s", e)
 
@@ -278,14 +278,42 @@ class SystemDevices:
             Settings(
                 mqtt=self.mqtt_settings,
                 entity=sensors.ButtonInfo(
-                    name="Restart service",
-                    unique_id=f"{self.device_name}_restart",
+                    name="Soft restart service",
+                    unique_id=f"{self.device_name}_soft_restart",
                     device=device_info,
                     icon="mdi:restart",
                 ),
                 manual_availability=True,
             ),
-            restart_callback,
+            soft_restart_callback,
+        )
+        self.restart_button.write_config()
+        self.restart_button.set_availability(True)
+        self.dgb_context.add_device(
+            str(self.restart_button._entity.unique_id), self.restart_button
+        )
+
+        # hard restart button - triggers full service reinitialization, clear all config
+        def hard_restart_callback(client, userdata, message):
+            """Callback for hard restart button press: full service reinit."""
+            self.logger.info("Starting hard service restart sequence")
+            try:
+                self.dgb_restart(hard_restart=True)
+            except Exception as e:
+                self.logger.error("Error during restart: %s", e)
+
+        self.restart_button = sensors.Button(
+            Settings(
+                mqtt=self.mqtt_settings,
+                entity=sensors.ButtonInfo(
+                    name="Hard restart service",
+                    unique_id=f"{self.device_name}_hard_restart",
+                    device=device_info,
+                    icon="mdi:restart",
+                ),
+                manual_availability=True,
+            ),
+            hard_restart_callback,
         )
         self.restart_button.write_config()
         self.restart_button.set_availability(True)
@@ -294,7 +322,7 @@ class SystemDevices:
         )
 
         self.logger.info(
-            "DGB service device created with version sensor and restart button"
+            "DGB service device created with version sensor and restart buttons"
         )
 
     def update_sensor_values(self) -> None:

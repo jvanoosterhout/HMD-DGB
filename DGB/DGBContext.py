@@ -22,7 +22,7 @@ import queue
 import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Set, Literal
-
+from ha_mqtt_discoverable import Discoverable
 
 BinderCmd = Literal["post", "ruleset", "shutdown"]
 
@@ -48,7 +48,7 @@ class DGBContext:
     def __init__(self) -> None:
         self._logger = logging.getLogger(f"{__name__}.DGBContext")
 
-        self._devices_objects: Dict[str, Any] = {}
+        self._devices_objects: Dict[str, Discoverable] = {}
         self._devices_functions: Dict[str, FunctionMap] = {}
 
         self._pins_objects: Dict[str, Any] = {}

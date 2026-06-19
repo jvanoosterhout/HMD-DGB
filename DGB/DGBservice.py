@@ -121,7 +121,6 @@ class DGBservice:
         self.stop()
 
     def _set_all_unavailable(self):
-        self.logger.info("test")
         for unique_id, device_obj in list(self.dgb_context._devices_objects.items()):
             try:
                 if device_obj._settings.manual_availability:
@@ -218,23 +217,30 @@ class DGBservice:
     # App control (restart)
     # ------------------------------------------------------------------
 
-    def restart(self) -> None:
+    def restart(self, hard_restart: bool = False) -> None:
         """
         Stop the DGB app, restart is handeled by systemd.
 
         """
         self.logger.info("Restarting DGB app - full reinitialization and cleanup")
 
-        # Step 4: Unpublish devices from HA
-        # Send empty retained messages to MQTT discovery topics
+        # Restart the service and keep all config (inbound and outbound) info OR do a hard reset clearing all config info
         self.logger.info("Unpublishing devices from Home Assistant")
         for unique_id, device_obj in list(self.dgb_context._devices_objects.items()):
             try:
-                self.logger.info(device_obj.config_topic)
-                self.client.publish(device_obj.config_topic, "")
-                self.logger.info("Cleared device %s from registry", unique_id)
+                if hard_restart:
+                    self.logger.info(device_obj.config_topic)
+                    self.client.publish(device_obj.config_topic, payload=None)
+                    self.logger.info("Cleared device %s from registry", unique_id)
+                    self.dgb_context._devices_objects.pop(unique_id)
+                else:
+                    device_obj.set_availability(False)
             except Exception as e:
                 self.logger.warning("Error unpublishing devices: %s", e)
+        if hard_restart:
+            self.logger.info(self.config_topic + "test")
+            self.client.publish(self.config_topic + "test", payload=None)
+            self.client.loop(timeout=0.5)
 
         self.stop()
 

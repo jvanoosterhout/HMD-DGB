@@ -23,6 +23,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Set, Literal
 from ha_mqtt_discoverable import Discoverable
+from enum import Enum
 
 BinderCmd = Literal["post", "ruleset", "shutdown"]
 
@@ -31,6 +32,11 @@ BinderCmd = Literal["post", "ruleset", "shutdown"]
 class BinderMessage:
     cmd: BinderCmd
     payload: Dict[str, Any]
+
+
+class DuplicatePolicy(Enum):
+    SKIP = "skip"
+    REPLACE = "replace"
 
 
 FunctionMap = Dict[str, Callable[..., Any]]

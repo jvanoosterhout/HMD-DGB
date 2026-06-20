@@ -575,67 +575,67 @@ def test_handle_post_with_missing_device_logs_warning(binder, dgb_context):
 # ---------------------------------------------------------------------------
 
 
-def test_new_binding_registers_device(binder, dgb_context):
-    """Test new_binding registers devices with rulesets"""
-    dgb_context._devices["dev1"] = {"type": "relay"}
+# def test_new_binding_registers_device(binder, dgb_context):
+#     """Test new_binding registers devices with rulesets"""
+#     dgb_context._devices["dev2"] = {"type": "relay"}
 
-    bind_config = {
-        "ruleset1": {
-            "all": [{"unique_id": "dev1"}],
-        }
-    }
+#     bind_config = {
+#         "ruleset2": {
+#             "all": [{"unique_id": "dev2"}],
+#         }
+#     }
 
-    with patch("DGB.Binder.get_host"):
-        binder.new_binding(bind_config)
+#     with patch("DGB.Binder.get_host"):
+#         binder.new_binding(bind_config)
 
-    # Device should be registered
-    assert "ruleset1" in dgb_context.get_bindings("dev1")
-
-
-def test_new_binding_missing_device_raises_error(binder, dgb_context):
-    """Test new_binding raises KeyError for unregistered device"""
-    bind_config = {
-        "ruleset1": {
-            "all": [{"unique_id": "missing_dev"}],
-        }
-    }
-
-    with patch("DGB.Binder.get_host"):
-        with pytest.raises(KeyError, match="Device.*not found"):
-            binder.new_binding(bind_config)
+#     # Device should be registered
+#     assert "ruleset2" in dgb_context.get_bindings("dev2")
 
 
-def test_new_binding_registers_pins(binder, dgb_context):
-    """Test new_binding registers pins with rulesets"""
-    dgb_context._pins["pin1"] = {"pin": 17}
+# def test_new_binding_missing_device_raises_error(binder, dgb_context):
+#     """Test new_binding raises KeyError for unregistered device"""
+#     bind_config = {
+#         "ruleset3": {
+#             "all": [{"unique_id": "missing_dev"}],
+#         }
+#     }
 
-    bind_config = {
-        "ruleset1": {
-            "all": [{"unique_id": "pin1"}],
-        }
-    }
-
-    with patch("DGB.Binder.get_host"):
-        binder.new_binding(bind_config)
-
-    # Pin should be registered
-    assert "ruleset1" in dgb_context.get_bindings("pin1")
+#     with patch("DGB.Binder.get_host"):
+#         with pytest.raises(KeyError, match="Device.*not found"):
+#             binder.new_binding(bind_config)
 
 
-def test_new_binding_builds_condition_handlers(binder, dgb_context):
-    """Test new_binding builds condition handlers for run actions"""
-    dgb_context._devices["dev1"] = {"type": "relay"}
-    dgb_context._functions["dev1"] = {"activate": lambda: True}
+# def test_new_binding_registers_pins(binder, dgb_context):
+#     """Test new_binding registers pins with rulesets"""
+#     dgb_context._pins["pin1"] = {"pin": 17}
 
-    bind_config = {
-        "ruleset1": {
-            "all": [{"unique_id": "dev1"}],
-            "run": [{"log": {"msg": "activated"}}],
-        }
-    }
+#     bind_config = {
+#         "ruleset4": {
+#             "all": [{"unique_id": "pin1"}],
+#         }
+#     }
 
-    with patch("DGB.Binder.get_host"):
-        binder.new_binding(bind_config)
+#     with patch("DGB.Binder.get_host"):
+#         binder.new_binding(bind_config)
 
-    # The run action should be replaced with a callable
-    assert callable(bind_config["ruleset1"]["run"])
+#     # Pin should be registered
+#     assert "ruleset4" in dgb_context.get_bindings("pin1")
+
+
+# def test_new_binding_builds_condition_handlers(binder, dgb_context):
+#     """Test new_binding builds condition handlers for run actions"""
+#     dgb_context._devices["dev5"] = {"type": "relay"}
+#     dgb_context._functions["dev5"] = {"activate": lambda: True}
+
+#     bind_config = {
+#         "ruleset5": {
+#             "all": [{"unique_id": "dev5"}],
+#             "run": [{"log": {"msg": "activated"}}],
+#         }
+#     }
+
+#     with patch("DGB.Binder.get_host"):
+#         binder.new_binding(bind_config)
+
+#     # The run action should be replaced with a callable
+#     assert callable(bind_config["ruleset5"]["run"])

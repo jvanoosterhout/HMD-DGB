@@ -2,6 +2,10 @@
 
 Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverable devices. Bridge your hardware to smart home automation through declarative device bindings via durable rules.
 
+The power and uniquesnes of HMD-DGB is twofold:
+- it allows to configure complex entities that can rely on multiple sensors and actors like a cover (control open/close/stop, sens is_open/is_closed) or a light (RGBW).
+- it allows to manage the node (the RPI/SBC), service and configurations from Home Assistant or an other central location. In that Home Assistant only stores the configurations, no flooding of Home Assistant with helpers or intermediate entities.
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
@@ -15,6 +19,8 @@ Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverab
   - [Option 1: venv](#option-1-venv)
   - [Option 2: Docker](#option-2-docker)
 - [Reference documentation](#reference-documentation)
+  - [Node & system health & contol](#node--system-health--contol)
+  - [Basic configuration](#basic-configuration)
   - [Devices with EntityInfo](#devices-with-entityinfo)
     - [Device](#device)
     - [Basic parameters (for alle entities)](#basic-parameters-for-alle-entities)
@@ -47,6 +53,7 @@ Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverab
 - [Architecture](#architecture)
 - [Ideas for improvement (unsorted in priority)](#ideas-for-improvement-unsorted-in-priority)
 - [Known Issues & Limitations](#known-issues--limitations)
+  - [First load issue](#first-load-issue)
   - [Loading configurations & runtime](#loading-configurations--runtime)
   - [restart of the system](#restart-of-the-system)
   - [Loading configurations & runtime](#loading-configurations--runtime-1)
@@ -120,6 +127,26 @@ Docker support is on the roadmap simplified deployment and consistency across sy
 
 ## Reference documentation
 
+### Node & system health & contol
+
+As the HMD-DGB service is started, it creates a descoverable DGB node and DGB service for the given service-name. Both devices have sensors,  controls and some basic information.
+
+DGB node for service-name:
+- CPU usage
+- RAM usage
+- CPU temperature
+- Uptime
+
+DGB service for service-name:
+- Current software version installed
+- Latest software version available
+- Soft restart (set all entities to unavailable, restart service, leave other MQTT messages untoughed)
+- Hard restart (clear all MQTT messages related to this service including its config topic and restart service)
+
+In DGB, your own devices can only be configured inside an entity json with the "device" key. DGB alters this device json slichtly: it overrides/creates the "via_device" key to the uniqued id of the DGB service device.
+
+### Basic configuration
+
 Once the HMD-DGB service runs on a pi/SBC, and it is connected to a MQTT broker (with Home Assistant as subscriber), the next step is as simple as publishing a configuration MQTT message to the config topic "config/{name}/devices/". Such a massage can configure devices (i.e Home Assistant entities that are optionally grouped in devices), GPIO pins and bindings between the first two. The message should be a json payload structured like this:
 
 ```json
@@ -176,6 +203,8 @@ HMD parameters:
   "via_device": "example_hub"
 }
 ```
+
+In DGB, devices can only be configured inside an entity with the "device" key. The value of this key is the above json. DGB alters this json slichtly: it overrides/creates the "via_device" key to the uniqued id of the DGB service device.
 
 #### Basic parameters (for alle entities)
 
@@ -1149,11 +1178,14 @@ The call functions and args (with name and value) can be found in [Devices with 
   - <del>Add support to use the payload of the triggering device as argument in the action function</del>
   - Match best type of arg for multi type function args (naow: payload = int & function accepts str|int|bool --> convert int to str; should be pass int)
   - Make it posible to define case type in configuration (e.g. "value": "$m.payload|int")
-  - Provide <del>readme</del> / log feedback on posible arg names and types per fuction
+  - <del>Provide readmeon posible arg names and types per fuction
+- Improve run actions</del>
+  - Provide log feedback on posible arg names and types per fuction
 - Improve run actions
   - <del>create readme documentation on the posible actions (log, action, timer, ...)</del>
   - Extend run action with the option to perform a post to a ruleset with specific context
 - Improve device, GPIO and binder configuration
+  - Add key to define prefered (re)start state (previous known in HA, or user defined state)
   - Make configuration possible from yaml
   - Allow to delete objects:
     - device (incl ha entitys by cleaning up topics)
@@ -1172,18 +1204,24 @@ The call functions and args (with name and value) can be found in [Devices with 
   - Replace gpio module for use on diffferent single board coputers (e.g. Mqtt-io, Adafruit Blinka, Libgpio)
 - Improve system setup:
   - <del>Make example with arg configuration of system name, mqtt and some other system settings (acount for secure passwords)</del>
-    - [Won't for now: pi zero has no hardware to store secretes truely safe for an automatic system like HMD-DGB] <del>Potentially include a local webserver to set wifi and mqtt credentials and store them encrypted</del>
+  - [Won't for now: pi zero has no hardware to store secretes truely safe for an automatic system like HMD-DGB] <del>Potentially include a local webserver to set wifi and mqtt credentials and store them encrypted</del>
   - Docker deployment: Streamlined container-based setup with pre-configured environment
   - Define cloud-init (e.g. for Trixi) or simmilar script to configure a pi at first boot
   - (external project) Make tool to write Device, GPIO and Binder configurations (host on local webserver)
 - Improve Devices
-  - Support more HMD device <del>(focus on valve)</del>
+  - <del>Support more HMD device (focus on valve)</del>
   - Implement time based cover/valve
   - Implement (distinguish and document) Device configuration specific to HMD-DGB
     - time_based_state (for cover & valve)
-    - direct_state_transition (for all devices with callback: acknowlegde state to HA directly or via binding action)
+    - <del>direct_state_transition (for all devices with callback: acknowlegde state to HA directly or via binding action)</del>
 
 ## Known Issues & Limitations
+
+### First load issue
+
+**Status:** Needs Testing
+
+Currently it seems that alle entities are unavailable at the very first creation of xthe discoverable topic, eventough the code explicitly sets them to "available". A soft restart (which button is also unavailable) or similar fixes the issue.
 
 ### Loading configurations & runtime
 

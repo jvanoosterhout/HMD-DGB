@@ -18,7 +18,7 @@
 import logging
 from ha_mqtt_discoverable import Settings, sensors, EntityType, Discoverable
 from paho.mqtt.client import Client, MQTTMessage
-from DGB.DGBContext import DGBContext
+from DGB.DGBContext import DGBContext, DuplicatePolicy
 from typing import Any, Optional
 from collections.abc import Callable
 # from DGB.Binder import post_event
@@ -34,14 +34,19 @@ class DeviceKeeper(object):
         self.logger = logging.getLogger("DeviceKeeper")
         self.logger.info("starting Entitykeeper")
 
-    def new_device(self, dev):
+    def new_device(self, dev, policy: DuplicatePolicy = DuplicatePolicy.SKIP):
         if "EntityInfo" in dev:
-            if "component" in dev["EntityInfo"]:
+            if "component" in dev["EntityInfo"] and "unique_id" in dev["EntityInfo"]:
                 self.logger.info(
                     "Creating {} entity '{}'".format(
                         dev["EntityInfo"]["component"], dev["EntityInfo"]["name"]
                     )
                 )
+                if not self._handle_existing_device(
+                    dev["EntityInfo"]["unique_id"], policy
+                ):
+                    return
+
                 # get direct_state_transition flag, if present
                 dst = True
                 if "direct_state_transition" in dev["EntityInfo"]:
@@ -88,12 +93,46 @@ class DeviceKeeper(object):
                     )
             else:
                 self.logger.warning(
-                    "No component in EntityInfo, skipping this configuration {}".format(
+                    "No component or unique_id in EntityInfo, skipping this configuration {}".format(
                         dev["EntityInfo"]
                     )
                 )
         else:
             self.logger.warning("No EntityInfo in payload, skipping this configuration")
+
+    def _handle_existing_device(
+        self,
+        unique_id: str,
+        policy: DuplicatePolicy,
+    ) -> bool:
+        """
+        Check whether a binding already exists in durable_rules and apply policy.
+
+        Returns:
+            True  -> caller may proceed with adding the binding
+            False -> caller must skip adding
+        """
+
+        if self.dgb_context.get_device(unique_id) is None:
+            return True
+
+        if policy == DuplicatePolicy.SKIP:
+            self.logger.warning(
+                f"Device with unique_id '{unique_id}' already exists -- skipping"
+            )
+            return False
+
+        # if policy == DuplicatePolicy.REPLACE:
+        #     self.logger.warning(
+        #         f"Device with unique_id '{unique_id}' already exists -- replacing"
+        #     )
+        #     self._remove_device(unique_id)
+        #     return True
+
+        self.logger.warning(
+            f"Device with unique_id '{unique_id}' already exists -- unknown policy '{policy}', skipping"
+        )
+        return False
 
     def configure_cover(self, payload, dst: bool):
         if "time_based_state" in payload["EntityInfo"]:

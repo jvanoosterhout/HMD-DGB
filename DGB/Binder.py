@@ -31,7 +31,7 @@ from typing import Any
 from durable.lang import post, get_host
 from durable.engine import MessageNotHandledException, MessageObservedException
 
-from DGB.DGBContext import DGBContext, BinderMessage
+from DGB.DGBContext import DGBContext, BinderMessage, DuplicatePolicy
 from DGB.ActionArguments import ArgumentBuilder
 
 # ---------------------------------------------------------------------------
@@ -365,9 +365,15 @@ class Binder:
         except Exception as e:
             self.logger.error(f"Exception {e} for {set}")
 
-    def new_binding(self, bind: dict):
+    def new_binding(self, bind: dict, policy: DuplicatePolicy = DuplicatePolicy.SKIP):
+
         # Register bindings
         self.logger.info(f"building new binding {next(iter(bind))}")
+
+        with self.dgb_context.engine_lock:
+            if not self._handle_existing_binding(next(iter(bind)), policy):
+                return
+
         for path, all_parent in iter_parents(bind, "all"):
             for _, id_parent in iter_parents(all_parent["all"], "unique_id"):
                 uid = id_parent["unique_id"]
@@ -392,3 +398,57 @@ class Binder:
         with self.dgb_context.engine_lock:
             self.logger.info(f"Adding binding {next(iter(bind))} to durable rules")
             get_host().set_rulesets(bind)
+
+    def _handle_existing_binding(
+        self,
+        rule_name: str,
+        policy: DuplicatePolicy,
+    ) -> bool:
+        """
+        Check whether a binding already exists in durable_rules and apply policy.
+
+        Returns:
+            True  -> caller may proceed with adding the binding
+            False -> caller must skip adding
+        """
+        host = get_host()
+
+        existing = host._ruleset_directory.get(rule_name)
+        if existing is None:
+            return True
+
+        if policy == DuplicatePolicy.SKIP:
+            self.logger.warning(f"Binding '{rule_name}' already exists -- skipping")
+            return False
+
+        # if policy == DuplicatePolicy.REPLACE:
+        #     self.logger.warning(
+        #         f"Binding '{rule_name}' already exists -- replacing"
+        #     )
+        #     self._remove_ruleset_from_host(host, rule_name)
+        #     return True
+
+        self.logger.warning(
+            f"Binding '{rule_name}' already exists -- unknown policy '{policy}', skipping"
+        )
+        return False
+
+    # def _remove_ruleset_from_host(self, host, rule_name: str) -> None:
+    #     """
+    #     Remove a ruleset from durable host internals.
+
+    #     Important:
+    #     - remove from _ruleset_directory
+    #     - remove the actual ruleset object from _ruleset_list
+    #     """
+    #     ruleset = host._ruleset_directory.pop(rule_name, None)
+    #     if ruleset is None:
+    #         return
+
+    #     try:
+    #         host._ruleset_list.remove(ruleset)
+    #     except ValueError:
+    #         self.logger.warning(
+    #             f"Ruleset '{rule_name}' was removed from _ruleset_directory "
+    #             f"but not found in _ruleset_list"
+    #         )

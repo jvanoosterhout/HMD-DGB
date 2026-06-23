@@ -186,7 +186,12 @@ class DGBservice:
         if self.config_topic not in msg.topic:
             return
 
-        payload = json.loads(msg.payload.decode())
+        try:
+            payload = json.loads(msg.payload.decode())
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Invalid JSON: {e.msg}")
+            self.logger.error(f"Line: {e.lineno}, column: {e.colno}, char: {e.pos}")
+            return
 
         self._handle_devices(payload)
         self._handle_pins(payload)

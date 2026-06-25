@@ -96,7 +96,6 @@ class Pin_count(Pin):
         self.dgb_context.put_to_binder_queue(
             "post", {"unique_id": str(self.config.pin), "payload": self.count_totaal}
         )
-        self.sendWebhook(self.GetPinValue())
 
     def is_update_relevant(self):
         """

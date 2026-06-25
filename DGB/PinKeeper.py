@@ -47,19 +47,6 @@ class PinKeeper(object):
             pin.pin_device.close()
         self.logger.info("PinKeeper cleaned up all pins")
 
-    def check_HASS(self) -> bool:
-        """
-        Check if Home Assistant is available at the given url.
-
-        Returns:
-            bool: True if succesfully connected to Home Assistant API, otherwise False.
-        """
-        try:
-            return self.HASS_interface.check_api_running()
-        except Exception as e:
-            self.logger.error(e)
-            return False
-
     def GetPin(self, config: PinModel):
         """
         Get pin value, if it exists, otherewise try to make it.
@@ -207,8 +194,6 @@ class PinKeeper(object):
                     self.dgb_context.add_pin(str(sub_config.pin), N)
         else:
             return False
-        if self.HASS_interface is not None:
-            P.HASS_interface = self.HASS_interface
         if pw_needed:
             P.pw = {config.pin: self.PinPWList[config.pin]}
         self.logger.info("Configure pin {}.".format(P.config.pin))

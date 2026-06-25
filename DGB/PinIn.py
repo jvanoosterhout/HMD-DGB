@@ -90,8 +90,6 @@ class Pin_in(Pin):
             "post", {"unique_id": str(self.config.pin), "payload": value}
         )
 
-        self.sendWebhook({"{}".format(self.config.webhook): value})
-
         self.logger.info("pin {} has signal {}".format(self.config.pin, value))
 
     def ProcessPinUpdate(self, config: PinModel) -> bool:

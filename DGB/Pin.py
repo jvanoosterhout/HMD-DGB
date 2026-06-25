@@ -16,7 +16,6 @@
 #    Generic pin class
 
 
-import json
 import time
 import logging
 from DGB.PinModels import PinModel
@@ -120,25 +119,4 @@ class Pin(object):
             return False
 
     def update(self):
-        pass
-
-    def sendWebhook(self, data_dict: dict):
-        if (
-            "webhook" in self.config.root.model_dump()
-            and self.HASS_interface is not None
-        ):
-            if not self.config.webhook == "" and self.config.webhook is not None:
-                path = "webhook/{}".format(self.config.webhook)
-                headers = {"Content-Type": "application/json"}
-                self.logger.info(
-                    "Sending the following data to webhook: {}".format(
-                        json.dumps(data_dict)
-                    )
-                )
-                self.HASS_interface.request(
-                    path=path,
-                    method="POST",
-                    headers=headers,
-                    data=json.dumps(data_dict),
-                )
         pass

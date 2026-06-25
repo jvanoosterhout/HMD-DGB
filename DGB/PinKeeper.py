@@ -23,16 +23,12 @@ from DGB.Pin import Pin
 from DGB.PinModels import PinType, PinModel
 from DGB.DGBContext import DGBContext
 import logging
-import time
-from homeassistant_api import Client
 
 
 class PinKeeper(object):
     def __init__(
         self,
         dgb_context: DGBContext,
-        api_url: str = "",
-        token: str = "secret",
         pin_pw_list: dict = {},
     ):
         """
@@ -40,26 +36,9 @@ class PinKeeper(object):
         """
         self.PinPWList = pin_pw_list
         self.PinList: list[Pin] = []
-        # self.PinDict: dict[str, any] = {}
         self.logger = logging.getLogger("PinKeeper")
         self.dgb_context = dgb_context
         logging.getLogger().setLevel(logging.INFO)
-
-        if api_url == "":
-            self.HASS_interface = None
-            self.logger.info("This host will not connect to Home Assistant.")
-        else:
-            self.HASS_interface = Client(api_url=api_url, token=token, verify_ssl=False)
-            while not self.check_HASS():
-                self.logger.info(
-                    "This host cannot (jet) connect to Home Assistant at {}.".format(
-                        api_url
-                    )
-                )
-                time.sleep(10)
-            self.logger.info(
-                "Successfully connected to Home Assistant at {}.".format(api_url)
-            )
 
         self.logger.info("PinKeeper initialized.")
 

@@ -32,11 +32,11 @@ The power and uniquesnes of HMD-DGB is twofold:
     - [Image (not implemented yet)](#image-not-implemented-yet)
     - [Light (not implemented yet)](#light-not-implemented-yet)
     - [Lock (not implemented yet)](#lock-not-implemented-yet)
-    - [Number (not implemented yet)](#number-not-implemented-yet)
-    - [Select (not implemented yet)](#select-not-implemented-yet)
+    - [Number](#number)
+    - [Select](#select)
     - [Sensor](#sensor)
     - [Switch](#switch)
-    - [Text (not implemented yet)](#text-not-implemented-yet)
+    - [Text](#text)
     - [Valve](#valve)
   - [Pins with PinInfo](#pins-with-pininfo)
     - [PinIn](#pinin)
@@ -78,7 +78,7 @@ The system consists of four core concepts:
 - **GPIOzero Devices**: configuration of GPIO pins to proform meaningfull action in the real world
 - **on the fly configuration**: send device, binding and GPIO configurations over MQTT to your Raspberry Pi (you still need to install this package, configure HA, and setup the MQTT service)
 
-
+[top](#table-of-contents)
 
 ## Requirements
 
@@ -104,6 +104,8 @@ The system consists of four core concepts:
 - Raspberry Pi 4 with Bookworm (64-bit, desktop) and Python 3.11.2
 - Raspberry Pi Zero 2 W with Bookworm (32-bit, lite) and Python 3.10.0
 
+[top](#table-of-contents)
+
 ## Installation
 
 ### Option 1: venv
@@ -120,10 +122,13 @@ pip install git+https://github.com/jvanoosterhout/HMD-DGB.git
 python -m DGB.DGBservice --name "my-service-name" --broker "my-broker" [--port "my-port"] [--topic "my-topic] [--username "my-username"] [--password "my-password"] [--location "my-location"]
 ```
 
+[top](#table-of-contents)
+
 ### Option 2: Docker
 
 Docker support is on the roadmap simplified deployment and consistency across systems.
 
+[top](#table-of-contents)
 
 ## Reference documentation
 
@@ -145,6 +150,8 @@ DGB service for service-name:
 
 In DGB, your own devices can only be configured inside an entity json with the "device" key. DGB alters this device json slichtly: it overrides/creates the "via_device" key to the uniqued id of the DGB service device.
 
+[top](#table-of-contents)
+
 ### Basic configuration
 
 Once the HMD-DGB service runs on a pi/SBC, and it is connected to a MQTT broker (with Home Assistant as subscriber), the next step is as simple as publishing a configuration MQTT message to the config topic "config/{name}/devices/". Such a massage can configure devices (i.e Home Assistant entities that are optionally grouped in devices), GPIO pins and bindings between the first two. The message should be a json payload structured like this:
@@ -164,9 +171,13 @@ Once the HMD-DGB service runs on a pi/SBC, and it is connected to a MQTT broker 
 ```
 How to fill this message is explained in the next sections.
 
+[top](#table-of-contents)
+
 ### Devices with EntityInfo
 
 In this section you can find the configuration parameters and defaults for Home Assisntant discoverable devices. In the background the HA devices are configured and managed by the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package. HMD-DGB provides an implementation of this package with some aditional parameters. These extra parameters will be indicated behind the ha-mqtt-discoverable parameters. Aditionally you find the run.action.call ids and run.action.args that can be used in binding via [Durable Rules](https://github.com/jruizgit/rules).
+
+[top](#table-of-contents)
 
 #### Device
 
@@ -206,6 +217,8 @@ HMD parameters:
 
 In DGB, devices can only be configured inside an entity with the "device" key. The value of this key is the above json. DGB alters this json slichtly: it overrides/creates the "via_device" key to the uniqued id of the DGB service device.
 
+[top](#table-of-contents)
+
 #### Basic parameters (for alle entities)
 
 Parameters that all devices (i.e. entities) have, and can thuse be appended to the EntityInfo configuration of each device (i.e. entities) in the following subsections.
@@ -244,6 +257,8 @@ Parameters that all devices (i.e. entities) have, and can thuse be appended to t
 }
 ```
 
+[top](#table-of-contents)
+
 #### Binary sensor
 
 HMD parameters:
@@ -271,6 +286,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | off   | Set binary sensor to off.                                                      |   |  |   |
 | on   | Set binary sensor to off.                                                     |   |  |   |
 
+[top](#table-of-contents)
+
 #### Button
 
 HMD parameters:
@@ -288,6 +305,8 @@ HMD parameters:
   "retain": false
 }
 ```
+
+[top](#table-of-contents)
 
 #### Camera (not implemented yet)
 
@@ -314,6 +333,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_payload   | Update the image payload of the camera.                                  | image_payload  | bytes or str |  image payload to be published to topic |
+
+[top](#table-of-contents)
 
 #### Cover
 
@@ -370,6 +391,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | opening     | Set cover state to opening                                                      |          |      |             |
 | stopped     | Set cover state to stopped                                                      |          |      |             |
 
+[top](#table-of-contents)
+
 #### Device trigger (not implemented yet)
 
 HMD parameters:
@@ -397,6 +420,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | trigger   | Generate a device trigger event                                  | payload  | str |  Custom payload to send in the trigger topic |
+
+[top](#table-of-contents)
 
 #### Image (not implemented yet)
 
@@ -437,6 +462,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | set_url   |  Update the image URL.                              | image_url  | str |  image URL to be published to url_topic |
 | set_payload   |   Update the image payload.                      | image_payload  | bytes or str |  image payload to be published to image_topic |
 
+[top](#table-of-contents)
+
 #### Light (not implemented yet)
 
 HMD parameters:
@@ -475,6 +502,8 @@ DGB binder run.action.call and (optional) run.action.args:
 
 TODO: make table
 
+[top](#table-of-contents)
+
 #### Lock (not implemented yet)
 
 HMD parameters:
@@ -511,7 +540,9 @@ DGB binder run.action.call and (optional) run.action.args:
 
 TODO: make table
 
-#### Number (not implemented yet)
+[top](#table-of-contents)
+
+#### Number
 
 HMD parameters:
 
@@ -548,7 +579,9 @@ DGB binder run.action.call and (optional) run.action.args:
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_value   |   Update the numeric value                            | value  | float |  Value of the number configured for this entity |
 
-#### Select (not implemented yet)
+[top](#table-of-contents)
+
+#### Select
 
 HMD parameters:
 
@@ -573,6 +606,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | select_option   |   Update the selected option.                           | option  | str |  The option to be selected. |
+
+[top](#table-of-contents)
 
 #### Sensor
 
@@ -603,6 +638,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_state   |  Update the sensor state                           | state  | bytes, str, int or float |  What state to set the sensor to |
+
+[top](#table-of-contents)
 
 #### Switch
 
@@ -635,7 +672,9 @@ DGB binder run.action.call and (optional) run.action.args:
 | off   | Set switch to off.                                                      |   |  |   |
 | on   | Set switch to off.                                                     |   |  |  |
 
-#### Text (not implemented yet)
+[top](#table-of-contents)
+
+#### Text
 
 HMD parameters:
 
@@ -664,6 +703,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_text   | Update the text displayed by this sensor.                                 | text  | str  |  Value of the text configured for this entity |
+
+[top](#table-of-contents)
 
 #### Valve
 
@@ -720,9 +761,13 @@ DGB binder run.action.call and (optional) run.action.args:
 | opening     | Set valve state to opening                                                      |          |      |             |   |      |             |
 | position     | Set the valve to a desired position between 0 and 100.                         |   position       | int     | position of the valve     |   state (optional)      | str     | state of the valve (as defined in state_open, state_opening, state_closed or state_closing)     |
 
+[top](#table-of-contents)
+
 ### Pins with PinInfo
 
 In this section lists the configuration parameters and defaults for GPIO pins. In the background pins are configured and managed by the [GPIOzero](https://github.com/gpiozero/gpiozero) package. HMD-DGB provides an overlay on this package. Most parameters allign with those form [GPIOzero](https://github.com/gpiozero/gpiozero), though al are defined within HMD-DGB and are listed below. Aditionally you find the run.action.call ids and run.action.args that can be used in binding via [Durable Rules](https://github.com/jruizgit/rules).
+
+[top](#table-of-contents)
 
 #### PinIn
 
@@ -748,6 +793,8 @@ DGB parameters:
 
 PinIn has no binder run.action.call and (optional) run.action.args
 
+[top](#table-of-contents)
+
 #### PinOut
 
 DGB parameters:
@@ -761,8 +808,6 @@ DGB parameters:
 | value         | Desired output value of the pin.                                            | int  | optional |
 | password      | Optional safety password to prevent unwanted activation of the pin. **Do not reuse real account passwords** (no HTTPS or encryption). | str | optional |
 | blink      | The blink time of the output once for this number of seconds. Note it uses the previous set value to start from, the value of this call will be ignored. | int | optional |
-
-
 
 ```json
 {
@@ -783,6 +828,8 @@ DGB binder run.action.call and (optional) run.action.args:
 | on        | Set pin state to on                                                      |          |      |             |
 | off      | Set pin state to off                                                      |          |      |             |
 | blink      | Set pin state to on for a certain time                                     |    blink      |  int    |      The blink time of the output once for this number of seconds.       |
+
+[top](#table-of-contents)
 
 #### PinCount
 
@@ -807,6 +854,8 @@ DGB parameters:
 ```
 
 PinCount has no binder run.action.call and (optional) run.action.args
+
+[top](#table-of-contents)
 
 #### PinNWayOut
 
@@ -844,11 +893,15 @@ DGB binder run.action.call and (optional) run.action.args:
 | off      | Set pin state to off                                                      |          |      |             |
 <!-- | blink      | Set pin state to on for a certain time                                     |          |      |             |   |      |             | -->
 
+[top](#table-of-contents)
+
 ### Bindings with BindInfo
 
 The binder manages actions to execute on specific device (entitie) and pin triggers via binding rules. These rules are loaded in [Durable Rules](https://github.com/jruizgit/rules) and follow mostly the rich [JSON](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) schema documentation. Some basics are shown here, but details and examples can be found at the [JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md). Note that multiple implementations of rulesets can acomplisch the same thing, though still it may be good to use copilot or another AI tool to generate a fisrt draft for you.
 
 Next to the basis, these sections show the HMD-DGB addition/changes to the JSON schema. These changes/aditions are limited to the sublabels of the run label, but also impose limitations to the other parts of the schema. This will be explained in detail in the designated sections. Additional to the documentation here, I made several tests to check de binder stand-alone in [Binder_examples.py](https://github.com/jvanoosterhout/HMD-DGB/blob/main/Examples/Binder_examples.py).
+
+[top](#table-of-contents)
 
 #### Ruleset
 
@@ -874,6 +927,9 @@ binding_info =  {
                   "my_flowchart$flow": { ... }
                 }
 ```
+
+[top](#table-of-contents)
+
 #### Rule conditions
 
 A **plain ruleset** can have multiple rules/condition with antecedent. Durable Rules has two main antecedent: all and any. These can be combined and nested to express richer patterns. The antecedent can have a:
@@ -1040,6 +1096,8 @@ HMD-DGB currently only support posting one entity/pin/timer message in the shape
 {"timeout": "..."}
 ```
 
+[top](#table-of-contents)
+
 #### Rule run actions
 
 Forget the JSON run option in the [JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md), they won't work. Even the times do not work.
@@ -1064,6 +1122,8 @@ One run label can call multiple action by putting them in a array where they wil
 }
 ```
 
+[top](#table-of-contents)
+
 ##### Log
 The most simple run action: set the "log" key. Its value is a dict containing the key value pair "msg" and the "the message you want to be displayed". This is most valuable for debugging purposes.
 ```JSON
@@ -1076,7 +1136,11 @@ The most simple run action: set the "log" key. Its value is a dict containing th
   }
 }
 ```
+
+[top](#table-of-contents)
+
 ##### timer
+
 Timers can be used to schedule an event at timeout. To use this event, a timeout condition can be included in the rule antecedent. Each timer runs in a separate thread. Timers are thuse non-blocking.
 
 Timers can be set by the "timer" key. Its value is a dict containing:
@@ -1102,7 +1166,11 @@ Timeouts can be set in a rule antecedent by using the key "timeout" with value t
   }
 }
 ```
+
+[top](#table-of-contents)
+
 ##### action
+
 Actions can be used to set the state of an entity or pin via one of the device function. This is usefull to bind an entity action (e.g. a button press in HA) to activate a pin (e.g. set pinout to high). But also the other way around is meaningfull: when a pin is high (e.g. PinIn is 1) do something with an entity state (e.g. set a binary sensor in HA to on).
 
 Actions can be set by the "action" key. Its value is a dict containing:
@@ -1140,6 +1208,8 @@ The call functions and args (with name and value) can be found in [Devices with 
 }
 ```
 
+[top](#table-of-contents)
+
 ## Architecture
 
 ```
@@ -1171,6 +1241,8 @@ The call functions and args (with name and value) can be found in [Devices with 
 │  (Relays, Sensors, etc)       │
 └───────────────────────────────┘
 ```
+
+[top](#table-of-contents)
 
 ## Ideas for improvement (unsorted in priority)
 
@@ -1215,6 +1287,8 @@ The call functions and args (with name and value) can be found in [Devices with 
     - time_based_state (for cover & valve)
     - <del>direct_state_transition (for all devices with callback: acknowlegde state to HA directly or via binding action)</del>
 
+[top](#table-of-contents)
+
 ## Known Issues & Limitations
 
 ### First load issue
@@ -1253,6 +1327,8 @@ Currently the count-type pin implementation is incomplete. Water flow meters and
 
 Durable Rules has limited maintenance/updates and no reponces on issues lately. It is unclear how well or how long this package will be able to keep up with updates of other packages.
 
+[top](#table-of-contents)
+
 ## Contributing
 
 This is a **spare-time project**, so feedback and suggestions are highly appreciated!
@@ -1265,6 +1341,8 @@ This is a **spare-time project**, so feedback and suggestions are highly appreci
 - Feature requests with real-world use cases
 - Documentation improvements and examples
 - Testing on different hardware configurations
+
+[top](#table-of-contents)
 
 ## Project Status
 
@@ -1279,3 +1357,5 @@ This is the first public iteration of the HMD-DGB project, transitioning from pr
 **Questions or ideas?** Open an issue on GitHub and let's improve HMD-DGB together!
 
 **Found this project helpful?** Consider starring it on GitHub or sharing it with others!
+
+[top](#table-of-contents)

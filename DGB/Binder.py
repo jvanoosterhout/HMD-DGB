@@ -413,7 +413,7 @@ class Binder:
         """
         host = get_host()
 
-        existing = host._ruleset_directory.get(rule_name)
+        existing = host._ruleset_directory.get(rule_name.split("$", 1)[0])
         if existing is None:
             return True
 

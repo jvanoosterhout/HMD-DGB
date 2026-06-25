@@ -11,12 +11,8 @@ authors = [
     {name = "Jeroen van Oosterhout", email = "18647330+jvanoosterhout@users.noreply.github.com"}
 ]
 dependencies = [
-    "fastapi>=0.115.6,<1",
-    "uvicorn>=0.34.0,<1",
     "psutil==6.1.1",
     "gpiozero==2.0.1",
-    "lgpio==0.2.2.0",
-    "homeassistant-api==5.0.2",
     "ha-mqtt-discoverable==0.25.2",
     "durable-rules==2.0.28",
     "ghapi>=1.0.3"

@@ -2,15 +2,16 @@
 
 Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverable devices. Bridge your hardware to smart home automation through declarative device bindings via durable rules.
 
-The power and uniquesnes of HMD-DGB is twofold:
-- it allows to configure complex entities that can rely on multiple sensors and actors like a cover (control open/close/stop, sens is_open/is_closed) or a light (RGBW).
-- it allows to manage the node (the RPI/SBC), service and configurations from Home Assistant or an other central location. In that Home Assistant only stores the configurations, no flooding of Home Assistant with helpers or intermediate entities.
+The power and uniqueness of HMD-DGB is twofold:
+- it allows you to configure complex entities that can rely on multiple sensors and actors, like a cover (control open/close/stop, sense is_open/is_closed) or a light (RGBW).
+- it allows you to manage the node (the RPi/SBC), service, and configurations from Home Assistant or another central location. This way, Home Assistant only stores configurations, with no flooding of Home Assistant with helpers or intermediate entities.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
 
 - [Overview](#overview)
+  - [Current implementation status](#current-implementation-status)
 - [Requirements](#requirements)
   - [Hardware & OS](#hardware--os)
   - [Software](#software)
@@ -18,14 +19,15 @@ The power and uniquesnes of HMD-DGB is twofold:
 - [Installation](#installation)
   - [Option 1: venv](#option-1-venv)
   - [Option 2: Docker](#option-2-docker)
+  - [Operational caveats](#operational-caveats)
 - [Reference documentation](#reference-documentation)
-  - [Node & system health & contol](#node--system-health--contol)
+  - [Node & system health & control](#node--system-health--control)
   - [Basic configuration](#basic-configuration)
   - [Devices with EntityInfo](#devices-with-entityinfo)
     - [Device](#device)
-    - [Basic parameters (for alle entities)](#basic-parameters-for-alle-entities)
+    - [Basic parameters (for all entities)](#basic-parameters-for-all-entities)
     - [Binary sensor](#binary-sensor)
-    - [Button](#button)
+    - [Button (not implemented yet)](#button-not-implemented-yet)
     - [Camera (not implemented yet)](#camera-not-implemented-yet)
     - [Cover](#cover)
     - [Device trigger (not implemented yet)](#device-trigger-not-implemented-yet)
@@ -59,6 +61,7 @@ The power and uniquesnes of HMD-DGB is twofold:
   - [Loading configurations & runtime](#loading-configurations--runtime-1)
   - [Count-Type Pin Device](#count-type-pin-device)
   - [Maintenance/updates of Durable Rules](#maintenanceupdates-of-durable-rules)
+- [License](#license)
 - [Contributing](#contributing)
 - [Project Status](#project-status)
 
@@ -67,16 +70,27 @@ The power and uniquesnes of HMD-DGB is twofold:
 
 ## Overview
 
-**HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi with Home Assistant integration via MQTT discoverable devices. Unique to this package is that it is an end-to-end solution reling on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins. This eliminats manual programing via easy json configuration. While developping this package over the years, I learned that this resembles several aspects of ESP Home.
+**HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi with Home Assistant integration via MQTT discoverable devices. Unique to this package is that it is an end-to-end solution relying on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins. This eliminates manual programming via easy JSON configuration. While developing this package over the years, I learned that this resembles several aspects of ESPHome.
 
-Future vision is to make a flexable solution to configure and manage edge devices/nodes like Raspberry PI while haveing near-zero need to touch the code on the node. Think of installing the OS including the initial package setup, and then only work from Home Assistant to e.g. update the package or configureing GPIO, devices and bindings.
+The future vision is to make a flexible solution to configure and manage edge devices/nodes like Raspberry Pi, while having near-zero need to touch code on the node. Think of installing the OS with the initial package setup, and then working only from Home Assistant to, for example, update the package or configure GPIO, devices, and bindings.
 
 The system consists of four core concepts:
 
 - **MQTT Discoverable Devices**: Devices that automatically appear in Home Assistant via MQTT discovery protocol
 - **Durable Binding Rules**: Define relationships and actions between physical GPIO pins and Home Assistant devices
-- **GPIOzero Devices**: configuration of GPIO pins to proform meaningfull action in the real world
+- **GPIOzero Devices**: configuration of GPIO pins to perform meaningful actions in the real world
 - **on the fly configuration**: send device, binding and GPIO configurations over MQTT to your Raspberry Pi (you still need to install this package, configure HA, and setup the MQTT service)
+
+### Current implementation status
+
+The table below reflects current implementation status in this repository.
+
+| Area | Status |
+|---|---|
+| Entity components implemented | `binary_sensor`, `cover`, `valve`, `sensor`, `switch`, `text`, `number`, `select` |
+| Entity components not implemented yet | `button`, `camera`, `device_automation` trigger, `image`, `light`, `lock` |
+| Pin types implemented (`PinInfo.ptype`) | `in`, `out`, `count`, `nwayout` |
+| Binder run actions implemented | `log`, `timer` (`start`/`cancel`), `action` |
 
 [top](#table-of-contents)
 
@@ -85,7 +99,7 @@ The system consists of four core concepts:
 ### Hardware & OS
 
 - **Raspberry Pi**: Pi 4 or Pi Zero 2 W (or compatible board)
-  - Pi Zero may require to buil some packages like psutil
+  - Pi Zero may require building some packages like psutil
   ```bash
   sudo apt install -y gcc python3-dev build-essential
   ```
@@ -119,22 +133,30 @@ python3 -m venv venv
 python -m pip install --upgrade pip
 # Install from repository
 pip install git+https://github.com/jvanoosterhout/HMD-DGB.git
-python -m DGB.DGBservice --name "my-service-name" --broker "my-broker" [--port "my-port"] [--topic "my-topic] [--username "my-username"] [--password "my-password"] [--location "my-location"]
+python -m DGB.DGBservice --name "my-service-name" --broker "my-broker" \
+  [--port "my-port"] [--topic "my-topic"] [--username "my-username"] \
+  [--password "my-password"] [--location "my-location"] [--rate 60]
 ```
 
 [top](#table-of-contents)
 
 ### Option 2: Docker
 
-Docker support is on the roadmap simplified deployment and consistency across systems.
+Docker support is on the roadmap for simplified deployment and consistency across systems.
+There is currently no Dockerfile or compose setup in this repository.
+
+### Operational caveats
+
+- The service restart actions are designed for deployments managed by a supervisor (for example `systemd`) that automatically starts the process again after it exits.
+- During configuration load, devices/pins may emit posts before all bindings are registered. In that case, early posts can be missed until binding setup is complete.
 
 [top](#table-of-contents)
 
 ## Reference documentation
 
-### Node & system health & contol
+### Node & system health & control
 
-As the HMD-DGB service is started, it creates a descoverable DGB node and DGB service for the given service-name. Both devices have sensors,  controls and some basic information.
+When the HMD-DGB service starts, it creates a discoverable DGB node and DGB service for the given service name. Both devices have sensors, controls, and basic information.
 
 DGB node for service-name:
 - CPU usage
@@ -145,16 +167,16 @@ DGB node for service-name:
 DGB service for service-name:
 - Current software version installed
 - Latest software version available
-- Soft restart (set all entities to unavailable, restart service, leave other MQTT messages untoughed)
+- Soft restart (set all entities to unavailable, restart service, leave other MQTT messages untouched)
 - Hard restart (clear all MQTT messages related to this service including its config topic and restart service)
 
-In DGB, your own devices can only be configured inside an entity json with the "device" key. DGB alters this device json slichtly: it overrides/creates the "via_device" key to the uniqued id of the DGB service device.
+In DGB, your own devices can only be configured inside an entity JSON with the "device" key. DGB alters this device JSON slightly: it overrides/creates the "via_device" key with the unique ID of the DGB service device.
 
 [top](#table-of-contents)
 
 ### Basic configuration
 
-Once the HMD-DGB service runs on a pi/SBC, and it is connected to a MQTT broker (with Home Assistant as subscriber), the next step is as simple as publishing a configuration MQTT message to the config topic "config/{name}/devices/". Such a massage can configure devices (i.e Home Assistant entities that are optionally grouped in devices), GPIO pins and bindings between the first two. The message should be a json payload structured like this:
+Once the HMD-DGB service runs on a Pi/SBC and is connected to an MQTT broker (with Home Assistant as subscriber), the next step is to publish a configuration MQTT message to the config topic `config/{name}/devices/`. Such a message can configure devices (Home Assistant entities optionally grouped in devices), GPIO pins, and bindings between the first two. The message should be a JSON payload structured like this:
 
 ```json
 {
@@ -175,13 +197,13 @@ How to fill this message is explained in the next sections.
 
 ### Devices with EntityInfo
 
-In this section you can find the configuration parameters and defaults for Home Assisntant discoverable devices. In the background the HA devices are configured and managed by the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package. HMD-DGB provides an implementation of this package with some aditional parameters. These extra parameters will be indicated behind the ha-mqtt-discoverable parameters. Aditionally you find the run.action.call ids and run.action.args that can be used in binding via [Durable Rules](https://github.com/jruizgit/rules).
+In this section you can find configuration parameters and defaults for Home Assistant discoverable devices. In the background, HA devices are configured and managed by the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package. HMD-DGB provides an implementation of this package with some additional parameters. These extra parameters are indicated alongside the ha-mqtt-discoverable parameters. Additionally, you can find the `run.action.call` IDs and `run.action.args` that can be used in bindings via [Durable Rules](https://github.com/jruizgit/rules).
 
 [top](#table-of-contents)
 
 #### Device
 
-A device is a special entity in Home Assistant and thus displayed separately form other discoverable devices. In fact, this is the only device, other sections describe Home Assistant entities, and entities can belong to a device. Home Assistant's own definition:
+A device is a special entity in Home Assistant and is displayed separately from other discoverable devices. In fact, this is the only device section; the other sections describe Home Assistant entities, and entities can belong to a device. Home Assistant's own definition:
 From the [Home Assistant documentation](https://www.home-assistant.io/getting-started/concepts-terminology/):
 > Devices are a logical grouping for one or more entities. A device may represent a physical device, which can have one or more sensors. The sensors appear as entities associated with the device. For example, a motion sensor is represented as a device. It may provide motion detection, temperature, and light levels as entities. Entities have states such as detected when motion is detected and clear when there is no motion.
 
@@ -215,13 +237,13 @@ HMD parameters:
 }
 ```
 
-In DGB, devices can only be configured inside an entity with the "device" key. The value of this key is the above json. DGB alters this json slichtly: it overrides/creates the "via_device" key to the uniqued id of the DGB service device.
+In DGB, devices can only be configured inside an entity with the "device" key. The value of this key is the JSON above. DGB alters this JSON slightly: it overrides/creates the "via_device" key with the unique ID of the DGB service device.
 
 [top](#table-of-contents)
 
-#### Basic parameters (for alle entities)
+#### Basic parameters (for all entities)
 
-Parameters that all devices (i.e. entities) have, and can thuse be appended to the EntityInfo configuration of each device (i.e. entities) in the following subsections.
+Parameters that all entities have, and that can be appended to the `EntityInfo` configuration of each entity in the following subsections.
 
 | Parameter           | Description                                                                 | Type       | Default  |
 |--------------------|-----------------------------------------------------------------------------|------------|----------|
@@ -288,7 +310,9 @@ DGB binder run.action.call and (optional) run.action.args:
 
 [top](#table-of-contents)
 
-#### Button
+#### Button (not implemented yet)
+
+This component is not implemented in the current runtime yet.
 
 HMD parameters:
 
@@ -765,7 +789,7 @@ DGB binder run.action.call and (optional) run.action.args:
 
 ### Pins with PinInfo
 
-In this section lists the configuration parameters and defaults for GPIO pins. In the background pins are configured and managed by the [GPIOzero](https://github.com/gpiozero/gpiozero) package. HMD-DGB provides an overlay on this package. Most parameters allign with those form [GPIOzero](https://github.com/gpiozero/gpiozero), though al are defined within HMD-DGB and are listed below. Aditionally you find the run.action.call ids and run.action.args that can be used in binding via [Durable Rules](https://github.com/jruizgit/rules).
+This section lists the configuration parameters and defaults for GPIO pins. In the background, pins are configured and managed by the [GPIOzero](https://github.com/gpiozero/gpiozero) package. HMD-DGB provides an overlay on this package. Most parameters align with those from [GPIOzero](https://github.com/gpiozero/gpiozero), though all are defined within HMD-DGB and listed below. Additionally, you can find the `run.action.call` IDs and `run.action.args` that can be used in bindings via [Durable Rules](https://github.com/jruizgit/rules).
 
 [top](#table-of-contents)
 
@@ -776,7 +800,7 @@ DGB parameters:
 | Parameter      | Description                                                                 | Type | Default |
 |----------------|-----------------------------------------------------------------------------|------|---------|
 | pin            | GPIO pin number to configure, change, or read.                              | int  | required |
-| ptype          | Functional type of the pin (input).                                         | str  | `pinin` |
+| ptype          | Functional type of the pin (input).                                         | str  | `in` |
 | active_state   | If `true`, a HIGH hardware signal maps to HIGH software state. If `false`, the input polarity is inverted. | bool | `True` |
 | pull_up        | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `True` |
 | webhook        | Home Assistant endpoint to send state changes to when they occur.          | str  | optional |
@@ -784,7 +808,7 @@ DGB parameters:
 ```json
 {
   "pin": 17,
-  "ptype": "pinin",
+  "ptype": "in",
   "active_state": true,
   "pull_up": true,
   "webhook": "/api/webhook/gpio_pin_17"
@@ -802,7 +826,7 @@ DGB parameters:
 | Parameter     | Description                                                                 | Type | Default |
 |---------------|-----------------------------------------------------------------------------|------|---------|
 | pin           | GPIO pin number to configure, change, or control.                           | int  | required |
-| ptype         | Functional type of the pin (output).                                        | str  | `pinout` |
+| ptype         | Functional type of the pin (output).                                        | str  | `out` |
 | initial       | Initial output value of the pin when it is created.                         | int  | `0` |
 | active_state  | If `true`, a HIGH software state maps to a HIGH hardware output. If `false`, the output polarity is inverted. | bool | `False` |
 | value         | Desired output value of the pin.                                            | int  | optional |
@@ -812,7 +836,7 @@ DGB parameters:
 ```json
 {
   "pin": 27,
-  "ptype": "pinout",
+  "ptype": "out",
   "initial": 0,
   "active_state": false,
   "value": 1,
@@ -838,7 +862,7 @@ DGB parameters:
 | Parameter     | Description                                                                 | Type | Default |
 |---------------|-----------------------------------------------------------------------------|------|---------|
 | pin           | GPIO pin number to configure, change, or read.                              | int  | required |
-| ptype         | Functional type of the pin (counting input).                                | str  | `pincount` |
+| ptype         | Functional type of the pin (counting input).                                | str  | `count` |
 | active_state  | If `true`, a HIGH hardware signal maps to a HIGH software state. If `false`, the input polarity is inverted. | bool | `True` |
 | pull_up       | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `False` |
 | webhook       | Home Assistant endpoint to send count/state changes to when they occur.    | str  | optional |
@@ -846,7 +870,7 @@ DGB parameters:
 ```json
 {
   "pin": 5,
-  "ptype": "pincount",
+  "ptype": "count",
   "active_state": true,
   "pull_up": false,
   "webhook": "/api/webhook/gpio_counter_5"
@@ -865,7 +889,7 @@ DGB parameters:
 |----------------|-----------------------------------------------------------------------------|------|---------|
 | pin            | GPIO pin used to identify the n‑way output configuration. This pin must also be present in `pin_list`. | int | required |
 | pin_list       | List of **≥ 2** GPIO pins controlled by this n‑way output. May include “dummy” pins indicated by `-1`. The `pin` must be included in this list. | list[int] | required |
-| ptype          | Functional type of the pin (n‑way output).                                  | str | `pinnwayout` |
+| ptype          | Functional type of the pin (n‑way output).                                  | str | `nwayout` |
 | initial        | Initial output values for each pin. Order must match `pin_list`. At most one pin may be HIGH; this may also be a dummy pin. | list[int] | `[0]` |
 | active_state   | List defining output polarity per pin. Order must match `pin_list`. If `true`, HIGH software state maps to HIGH hardware state; otherwise output is inverted. | list[bool] | `[False]` |
 | pin_names      | Human‑readable names for each pin. Order must match `pin_list`. Examples: `["open", "close", "stop"]` or `["0", "1", "2"]`. | list[str] | `[""]` |
@@ -876,7 +900,7 @@ DGB parameters:
 {
   "pin": 22,
   "pin_list": [22, 23, 24],
-  "ptype": "pinnwayout",
+  "ptype": "nwayout",
   "initial": [0, 0, 0],
   "active_state": [false, false, false],
   "pin_names": ["open", "close", "stop"],
@@ -897,9 +921,9 @@ DGB binder run.action.call and (optional) run.action.args:
 
 ### Bindings with BindInfo
 
-The binder manages actions to execute on specific device (entitie) and pin triggers via binding rules. These rules are loaded in [Durable Rules](https://github.com/jruizgit/rules) and follow mostly the rich [JSON](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) schema documentation. Some basics are shown here, but details and examples can be found at the [JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md). Note that multiple implementations of rulesets can acomplisch the same thing, though still it may be good to use copilot or another AI tool to generate a fisrt draft for you.
+The binder manages actions to execute on specific device (entity) and pin triggers via binding rules. These rules are loaded in [Durable Rules](https://github.com/jruizgit/rules) and mostly follow the rich [JSON](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) schema documentation. Some basics are shown here, but details and examples can be found in the [JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md). Note that multiple ruleset implementations can accomplish the same thing. It may still be useful to use Copilot or another AI tool to generate a first draft.
 
-Next to the basis, these sections show the HMD-DGB addition/changes to the JSON schema. These changes/aditions are limited to the sublabels of the run label, but also impose limitations to the other parts of the schema. This will be explained in detail in the designated sections. Additional to the documentation here, I made several tests to check de binder stand-alone in [Binder_examples.py](https://github.com/jvanoosterhout/HMD-DGB/blob/main/Examples/Binder_examples.py).
+In addition to the basics, these sections show HMD-DGB additions/changes to the JSON schema. These changes/additions are limited to sublabels of the `run` label, but also impose limitations on other parts of the schema. This is explained in detail in the designated sections. In addition to the documentation here, I made several tests to check the binder stand-alone in [Binder_examples.py](https://github.com/jvanoosterhout/HMD-DGB/blob/main/Examples/Binder_examples.py).
 
 [top](#table-of-contents)
 
@@ -910,7 +934,7 @@ Durable Rules allow a few different ways to organize a ruleset, plus a fairly ri
 - statecharts (requires $state identifier)
 - flowcharts (requires $flow identifier)
 
-These catagories support for events, state events, correlated sequences, negative conditions, nested objects/arrays, and priorities. Timers are normally also supported, though not via JSON, theref DGB has iets own timer construct on top of Durable Rules. The catagories normally also support facts, though DGB has no implementation for facts at this moment.
+These categories support events, state events, correlated sequences, negative conditions, nested objects/arrays, and priorities. Timers are normally also supported, though not via JSON; therefore DGB has its own timer construct on top of Durable Rules. These categories also normally support facts, though DGB has no implementation for facts at this moment.
 
 In general you define a ruleset like this:
 
@@ -965,7 +989,7 @@ A simple example of a plain ruleset:
 }
 ```
 
-A **Statechart** is best defined by [Durable Rules](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) them selfs:
+A **statechart** is best defined by [Durable Rules](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) itself:
 
 > Rules can be organized using statecharts. A statechart is a deterministic finite automaton (DFA). The state context is in one of a number of possible states with conditional transitions between these states.
 >
@@ -1019,7 +1043,7 @@ A simple example of a statechart:
 }
 ```
 
-A **flowcharts** is best defined by [Durable Rules](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) them selfs:
+A **flowchart** is best defined by [Durable Rules](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) itself:
 > A flowchart is another way of organizing a ruleset flow. In a flowchart each stage represents an action to be executed. So (unlike the statechart state), when applied to the context state, it results in a transition to another stage.
 >
 > Flowchart rules:
@@ -1031,7 +1055,7 @@ A **flowcharts** is best defined by [Durable Rules](https://github.com/jruizgit/
 > - A stage can have zero or more conditions.
 > - A condition has a rule and a destination stage.
 
-For a binding, a flowchart is a better fit (compaired to Statechart) when the logic is more like a process pipeline than a persistent actor state machine. Example shape:
+For a binding, a flowchart is a better fit (compared to a statechart) when the logic is more like a process pipeline than a persistent actor state machine. Example shape:
 
 - input
 - validate
@@ -1083,13 +1107,13 @@ A simple example of a flowchart:
 }
 ```
 
-As shown in the first example in this section, the matching constructs inside the rule is in JSON format. Each key-value pair presents a match patren, e.g.: {"unique_id": "x"}, {"payload": "y"} means Unique_id = "x" and payload = "y". Though many matching constructs are posible. A few of them are:
-- Logical operators likr negative / absence pattern ($not), or ($or), and ($and), exists ($ex), not exist ($nex),
-- Relational operators like, less than ($lt), greater than ($gt), less than or equal ($lte), greater than or equal ($gte), not equal ($neq)
-- Patrens like match pattern ($mt) and case-insensitive match pattern ($imt)
+As shown in the first example in this section, the matching constructs inside the rule are in JSON format. Each key-value pair presents a match pattern, e.g. `{"unique_id": "x"}`, `{"payload": "y"}` means `unique_id = "x"` and `payload = "y"`. Many matching constructs are possible. A few of them are:
+- Logical operators like negative/absence pattern (`$not`), or (`$or`), and (`$and`), exists (`$ex`), not exists (`$nex`)
+- Relational operators like less than (`$lt`), greater than (`$gt`), less than or equal (`$lte`), greater than or equal (`$gte`), not equal (`$neq`)
+- Patterns like match pattern (`$mt`) and case-insensitive match pattern (`$imt`)
 - Arithmetic expressions like $add, $sub, $mul, $div
 
-HMD-DGB currently only support posting one entity/pin/timer message in the shape of an event, meaning that they are an ephemeral: they are evaluated and then gone. The posts have the shape of:
+HMD-DGB currently only supports posting one entity/pin/timer message in the shape of an event, meaning events are ephemeral: they are evaluated and then gone. Posts have the shape:
 
 ```JSON
 {"unique_id": "...", "payload": "..."}
@@ -1141,12 +1165,12 @@ The most simple run action: set the "log" key. Its value is a dict containing th
 
 ##### timer
 
-Timers can be used to schedule an event at timeout. To use this event, a timeout condition can be included in the rule antecedent. Each timer runs in a separate thread. Timers are thuse non-blocking.
+Timers can be used to schedule an event at timeout. To use this event, a timeout condition can be included in the rule antecedent. Each timer runs in a separate thread, so timers are non-blocking.
 
 Timers can be set by the "timer" key. Its value is a dict containing:
-- name: the name of the timer, this name is used to start and cancel it in run, but also to wait for the timeout in an rule antecedent.
-- action: the action to perform on the timer, which can be either "start" or "cancel". If a timeout has not occured yet, "cancel" will delete the timer identified by name, if it exists. The timeout event will never hapen. If a timer is started, and not timeout yet, "start" will cancel the existing timer with identical name and create a new one.
-- seconds: define the number of seconds the timer last before timeout. Only required for action "start".
+- name: the name of the timer. This name is used to start and cancel it in `run`, but also to wait for the timeout in a rule antecedent.
+- action: the action to perform on the timer, which can be either `"start"` or `"cancel"`. If a timeout has not occurred yet, `"cancel"` deletes the timer identified by name if it exists. The timeout event will never happen. If a timer is started and has not timed out yet, `"start"` cancels the existing timer with the same name and creates a new one.
+- seconds: the number of seconds the timer lasts before timeout. Only required for action `"start"`.
 
 Timeouts can be set in a rule antecedent by using the key "timeout" with value the name of the timer that should fire the rule.
 
@@ -1171,7 +1195,7 @@ Timeouts can be set in a rule antecedent by using the key "timeout" with value t
 
 ##### action
 
-Actions can be used to set the state of an entity or pin via one of the device function. This is usefull to bind an entity action (e.g. a button press in HA) to activate a pin (e.g. set pinout to high). But also the other way around is meaningfull: when a pin is high (e.g. PinIn is 1) do something with an entity state (e.g. set a binary sensor in HA to on).
+Actions can be used to set the state of an entity or pin via one of the device functions. This is useful to bind an entity action (e.g. a button press in HA) to activate a pin (e.g. set a pinout to high). The reverse is also meaningful: when a pin is high (e.g. PinIn is 1), do something with an entity state (e.g. set a binary sensor in HA to on).
 
 Actions can be set by the "action" key. Its value is a dict containing:
 - unique_id:
@@ -1180,7 +1204,7 @@ Actions can be set by the "action" key. Its value is a dict containing:
   - name:
   - value: "$m.payload"
 
-The call functions and args (with name and value) can be found in [Devices with EntityInfo](README.md#devices-with-entityInfo) and [Pins with PinInfo](README.md#pins-with-pinInfo).
+The call functions and args (with name and value) can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo).
 
 ```JSON
 {"action": {"unique_id": "y", "call": "z", "args": [{"name": "var1", "value": "$m.payload"}]}}
@@ -1248,44 +1272,44 @@ The call functions and args (with name and value) can be found in [Devices with 
 
 - Triggering payload as argument in action
   - <del>Add support to use the payload of the triggering device as argument in the action function</del>
-  - Match best type of arg for multi type function args (naow: payload = int & function accepts str|int|bool --> convert int to str; should be pass int)
-  - Make it posible to define case type in configuration (e.g. "value": "$m.payload|int")
-  - <del>Provide readmeon posible arg names and types per fuction
+  - Match best type of arg for multi type function args (now: payload = int & function accepts str|int|bool --> convert int to str; should pass int)
+  - Make it possible to define cast type in configuration (e.g. "value": "$m.payload|int")
+  - <del>Provide README on possible arg names and types per function
 - Improve run actions</del>
-  - Provide log feedback on posible arg names and types per fuction
+  - Provide log feedback on possible arg names and types per function
 - Improve run actions
-  - <del>create readme documentation on the posible actions (log, action, timer, ...)</del>
+  - <del>Create README documentation on the possible actions (log, action, timer, ...)</del>
   - Extend run action with the option to perform a post to a ruleset with specific context
 - Improve device, GPIO and binder configuration
-  - Add key to define prefered (re)start state (previous known in HA, or user defined state)
+  - Add key to define preferred (re)start state (previous known in HA, or user defined state)
   - Make configuration possible from yaml
   - Allow to delete objects:
-    - device (incl ha entitys by cleaning up topics)
+    - device (incl HA entities by cleaning up topics)
     - rules
     - gpio pins
 - Improve systems capabilities and robustness
   - <del>Make system sensors configurable</del>
   - Add RPI device action (e.g. <del>restart</del>, update, reload, ...)
   - Add log messages over MQTT in RPI device
-  - Splitt loading and active phase: prevent post from being evaluated while rules may not be in place (e.g. set a system flag: loading = true while new mqtt config messages are being  processed)
+  - Split loading and active phase: prevent post from being evaluated while rules may not be in place (e.g. set a system flag: loading = true while new MQTT config messages are being processed)
   - Make pytest for all files.
 - Improve GPIO (custom or an available package)
   - Count-type pins: Finalization for water flow meters and pulse counters
   - Time-series I/O: RF signal handling for advanced sensor integration
   - PWM support: LED brightness and voltage regulation control
-  - Replace gpio module for use on diffferent single board coputers (e.g. Mqtt-io, Adafruit Blinka, Libgpio)
+  - Replace GPIO module for use on different single-board computers (e.g. Mqtt-io, Adafruit Blinka, Libgpio)
 - Improve system setup:
-  - <del>Make example with arg configuration of system name, mqtt and some other system settings (acount for secure passwords)</del>
-  - [Won't for now: pi zero has no hardware to store secretes truely safe for an automatic system like HMD-DGB] <del>Potentially include a local webserver to set wifi and mqtt credentials and store them encrypted</del>
+  - <del>Make example with arg configuration of system name, MQTT and some other system settings (account for secure passwords)</del>
+  - [Won't for now: Pi Zero has no hardware to store secrets truly safely for an automatic system like HMD-DGB] <del>Potentially include a local webserver to set Wi-Fi and MQTT credentials and store them encrypted</del>
   - Docker deployment: Streamlined container-based setup with pre-configured environment
-  - Define cloud-init (e.g. for Trixi) or simmilar script to configure a pi at first boot
+  - Define cloud-init (e.g. for Trixi) or similar script to configure a Pi at first boot
   - (external project) Make tool to write Device, GPIO and Binder configurations (host on local webserver)
 - Improve Devices
   - <del>Support more HMD device (focus on valve)</del>
   - Implement time based cover/valve
   - Implement (distinguish and document) Device configuration specific to HMD-DGB
     - time_based_state (for cover & valve)
-    - <del>direct_state_transition (for all devices with callback: acknowlegde state to HA directly or via binding action)</del>
+    - <del>direct_state_transition (for all devices with callback: acknowledge state to HA directly or via binding action)</del>
 
 [top](#table-of-contents)
 
@@ -1295,7 +1319,7 @@ The call functions and args (with name and value) can be found in [Devices with 
 
 **Status:** Needs Testing
 
-Currently it seems that alle entities are unavailable at the very first creation of xthe discoverable topic, eventough the code explicitly sets them to "available". A soft restart (which button is also unavailable) or similar fixes the issue.
+Currently, it seems that all entities are unavailable at the very first creation of the discoverable topic, even though the code explicitly sets them to "available". A soft restart (whose button may also be unavailable) or similar action fixes the issue.
 
 ### Loading configurations & runtime
 
@@ -1313,7 +1337,7 @@ What would currently happen, and should happen when the HMD-DGB service restarts
 
 **Status:** Needs split of operational phases or robust error handling
 
-Currently devices and pins can emit posts directly after creation, rules/bindings can only be set once all included devices and pins are defind --> early posts fail.
+Currently devices and pins can emit posts directly after creation, while rules/bindings can only be set once all included devices and pins are defined --> early posts fail.
 
 ### Count-Type Pin Device
 
@@ -1326,6 +1350,12 @@ Currently the count-type pin implementation is incomplete. Water flow meters and
 **Status:** unknown
 
 Durable Rules has limited maintenance/updates and no reponces on issues lately. It is unclear how well or how long this package will be able to keep up with updates of other packages.
+
+[top](#table-of-contents)
+
+## License
+
+This project is licensed under the Apache License 2.0. See [`license.txt`](license.txt).
 
 [top](#table-of-contents)
 

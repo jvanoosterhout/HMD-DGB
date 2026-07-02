@@ -272,7 +272,7 @@ def main():
     parser.add_argument("--password", default="secret", help="MQTT password")
     parser.add_argument("--location", default="home", help="Device location")
     parser.add_argument(
-        "--rate", default=60, help="System sensor update rate in seconds"
+        "--rate", type=int, default=60, help="System sensor update rate in seconds"
     )
 
     args = parser.parse_args()

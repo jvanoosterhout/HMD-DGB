@@ -288,6 +288,28 @@ class ArgumentBuilder:
                 )
                 return None
 
+            # Handle sequence access. Durable "count" aggregations can provide
+            # lists of matching events under c.m. For paths like "m.payload",
+            # use the last event by default.
+            if isinstance(current, (list, tuple)):
+                if not current:
+                    self.logger.warning(
+                        "Context path resolution encountered an empty sequence"
+                    )
+                    return None
+
+                if part.isdigit():
+                    idx = int(part)
+                    if idx >= len(current):
+                        self.logger.warning(
+                            f"Index '{idx}' out of range for sequence of length {len(current)}"
+                        )
+                        return None
+                    current = current[idx]
+                    continue
+
+                current = current[-1]
+
             # Try dict-style access first (more common in durable.lang)
             if isinstance(current, dict):
                 if part not in current:

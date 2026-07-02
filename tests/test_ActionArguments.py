@@ -16,6 +16,14 @@ class DummyFunction:
         pass
 
 
+class DummyContext:
+    """Simple object-style context to mimic durable c.<field> access."""
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
 def func_with_types(value: int, flag: bool, ratio: float) -> None:
     pass
 
@@ -150,6 +158,27 @@ def test_resolve_context_value_single_key(builder):
     context = {"payload": "test"}
     value = builder.resolve_context_value("payload", context)
     assert value == "test"
+
+
+def test_resolve_context_value_list_defaults_to_last_event(builder):
+    """When context value is a list, non-index access uses the last item."""
+    context = {"m": [{"payload": 1}, {"payload": 100}]}
+    value = builder.resolve_context_value("m.payload", context)
+    assert value == 100
+
+
+def test_resolve_context_value_list_with_explicit_index(builder):
+    """List paths may use explicit numeric indices."""
+    context = {"m": [{"payload": 1}, {"payload": 100}]}
+    value = builder.resolve_context_value("m.0.payload", context)
+    assert value == 1
+
+
+def test_resolve_context_value_durable_object_context_list(builder):
+    """Durable-style c.m list resolves non-index paths against last event."""
+    context = DummyContext(m=[{"payload": 1}, {"payload": 100}])
+    value = builder.resolve_context_value("m.payload", context)
+    assert value == 100
 
 
 def test_extract_non_none_type_simple_type(builder):

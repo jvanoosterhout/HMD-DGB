@@ -67,68 +67,68 @@ def test_parse_context_reference_argument(builder):
 
 def test_coerce_string_to_bool_true(builder):
     """Test coercing string representations to bool"""
-    assert builder.coerce_value("true", bool) is True
-    assert builder.coerce_value("1", bool) is True
-    assert builder.coerce_value("yes", bool) is True
-    assert builder.coerce_value("on", bool) is True
+    assert builder.coerce_value("true", (bool,)) is True
+    assert builder.coerce_value("1", (bool,)) is True
+    assert builder.coerce_value("yes", (bool,)) is True
+    assert builder.coerce_value("on", (bool,)) is True
 
 
 def test_coerce_string_to_bool_false(builder):
     """Test coercing false string representations to bool"""
-    assert builder.coerce_value("false", bool) is False
-    assert builder.coerce_value("0", bool) is False
-    assert builder.coerce_value("no", bool) is False
-    assert builder.coerce_value("off", bool) is False
+    assert builder.coerce_value("false", (bool,)) is False
+    assert builder.coerce_value("0", (bool,)) is False
+    assert builder.coerce_value("no", (bool,)) is False
+    assert builder.coerce_value("off", (bool,)) is False
 
 
 def test_coerce_string_to_bool_case_insensitive(builder):
     """Test bool coercion is case-insensitive"""
-    assert builder.coerce_value("TRUE", bool) is True
-    assert builder.coerce_value("FALSE", bool) is False
-    assert builder.coerce_value("Yes", bool) is True
+    assert builder.coerce_value("TRUE", (bool,)) is True
+    assert builder.coerce_value("FALSE", (bool,)) is False
+    assert builder.coerce_value("Yes", (bool,)) is True
 
 
 def test_coerce_string_to_int(builder):
     """Test coercing string to int"""
-    assert builder.coerce_value("42", int) == 42
-    assert builder.coerce_value("-10", int) == -10
-    assert builder.coerce_value("0", int) == 0
+    assert builder.coerce_value("42", (int,)) == 42
+    assert builder.coerce_value("-10", (int,)) == -10
+    assert builder.coerce_value("0", (int,)) == 0
 
 
 def test_coerce_string_to_float(builder):
     """Test coercing string to float"""
-    assert builder.coerce_value("3.14", float) == 3.14
-    assert builder.coerce_value("-2.5", float) == -2.5
-    assert builder.coerce_value("0", float) == 0.0
+    assert builder.coerce_value("3.14", (float,)) == 3.14
+    assert builder.coerce_value("-2.5", (float,)) == -2.5
+    assert builder.coerce_value("0", (float,)) == 0.0
 
 
 def test_coerce_string_to_string(builder):
     """Test string to string coercion (identity)"""
-    assert builder.coerce_value("hello", str) == "hello"
+    assert builder.coerce_value("hello", (str,)) == "hello"
 
 
 def test_coerce_int_to_bool(builder):
     """Test coercing int to bool"""
-    assert builder.coerce_value(1, bool) is True
-    assert builder.coerce_value(0, bool) is False
+    assert builder.coerce_value(1, (bool,)) is True
+    assert builder.coerce_value(0, (bool,)) is False
 
 
 def test_coerce_already_correct_type(builder):
     """Test value already has correct type returns unchanged"""
-    assert builder.coerce_value(42, int) == 42
-    assert builder.coerce_value(True, bool) is True
+    assert builder.coerce_value(42, (int,)) == 42
+    assert builder.coerce_value(True, (bool,)) is True
 
 
 def test_coerce_none_returns_none(builder):
     """Test None value returns None regardless of target type"""
-    assert builder.coerce_value(None, int) is None
-    assert builder.coerce_value(None, bool) is None
+    assert builder.coerce_value(None, (int,)) is None
+    assert builder.coerce_value(None, (bool,)) is None
 
 
-def test_coerce_no_target_type_returns_unchanged(builder):
-    """Test without target type returns value unchanged"""
-    assert builder.coerce_value(42, None) == 42
-    assert builder.coerce_value("hello", None) == "hello"
+def test_coerce_no_target_types_returns_unchanged(builder):
+    """Test without target types returns value unchanged"""
+    assert builder.coerce_value(42) == 42
+    assert builder.coerce_value("hello") == "hello"
 
 
 def test_resolve_context_value_dict_access(builder):
@@ -154,30 +154,61 @@ def test_resolve_context_value_single_key(builder):
 
 def test_extract_non_none_type_simple_type(builder):
     """Test extracting type from simple annotation"""
-    target_type, accepts_none = builder._extract_non_none_type(int)
-    assert target_type is int
+    target_types, accepts_none = builder._extract_non_none_types(int)
+    assert target_types == (int,)
     assert accepts_none is False
 
 
 def test_extract_non_none_type_optional(builder):
     """Test extracting type from Optional annotation"""
-    target_type, accepts_none = builder._extract_non_none_type(Optional[str])
-    assert target_type is str
+    target_types, accepts_none = builder._extract_non_none_types(Optional[str])
+    assert target_types == (str,)
     assert accepts_none is True
 
 
 def test_extract_non_none_type_union_with_none(builder):
     """Test extracting type from Union with None"""
-    target_type, accepts_none = builder._extract_non_none_type(int | None)
-    assert target_type is int
+    target_types, accepts_none = builder._extract_non_none_types(int | None)
+    assert target_types == (int,)
     assert accepts_none is True
 
 
 def test_extract_non_none_type_union_no_none(builder):
     """Test extracting type from Union without None"""
-    target_type, accepts_none = builder._extract_non_none_type(int | str)
-    assert target_type is int
+    target_types, accepts_none = builder._extract_non_none_types(int | str)
+    assert target_types == (int, str)
     assert accepts_none is False
+
+
+def test_coerce_value_prefers_existing_union_type_match(builder):
+    """Int input should stay int when union includes int, even if bytes is first."""
+    result = builder.coerce_value(42, (bytes, str, int, float))
+    assert result == 42
+    assert isinstance(result, int)
+
+
+def test_coerce_value_union_falls_back_to_first_type(builder):
+    """When no union type matches, fallback to the first candidate type."""
+    result = builder.coerce_value("42", (bytes, int))
+    assert result == b"42"
+
+
+def test_coerce_value_union_uses_strict_type_match(builder):
+    """Do not accept subclass matches when checking union candidates."""
+    result = builder.coerce_value(True, (int,))
+    assert result == 1
+    assert type(result) is int
+
+
+def test_parse_argument_definitions_stores_all_union_target_types(builder):
+    """Union annotations are preserved for smarter type matching."""
+
+    def func(value: bytes | str | int | float) -> None:
+        pass
+
+    defs = builder.parse_argument_definitions([{"name": "value", "value": 5}], func)
+
+    assert defs[0].target_types == (bytes, str, int, float)
 
 
 def test_build_call_args_with_literals(builder):
@@ -187,13 +218,13 @@ def test_build_call_args_with_literals(builder):
             name="value",
             value=42,
             is_context_ref=False,
-            target_type=int,
+            target_types=(int,),
         ),
         ArgDefinition(
             name="flag",
             value="true",
             is_context_ref=False,
-            target_type=bool,
+            target_types=(bool,),
         ),
     ]
 
@@ -212,7 +243,7 @@ def test_build_call_args_with_context_refs(builder):
             value="$m.payload",
             is_context_ref=True,
             context_path="m.payload",
-            target_type=str,
+            target_types=(str,),
         ),
     ]
 
@@ -250,13 +281,13 @@ def test_parse_argument_empty_name_raises_value_error(builder):
 
 def test_coerce_invalid_string_to_float_returns_false(builder):
     """Test coercing invalid string to float returns False"""
-    result = builder.coerce_value("not_a_number", float)
+    result = builder.coerce_value("not_a_number", (float,))
     assert result is False
 
 
 def test_coerce_invalid_string_to_bool_returns_false(builder):
     """Test coercing invalid string to bool returns False"""
-    result = builder.coerce_value("invalid_bool", bool)
+    result = builder.coerce_value("invalid_bool", (bool,))
     assert result is False
 
 

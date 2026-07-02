@@ -32,7 +32,7 @@ class ArgDefinition:
     value: Any
     is_context_ref: bool = False
     context_path: str | None = None  # e.g., "m.payload" or "first.payload"
-    target_type: type | None = None
+    target_types: tuple[type, ...] = ()
     accepts_none: bool = False  # True if type is Optional or Union with None
 
 
@@ -52,27 +52,27 @@ class ArgumentBuilder:
         self.logger = logging.getLogger(f"{__name__}.ArgumentBuilder")
 
     @staticmethod
-    def _extract_non_none_type(annotation: Any) -> tuple[type | None, bool]:
+    def _extract_non_none_types(annotation: Any) -> tuple[tuple[type, ...], bool]:
         """
-        Extract the non-None type from a Union/Optional annotation.
+        Extract non-None types from a Union/Optional annotation.
 
         Examples:
-        - int -> (int, False)
-        - int | None -> (int, True)
-        - Optional[str] -> (str, True)
-        - str | int | None -> (str, True) [uses first non-None]
-        - None -> (None, True)
-        - str | int -> (str, False) [uses first, no None]
+        - int -> ((int,), False)
+        - int | None -> ((int,), True)
+        - Optional[str] -> ((str,), True)
+        - str | int | None -> ((str, int), True)
+        - None -> ((), True)
+        - str | int -> ((str, int), False)
 
         Args:
             annotation: Type annotation (possibly Union/Optional)
 
         Returns:
-            Tuple of (extracted_type, accepts_none)
+            Tuple of (extracted_types, accepts_none)
         """
         # Handle None directly
         if annotation is None or annotation is type(None):
-            return (None, True)
+            return ((), True)
 
         # Get origin and args (works for Union, Optional, etc.)
         origin = get_origin(annotation)
@@ -80,17 +80,15 @@ class ArgumentBuilder:
 
         # Not a Union/Optional - return as-is
         if origin not in (Union, types.UnionType):
-            return (annotation, False)
+            return ((annotation,), False)
 
         # Extract non-None types from Union
         non_none_types = [arg for arg in args if arg is not type(None)]
         accepts_none = len(non_none_types) < len(args)
-        # Return first non-None type, or None if only None in union
         if non_none_types:
-            # Prefer more useful types: int over str, bool over others
-            return (non_none_types[0], accepts_none)
+            return (tuple(non_none_types), accepts_none)
         else:
-            return (None, True)
+            return ((), True)
 
     def parse_argument_definitions(
         self,
@@ -138,21 +136,21 @@ class ArgumentBuilder:
 
             # Get target type from function hints
             annotation = hints.get(name, None)
-            target_type, accepts_none = self._extract_non_none_type(annotation)
+            target_types, accepts_none = self._extract_non_none_types(annotation)
 
             arg_def = ArgDefinition(
                 name=name,
                 value=value,
                 is_context_ref=is_context_ref,
                 context_path=context_path,
-                target_type=target_type,
+                target_types=target_types,
                 accepts_none=accepts_none,
             )
             arg_defs.append(arg_def)
 
             self.logger.debug(
                 f"Parsed arg '{name}': context_ref={is_context_ref}, "
-                f"path={context_path}, target_type={target_type}"
+                f"path={context_path}, target_types={target_types}"
             )
 
         return arg_defs
@@ -160,7 +158,7 @@ class ArgumentBuilder:
     def coerce_value(
         self,
         value: Any,
-        target_type: type | None,
+        target_types: tuple[type, ...] = (),
     ) -> Any:
         """
         Coerce a value to the target type.
@@ -168,48 +166,68 @@ class ArgumentBuilder:
         Supports:
         - str -> bool ("true"/"false", "1"/"0", "on"/"off", "yes"/"no" - case insensitive)
         - str -> int/float (via float() then int() if needed)
-        - Any -> Any (identity if no target_type)
+        - Any -> Any (identity if no target_types)
         - None passthrough
 
         Args:
             value: The value to coerce
-            target_type: The target Python type
+            target_types: Candidate Python types in order (for Union annotations)
 
         Returns:
             Coerced value
         """
-        # self.logger.info(f"Coercing value {value} to type {target_type}")
-        if value is None or target_type is None:
+        # self.logger.info(f"Coercing value {value} to types {target_types}")
+        if value is None:
             return value
 
-        # If already correct type, return as-is
-        if isinstance(value, target_type):
+        # If union candidates are provided, return value unchanged only when
+        # current runtime type exactly matches one of those candidates.
+        if target_types:
+            value_type = type(value)
+            for candidate_type in target_types:
+                if value_type is candidate_type:
+                    return value
+
+        # Fallback target is the first candidate type.
+        fallback_type = target_types[0] if target_types else None
+        if fallback_type is None:
+            return value
+
+        # If already exact fallback type, return as-is
+        if type(value) is fallback_type:
             return value
 
         # Handle bool (special case - many string representations)
-        if target_type is bool:
+        if fallback_type is bool:
             return self._coerce_to_bool(value)
 
         # Handle int
-        if target_type is int:
+        if fallback_type is int:
             if isinstance(value, bool):
                 return int(value)
             return int(self._coerce_to_float(value))
 
         # Handle float
-        if target_type is float:
+        if fallback_type is float:
             return self._coerce_to_float(value)
 
         # Handle str
-        if target_type is str:
+        if fallback_type is str:
             return str(value)
+
+        # Handle bytes
+        if fallback_type is bytes:
+            if isinstance(value, str):
+                return value.encode("utf-8")
+            if isinstance(value, bytearray):
+                return bytes(value)
 
         # Default: try direct conversion
         try:
-            return target_type(value)
+            return fallback_type(value)
         except (TypeError, ValueError) as e:
             self.logger.error(
-                f"Could not coerce {value!r} to {target_type}: {e}. Returning False."
+                f"Could not coerce {value!r} to {fallback_type}: {e}. Returning False."
             )
             return False
 
@@ -322,12 +340,12 @@ class ArgumentBuilder:
                 value = arg_def.value
 
             # Coerce to target type
-            coerced = self.coerce_value(value, arg_def.target_type)
+            coerced = self.coerce_value(value, arg_def.target_types)
             call_args[arg_def.name] = coerced
 
             self.logger.debug(
                 f"Arg '{arg_def.name}': "
-                f"raw={value!r}, coerced={coerced!r}, type={arg_def.target_type}"
+                f"raw={value!r}, coerced={coerced!r}, types={arg_def.target_types}"
             )
 
         return call_args

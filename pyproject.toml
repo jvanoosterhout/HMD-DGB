@@ -15,7 +15,8 @@ dependencies = [
     "gpiozero==2.0.1",
     "ha-mqtt-discoverable==0.25.2",
     "durable-rules==2.0.28",
-    "ghapi>=1.0.3"
+    "ghapi>=1.0.3",
+    "lgpio==0.2.2.0"
 ]
 
 [tool.setuptools]

@@ -25,7 +25,7 @@ import time
 class Pin_count(Pin):
     def __init__(self, config: PinModel, dgb_context: DGBContext):
         super().__init__(config=config, dgb_context=dgb_context)
-        self.count_totaal = 0
+        self.count_total = 0
         self.tijd_laatste_count = time.monotonic()
         self.count_laatste_blok = 0
         self.tijd_laatste_block = time.monotonic()
@@ -82,6 +82,15 @@ class Pin_count(Pin):
                 )
             )
             return False
+        if not config.scaling_factor == self.config.scaling_factor:
+            self.logger.warning(
+                'New "scaling_factor" {} for pin {} is different from known "scaling_factor" {}'.format(
+                    config.scaling_factor,
+                    self.config.pin,
+                    self.config.scaling_factor,
+                )
+            )
+            return False
         return True
 
     def ConfigurePin(self):
@@ -112,11 +121,12 @@ class Pin_count(Pin):
         - Checks wether a update is relevant to send (don't want to sent an update every count).
         - In case a webhook was provided, send a POST call to the Home Assistant API with the current pin total count and the rate of change sinds the last update.
         """
-        self.count_totaal = self.count_totaal + 1
+        self.count_total = self.count_total + 1
         self.tijd_laatste_count = time.monotonic()
+        scaled_total = self.count_total / self.config.scaling_factor
 
         self.dgb_context.put_to_binder_queue(
-            "post", {"unique_id": str(self.config.pin), "payload": self.count_totaal}
+            "post", {"unique_id": str(self.config.pin), "payload": scaled_total}
         )
 
     def is_update_relevant(self):
@@ -127,7 +137,7 @@ class Pin_count(Pin):
         Returns:
         bool: True als de update versturen een goed idee is, anders False.
         """
-        tot_nog_geteld = self.count_totaal - self.count_laatste_blok
+        tot_nog_geteld = self.count_total - self.count_laatste_blok
         if tot_nog_geteld == 0:
             self.logger.info("geen counts sinds laatste update")
             return False
@@ -168,24 +178,29 @@ class Pin_count(Pin):
         dict: The current value of the pin.
         """
         duur = time.monotonic() - self.tijd_laatste_block
-        count_laatste_blok = self.count_totaal - self.count_laatste_blok
+        count_laatste_blok = self.count_total - self.count_laatste_blok
         if duur > 0.0:
             self.stroom = count_laatste_blok * 1.0 / duur / self.calibrationFactor
         else:
             self.stroom = 0
 
         self.tijd_laatste_block = time.monotonic()
-        self.count_laatste_blok = self.count_totaal
+        self.count_laatste_blok = self.count_total
+        scaled_total = self.count_total / self.config.scaling_factor
         self.logger.info(
             "pin {} has {} counts total, with {} counts the last {} s, and a flow of {} per second".format(
                 self.config.pin,
-                self.count_totaal,
+                self.count_total,
                 count_laatste_blok,
                 duur,
                 self.stroom,
             )
         )
-        return {"totaal": self.count_totaal, "stroom": self.stroom}
+        return {
+            "totaal": scaled_total,
+            "count_total": scaled_total,
+            "stroom": self.stroom,
+        }
 
     def ProcessPinUpdate(self, config: PinModel) -> bool:
         """
@@ -201,7 +216,7 @@ class Pin_count(Pin):
         """
         self.logger.info(
             "pin {} heeft {} tellen totaal, met een stroom van {} per seconde".format(
-                self.config.pin, self.count_totaal, self.stroom
+                self.config.pin, self.count_total, self.stroom
             )
         )
         return True

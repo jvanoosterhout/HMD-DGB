@@ -253,6 +253,10 @@ class PinCount(BaseModel):
         default=True,
         description="If True, count pulses on the falling edge (when the input becomes inactive).",
     )
+    scaling_factor: float = Field(
+        default=1.0,
+        description="Scale factor for reported totals. Reported count is count_total / scaling_factor.",
+    )
     webhook: str | None = Field(
         default=None,
         description="Endpoint in Home assistant to send state changes to at the moment they occure.",
@@ -267,6 +271,10 @@ class PinCount(BaseModel):
         if self.ptype is not PinType.pincount.value:
             raise ValueError(
                 f"{self.ptype} is not a valid pin configuration. Please leave this value empty in the configuration."
+            )
+        if self.scaling_factor <= 0:
+            raise ValueError(
+                f"{self.scaling_factor} is not valid. scaling_factor must be > 0"
             )
         return self
 

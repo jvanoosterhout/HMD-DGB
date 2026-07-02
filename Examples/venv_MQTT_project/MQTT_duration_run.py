@@ -58,6 +58,7 @@ def main():
         "pull_up": False,  #  bool = Field(default= True, description='If True, the pin will be pulled high with an internal resistor. If False (the default), the pin will be pulled low.')
         "when_activated": True,  # bool = Field(default= True, description='If True, count on rising edge events.')
         "when_deactivated": True,  # bool = Field(default= True, description='If True, count on falling edge events.')
+        "scaling_factor": 1.0,  # float = Field(default= 1.0, description='Reported total is count_total / scaling_factor.')
         "webhook": None,  #  str | None = Field(default= None, description='Endpoint in Home assistant to send state changes to at the moment they occure.')
     }
 

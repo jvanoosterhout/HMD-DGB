@@ -866,6 +866,7 @@ DGB parameters:
 | pull_up       | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `False` |
 | when_activated | If `true`, count on rising edge events (`when_activated`).                  | bool | `True` |
 | when_deactivated | If `true`, count on falling edge events (`when_deactivated`).            | bool | `True` |
+| scaling_factor | Reported total is scaled as `count_total / scaling_factor`. Must be greater than `0`. | float | `1.0` |
 | webhook       | Home Assistant endpoint to send count/state changes to when they occur.    | str  | optional |
 
 ```json
@@ -876,6 +877,7 @@ DGB parameters:
   "pull_up": false,
   "when_activated": true,
   "when_deactivated": true,
+  "scaling_factor": 10.0,
   "webhook": "/api/webhook/gpio_counter_5"
 }
 ```

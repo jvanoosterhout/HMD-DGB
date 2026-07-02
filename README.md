@@ -53,9 +53,8 @@ The power and uniqueness of HMD-DGB is twofold:
       - [timer](#timer)
       - [action](#action)
 - [Architecture](#architecture)
-- [Ideas for improvement (unsorted in priority)](#ideas-for-improvement-unsorted-in-priority)
+- [Ideas for improvement](#ideas-for-improvement)
 - [Known Issues & Limitations](#known-issues--limitations)
-  - [First load issue](#first-load-issue)
   - [Loading configurations & runtime](#loading-configurations--runtime)
   - [restart of the system](#restart-of-the-system)
   - [Loading configurations & runtime](#loading-configurations--runtime-1)
@@ -865,6 +864,8 @@ DGB parameters:
 | ptype         | Functional type of the pin (counting input).                                | str  | `count` |
 | active_state  | If `true`, a HIGH hardware signal maps to a HIGH software state. If `false`, the input polarity is inverted. | bool | `True` |
 | pull_up       | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `False` |
+| when_activated | If `true`, count on rising edge events (`when_activated`).                  | bool | `True` |
+| when_deactivated | If `true`, count on falling edge events (`when_deactivated`).            | bool | `True` |
 | webhook       | Home Assistant endpoint to send count/state changes to when they occur.    | str  | optional |
 
 ```json
@@ -873,6 +874,8 @@ DGB parameters:
   "ptype": "count",
   "active_state": true,
   "pull_up": false,
+  "when_activated": true,
+  "when_deactivated": true,
   "webhook": "/api/webhook/gpio_counter_5"
 }
 ```
@@ -1268,58 +1271,15 @@ The call functions and args (with name and value) can be found in [Devices with 
 
 [top](#table-of-contents)
 
-## Ideas for improvement (unsorted in priority)
+## Ideas for improvement
 
-- Triggering payload as argument in action
-  - <del>Add support to use the payload of the triggering device as argument in the action function</del>
-  - Match best type of arg for multi type function args (now: payload = int & function accepts str|int|bool --> convert int to str; should pass int)
-  - Make it possible to define cast type in configuration (e.g. "value": "$m.payload|int")
-  - <del>Provide README on possible arg names and types per function
-- Improve run actions</del>
-  - Provide log feedback on possible arg names and types per function
-- Improve run actions
-  - <del>Create README documentation on the possible actions (log, action, timer, ...)</del>
-  - Extend run action with the option to perform a post to a ruleset with specific context
-- Improve device, GPIO and binder configuration
-  - Add key to define preferred (re)start state (previous known in HA, or user defined state)
-  - Make configuration possible from yaml
-  - Allow to delete objects:
-    - device (incl HA entities by cleaning up topics)
-    - rules
-    - gpio pins
-- Improve systems capabilities and robustness
-  - <del>Make system sensors configurable</del>
-  - Add RPI device action (e.g. <del>restart</del>, update, reload, ...)
-  - Add log messages over MQTT in RPI device
-  - Split loading and active phase: prevent post from being evaluated while rules may not be in place (e.g. set a system flag: loading = true while new MQTT config messages are being processed)
-  - Make pytest for all files.
-- Improve GPIO (custom or an available package)
-  - Count-type pins: Finalization for water flow meters and pulse counters
-  - Time-series I/O: RF signal handling for advanced sensor integration
-  - PWM support: LED brightness and voltage regulation control
-  - Replace GPIO module for use on different single-board computers (e.g. Mqtt-io, Adafruit Blinka, Libgpio)
-- Improve system setup:
-  - <del>Make example with arg configuration of system name, MQTT and some other system settings (account for secure passwords)</del>
-  - [Won't for now: Pi Zero has no hardware to store secrets truly safely for an automatic system like HMD-DGB] <del>Potentially include a local webserver to set Wi-Fi and MQTT credentials and store them encrypted</del>
-  - Docker deployment: Streamlined container-based setup with pre-configured environment
-  - Define cloud-init (e.g. for Trixi) or similar script to configure a Pi at first boot
-  - (external project) Make tool to write Device, GPIO and Binder configurations (host on local webserver)
-- Improve Devices
-  - <del>Support more HMD device (focus on valve)</del>
-  - Implement time based cover/valve
-  - Implement (distinguish and document) Device configuration specific to HMD-DGB
-    - time_based_state (for cover & valve)
-    - <del>direct_state_transition (for all devices with callback: acknowledge state to HA directly or via binding action)</del>
+See the [Issues](https://github.com/jvanoosterhout/HMD-DGB/issues) labeled as enhancement.
 
 [top](#table-of-contents)
 
 ## Known Issues & Limitations
 
-### First load issue
-
-**Status:** Needs Testing
-
-Currently, it seems that all entities are unavailable at the very first creation of the discoverable topic, even though the code explicitly sets them to "available". A soft restart (whose button may also be unavailable) or similar action fixes the issue.
+Also see the [Issues](https://github.com/jvanoosterhout/HMD-DGB/issues) labeled as bug.
 
 ### Loading configurations & runtime
 

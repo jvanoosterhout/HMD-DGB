@@ -56,6 +56,8 @@ def main():
         "ptype": "count",  #  Literal[PinType.pinin.value] = Field(default= PinType.pinin.value, description='The functional type of the pin like in(put) or out(put).')
         "active_state": True,  #  bool = Field(default= True, description='If True, when the hardware pin state is HIGH, the software pin is HIGH. If False, the input polarity is reversed')
         "pull_up": False,  #  bool = Field(default= True, description='If True, the pin will be pulled high with an internal resistor. If False (the default), the pin will be pulled low.')
+        "when_activated": True,  # bool = Field(default= True, description='If True, count on rising edge events.')
+        "when_deactivated": True,  # bool = Field(default= True, description='If True, count on falling edge events.')
         "webhook": None,  #  str | None = Field(default= None, description='Endpoint in Home assistant to send state changes to at the moment they occure.')
     }
 

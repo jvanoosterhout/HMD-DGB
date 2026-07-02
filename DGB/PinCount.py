@@ -64,6 +64,24 @@ class Pin_count(Pin):
                 )
             )
             return False
+        if not config.when_activated == self.config.when_activated:
+            self.logger.warning(
+                'New "when_activated" {} for pin {} is different from known "when_activated" {}'.format(
+                    config.when_activated,
+                    self.config.pin,
+                    self.config.when_activated,
+                )
+            )
+            return False
+        if not config.when_deactivated == self.config.when_deactivated:
+            self.logger.warning(
+                'New "when_deactivated" {} for pin {} is different from known "when_deactivated" {}'.format(
+                    config.when_deactivated,
+                    self.config.pin,
+                    self.config.when_deactivated,
+                )
+            )
+            return False
         return True
 
     def ConfigurePin(self):
@@ -76,8 +94,12 @@ class Pin_count(Pin):
         )  # ,
         #  active_state = self.config.active_state,
         #  pin_factory = LGPIOFactory(chip=0))
-        self.pin_device.when_activated = self.calback
-        self.pin_device.when_deactivated = self.calback
+        self.pin_device.when_activated = (
+            self.calback if self.config.when_activated else None
+        )
+        self.pin_device.when_deactivated = (
+            self.calback if self.config.when_deactivated else None
+        )
         self.calback()
 
     def calback(self):

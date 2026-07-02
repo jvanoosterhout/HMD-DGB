@@ -245,6 +245,14 @@ class PinCount(BaseModel):
         default=False,
         description="If True, the pin will be pulled high with an internal resistor. If False (the default), the pin will be pulled low.",
     )
+    when_activated: bool = Field(
+        default=True,
+        description="If True, count pulses on the rising edge (when the input becomes active).",
+    )
+    when_deactivated: bool = Field(
+        default=True,
+        description="If True, count pulses on the falling edge (when the input becomes inactive).",
+    )
     webhook: str | None = Field(
         default=None,
         description="Endpoint in Home assistant to send state changes to at the moment they occure.",

@@ -788,7 +788,7 @@ DGB binder run.action.call and (optional) run.action.args:
 
 ### Pins with PinInfo
 
-This section lists the configuration parameters and defaults for GPIO pins. In the background, pins are configured and managed by the [GPIOzero](https://github.com/gpiozero/gpiozero) package. HMD-DGB provides an overlay on this package. Most parameters align with those from [GPIOzero](https://github.com/gpiozero/gpiozero), though all are defined within HMD-DGB and listed below. Additionally, you can find the `run.action.call` IDs and `run.action.args` that can be used in bindings via [Durable Rules](https://github.com/jruizgit/rules).
+This section lists the configuration parameters and defaults for GPIO pins. In the background, pins are configured and managed by the [GPIOzero](https://github.com/gpiozero/gpiozero) package and [lgpio](https://abyz.me.uk/lg/py_lgpio.html) as factory. HMD-DGB provides an overlay on GPIOzero. Most parameters align with those from [GPIOzero](https://github.com/gpiozero/gpiozero), though all available parameters are defined within HMD-DGB and listed below. Additionally, you can find the `run.action.call` IDs and `run.action.args` that can be used in bindings via [Durable Rules](https://github.com/jruizgit/rules).
 
 [top](#table-of-contents)
 
@@ -798,7 +798,7 @@ DGB parameters:
 
 | Parameter      | Description                                                                 | Type | Default |
 |----------------|-----------------------------------------------------------------------------|------|---------|
-| pin            | GPIO pin number to configure, change, or read.                              | int  | required |
+| pin            | BCM GPIO pin number to configure, change, or read.                              | int  | required |
 | ptype          | Functional type of the pin (input).                                         | str  | `in` |
 | active_state   | If `true`, a HIGH hardware signal maps to HIGH software state. If `false`, the input polarity is inverted. | bool | `True` |
 | pull_up        | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `True` |
@@ -824,7 +824,7 @@ DGB parameters:
 
 | Parameter     | Description                                                                 | Type | Default |
 |---------------|-----------------------------------------------------------------------------|------|---------|
-| pin           | GPIO pin number to configure, change, or control.                           | int  | required |
+| pin           | BCM GPIO pin number to configure, change, or control.                           | int  | required |
 | ptype         | Functional type of the pin (output).                                        | str  | `out` |
 | initial       | Initial output value of the pin when it is created.                         | int  | `0` |
 | active_state  | If `true`, a HIGH software state maps to a HIGH hardware output. If `false`, the output polarity is inverted. | bool | `False` |
@@ -860,7 +860,7 @@ DGB parameters:
 
 | Parameter     | Description                                                                 | Type | Default |
 |---------------|-----------------------------------------------------------------------------|------|---------|
-| pin           | GPIO pin number to configure, change, or read.                              | int  | required |
+| pin           | BCM GPIO pin number to configure, change, or read.                              | int  | required |
 | ptype         | Functional type of the pin (counting input).                                | str  | `count` |
 | active_state  | If `true`, a HIGH hardware signal maps to a HIGH software state. If `false`, the input polarity is inverted. | bool | `True` |
 | pull_up       | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `False` |
@@ -892,7 +892,7 @@ DGB parameters:
 
 | Parameter      | Description                                                                 | Type | Default |
 |----------------|-----------------------------------------------------------------------------|------|---------|
-| pin            | GPIO pin used to identify the n‑way output configuration. This pin must also be present in `pin_list`. | int | required |
+| pin            | BCM GPIO pin used to identify the n‑way output configuration. This pin must also be present in `pin_list`. | int | required |
 | pin_list       | List of **≥ 2** GPIO pins controlled by this n‑way output. May include “dummy” pins indicated by `-1`. The `pin` must be included in this list. | list[int] | required |
 | ptype          | Functional type of the pin (n‑way output).                                  | str | `nwayout` |
 | initial        | Initial output values for each pin. Order must match `pin_list`. At most one pin may be HIGH; this may also be a dummy pin. | list[int] | `[0]` |

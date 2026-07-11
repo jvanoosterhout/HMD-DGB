@@ -360,7 +360,7 @@ def finalize_device(device: Discoverable):
     logger = logging.getLogger("DeviceKeeper")
     device.write_config()
     # device.set_availability(True) # build in function does curently not use retain=True
-    device._update_state(state=True, topic=device.availability_topic, retain=True)
+    device._update_state(state="online", topic=device.availability_topic, retain=True)
 
     logger.info(
         "Device of type '{}' with unique_id '{}' created and set discoverable.".format(

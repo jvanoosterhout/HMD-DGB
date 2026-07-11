@@ -157,7 +157,9 @@ class SystemDevices:
             )
         )
         self.dgb_context.add_device(str(self.cpu_temp._entity.unique_id), self.cpu_temp)
-        self.cpu_temp.set_availability(True)
+        self.cpu_temp._update_state(
+            state="online", topic=self.cpu_temp.availability_topic, retain=True
+        )
 
         # CPU Usage Sensor
         self.cpu_usage = sensors.Sensor(
@@ -175,7 +177,9 @@ class SystemDevices:
         self.dgb_context.add_device(
             str(self.cpu_usage._entity.unique_id), self.cpu_usage
         )
-        self.cpu_usage.set_availability(True)
+        self.cpu_usage._update_state(
+            state="online", topic=self.cpu_usage.availability_topic, retain=True
+        )
 
         # Memory Usage Sensor
         self.mem_usage = sensors.Sensor(
@@ -193,7 +197,9 @@ class SystemDevices:
         self.dgb_context.add_device(
             str(self.mem_usage._entity.unique_id), self.mem_usage
         )
-        self.mem_usage.set_availability(True)
+        self.mem_usage._update_state(
+            state="online", topic=self.mem_usage.availability_topic, retain=True
+        )
 
         # Uptime Sensor
         self.uptime = sensors.Sensor(
@@ -209,7 +215,9 @@ class SystemDevices:
                 manual_availability=True,
             )
         )
-        self.uptime.set_availability(True)
+        self.uptime._update_state(
+            state="online", topic=self.uptime.availability_topic, retain=True
+        )
         self.dgb_context.add_device(str(self.uptime._entity.unique_id), self.uptime)
 
         self.logger.info("Node device created with 4 sensors")
@@ -260,7 +268,9 @@ class SystemDevices:
             )
         )
         self.version_sensor.set_state(service_version)
-        self.version_sensor.set_availability(True)
+        self.version_sensor._update_state(
+            state="online", topic=self.version_sensor.availability_topic, retain=True
+        )
         self.dgb_context.add_device(
             str(self.version_sensor._entity.unique_id), self.version_sensor
         )
@@ -288,7 +298,9 @@ class SystemDevices:
             soft_restart_callback,
         )
         self.restart_button.write_config()
-        self.restart_button.set_availability(True)
+        self.restart_button._update_state(
+            state="online", topic=self.restart_button.availability_topic, retain=True
+        )
         self.dgb_context.add_device(
             str(self.restart_button._entity.unique_id), self.restart_button
         )
@@ -316,7 +328,10 @@ class SystemDevices:
             hard_restart_callback,
         )
         self.restart_button.write_config()
-        self.restart_button.set_availability(True)
+        self.restart_button._update_state(
+            state="online", topic=self.restart_button.availability_topic, retain=True
+        )
+
         self.dgb_context.add_device(
             str(self.restart_button._entity.unique_id), self.restart_button
         )

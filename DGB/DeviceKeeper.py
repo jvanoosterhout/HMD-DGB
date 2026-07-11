@@ -143,14 +143,13 @@ class DeviceKeeper(object):
 
         cover_info = sensors.CoverInfo(**payload["EntityInfo"])
 
-        def state_transition_function(payload: Any, dst: bool):
-            if dst:
-                if payload == device._entity.payload_open:
-                    device.open()
-                elif payload == device._entity.payload_close:
-                    device.closed()
-                elif payload == device._entity.payload_stop:
-                    device.stopped()
+        def state_transition_function(payload: Any):
+            if payload == device._entity.payload_open:
+                device.open()
+            elif payload == device._entity.payload_close:
+                device.closed()
+            elif payload == device._entity.payload_stop:
+                device.stopped()
 
         callback = build_callback(
             cover_info, self.dgb_context, dst, state_transition_function
@@ -183,20 +182,19 @@ class DeviceKeeper(object):
 
         valve_info = sensors.ValveInfo(**payload["EntityInfo"])
 
-        def state_transition_function(payload: Any, dst: bool):
-            if dst:
-                if payload == device._entity.payload_open:
-                    device.open()
-                elif payload == device._entity.payload_close:
-                    device.closed()
-                elif payload == device._entity.payload_stop:
-                    pass
-                else:
-                    try:
-                        payload = int(payload)
-                        device.position(payload)
-                    except Exception as e:
-                        self.logger.error("Wrong payload type: %s", e)
+        def state_transition_function(payload: Any):
+            if payload == device._entity.payload_open:
+                device.open()
+            elif payload == device._entity.payload_close:
+                device.closed()
+            elif payload == device._entity.payload_stop:
+                pass
+            else:
+                try:
+                    payload = int(payload)
+                    device.position(payload)
+                except Exception as e:
+                    self.logger.error("Wrong payload type: %s", e)
 
         callback = build_callback(
             valve_info, self.dgb_context, dst, state_transition_function
@@ -234,12 +232,11 @@ class DeviceKeeper(object):
     def configure_switch(self, payload, dst: bool):
         switch_info = sensors.SwitchInfo(**payload["EntityInfo"])
 
-        def state_transition_function(payload: Any, dst: bool):
-            if dst:
-                if payload == device._entity.payload_on:
-                    device.on()
-                elif payload == device._entity.payload_off:
-                    device.off()
+        def state_transition_function(payload: Any):
+            if payload == device._entity.payload_on:
+                device.on()
+            elif payload == device._entity.payload_off:
+                device.off()
 
         callback = build_callback(
             switch_info, self.dgb_context, dst, state_transition_function
@@ -262,7 +259,7 @@ class DeviceKeeper(object):
     def configure_text(self, payload, dst: bool):
         text_info = sensors.TextInfo(**payload["EntityInfo"])
 
-        def state_transition_function(payload: Any, dst: bool):
+        def state_transition_function(payload: Any):
             if dst:
                 device.set_text(payload)
 
@@ -282,13 +279,12 @@ class DeviceKeeper(object):
     def configure_number(self, payload, dst: bool):
         number_info = sensors.NumberInfo(**payload["EntityInfo"])
 
-        def state_transition_function(payload: Any, dst: bool):
-            if dst:
-                try:
-                    payload = int(payload)
-                    device.set_value(payload)
-                except Exception as e:
-                    self.logger.error("Wrong payload type: %s", e)
+        def state_transition_function(payload: Any):
+            try:
+                payload = int(payload)
+                device.set_value(payload)
+            except Exception as e:
+                self.logger.error("Wrong payload type: %s", e)
 
         callback = build_callback(
             number_info, self.dgb_context, dst, state_transition_function
@@ -306,9 +302,8 @@ class DeviceKeeper(object):
     def configure_select(self, payload, dst: bool):
         select_info = sensors.SelectInfo(**payload["EntityInfo"])
 
-        def state_transition_function(payload: Any, dst: bool):
-            if dst:
-                device.select_option(payload)
+        def state_transition_function(payload: Any):
+            device.select_option(payload)
 
         callback = build_callback(
             select_info, self.dgb_context, dst, state_transition_function
@@ -355,8 +350,8 @@ def build_callback(
         dgb_context.put_to_binder_queue(
             "post", {"unique_id": entity.unique_id, "payload": payload}
         )
-        if state_transition_function:
-            state_transition_function(payload, dst)
+        if state_transition_function and dst:
+            state_transition_function(payload)
 
     return callback
 
@@ -364,7 +359,9 @@ def build_callback(
 def finalize_device(device: Discoverable):
     logger = logging.getLogger("DeviceKeeper")
     device.write_config()
-    device.set_availability(True)
+    # device.set_availability(True) # build in function does curently not use retain=True
+    device._update_state(state=True, topic=device.availability_topic, retain=True)
+
     logger.info(
         "Device of type '{}' with unique_id '{}' created and set discoverable.".format(
             device._entity.component, device._entity.unique_id

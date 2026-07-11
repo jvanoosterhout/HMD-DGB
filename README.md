@@ -1241,35 +1241,29 @@ The call functions and args (with name and value) can be found in [Devices with 
 
 ## Architecture
 
+```mermaid
+flowchart TB
+  L1[Home Assistant<br/>Dashboards, automations, entity state]
+  L2[MQTT Messaging Plane<br/>Broker topics for discovery, commands, and state]
+  L3[DGB Service Runtime on SBC<br/>DGBContext, DeviceKeeper, Binder, PinKeeper, SystemDevices]
+  L4[SBC Hardware Plane<br/>GPIO, CPU, RAM, temperature, uptime, connected devices]
+
+  L1 <--> |User intent and observed state| L2
+  L2 <--> |Config, discovery, command, telemetry| L3
+  L3 <--> |Pin control and host metrics| L4
+
+  Ctx[DGBContext<br/>shared runtime state]
+  Dev[Device<br/>references]
+  Bind[Binder<br/>references]
+  Pin[Pin<br/>references]
+
+
+  L3 --- Ctx
+  Ctx --- Dev
+  Ctx --- Bind
+  Ctx --- Pin
 ```
-┌───────────────────────────────┐
-│    Home Assistant             │
-│  (with MQTT integration)      │
-├───────────────────────────────┤
-│     MQTT Broker               │
-│    (Mosquitto/etc)            │
-└───────────────────────────────┘
-               ↑
-               │ MQTT Messages
-               ↓
-┌───────────────────────────────┐
-│  HMD-DGB MQTT                 │
-│  (configuration management    │
-│   on Raspberry Pi)            │
-├───────────────────────────────┤
-│ DeviceKeeper (HMD package)    │
-│ Binder (Durable Rules package)│
-│ PinKeeper (GPIOzero package)  │
-└───────────────────────────────┘
-               ↑
-               │ GPIO Signals
-               ↓
-┌───────────────────────────────┐
-│  Physical GPIO Pins           │
-│  Connected Devices            │
-│  (Relays, Sensors, etc)       │
-└───────────────────────────────┘
-```
+
 
 [top](#table-of-contents)
 

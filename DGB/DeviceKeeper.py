@@ -154,9 +154,7 @@ class DeviceKeeper(object):
         callback = build_callback(
             cover_info, self.dgb_context, dst, state_transition_function
         )
-        settings = Settings(
-            mqtt=self.mqtt_settings, entity=cover_info, manual_availability=True
-        )
+        settings = Settings(mqtt=self.mqtt_settings, entity=cover_info)
 
         device = sensors.Cover(settings, callback)
 
@@ -199,9 +197,7 @@ class DeviceKeeper(object):
         callback = build_callback(
             valve_info, self.dgb_context, dst, state_transition_function
         )
-        settings = Settings(
-            mqtt=self.mqtt_settings, entity=valve_info, manual_availability=True
-        )
+        settings = Settings(mqtt=self.mqtt_settings, entity=valve_info)
         device = sensors.Valve(settings, callback)
 
         self.dgb_context.add_device(
@@ -220,9 +216,7 @@ class DeviceKeeper(object):
     def configure_sensor(self, payload, dst: bool):
         self.logger.info("creating sensor")
         sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
-        settings = Settings(
-            mqtt=self.mqtt_settings, entity=sensor_info, manual_availability=True
-        )
+        settings = Settings(mqtt=self.mqtt_settings, entity=sensor_info)
         device = sensors.Sensor(settings)
         self.dgb_context.add_device(
             str(device._entity.unique_id), device, {"set_state": device.set_state}
@@ -241,9 +235,7 @@ class DeviceKeeper(object):
         callback = build_callback(
             switch_info, self.dgb_context, dst, state_transition_function
         )
-        settings = Settings(
-            mqtt=self.mqtt_settings, entity=switch_info, manual_availability=True
-        )
+        settings = Settings(mqtt=self.mqtt_settings, entity=switch_info)
         device = sensors.Switch(settings, callback)
         self.dgb_context.add_device(
             str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
@@ -266,9 +258,7 @@ class DeviceKeeper(object):
         callback = build_callback(
             text_info, self.dgb_context, dst, state_transition_function
         )
-        settings = Settings(
-            mqtt=self.mqtt_settings, entity=text_info, manual_availability=True
-        )
+        settings = Settings(mqtt=self.mqtt_settings, entity=text_info)
         device = sensors.Text(settings, callback)
 
         self.dgb_context.add_device(
@@ -289,9 +279,7 @@ class DeviceKeeper(object):
         callback = build_callback(
             number_info, self.dgb_context, dst, state_transition_function
         )
-        settings = Settings(
-            mqtt=self.mqtt_settings, entity=number_info, manual_availability=True
-        )
+        settings = Settings(mqtt=self.mqtt_settings, entity=number_info)
         device = sensors.Number(settings, callback)
 
         self.dgb_context.add_device(
@@ -308,9 +296,7 @@ class DeviceKeeper(object):
         callback = build_callback(
             select_info, self.dgb_context, dst, state_transition_function
         )
-        settings = Settings(
-            mqtt=self.mqtt_settings, entity=select_info, manual_availability=True
-        )
+        settings = Settings(mqtt=self.mqtt_settings, entity=select_info)
         device = sensors.Select(settings, callback)
 
         self.dgb_context.add_device(
@@ -322,9 +308,7 @@ class DeviceKeeper(object):
 
     def configure_binary_sensor(self, payload, dst: bool):
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
-        settings = Settings(
-            mqtt=self.mqtt_settings, entity=binarysensor_info, manual_availability=True
-        )
+        settings = Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
         device = sensors.BinarySensor(settings)
         self.dgb_context.add_device(
             str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
@@ -360,7 +344,7 @@ def finalize_device(device: Discoverable):
     logger = logging.getLogger("DeviceKeeper")
     device.write_config()
     # device.set_availability(True) # build in function does curently not use retain=True
-    device._update_state(state="online", topic=device.availability_topic, retain=True)
+    # device._update_state(state="online", topic=device.availability_topic, retain=True)
 
     logger.info(
         "Device of type '{}' with unique_id '{}' created and set discoverable.".format(

@@ -54,6 +54,11 @@ class DGBContext:
     def __init__(self) -> None:
         self._logger = logging.getLogger(f"{__name__}.DGBContext")
 
+        # availability topic for node and service
+        self.availability_topic_ns = ""
+        # availability topic for dgb devices
+        # self.availability_topic_d = ""
+
         self._devices_objects: Dict[str, Discoverable] = {}
         self._devices_functions: Dict[str, FunctionMap] = {}
 

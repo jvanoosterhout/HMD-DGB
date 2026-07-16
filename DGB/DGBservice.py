@@ -55,37 +55,38 @@ class DGBservice:
         self.password = password
         self.system_sensor_update_rate = system_sensor_update_rate
 
-        self.config_topic = topic or f"config/{name}/devices/"
-        self.client_id = f"dgb-{name}"
+        self.client_id = f"dgb-{self.name}"
 
-        self.logger = logging.getLogger(f"DGBMQTT[{name}]")
-        self.logger.info("Starting DGBMQTT")
+        self.logger = logging.getLogger(f"DGBservice[{self.name}]")
+        self.logger.info("Starting DGBservice")
 
         self.shutdown_event = threading.Event()
 
-        # Core context
+        # create context keeper
         self.dgb_context = DGBContext()
-        self.pinkeeper = PinKeeper(dgb_context=self.dgb_context)
-        self.binder = Binder(dgb_context=self.dgb_context)
+        self.dgb_context.availability_topic_ns = f"sys/{self.name}/status"
 
         # MQTT
+        self.config_topic = topic or f"config/{self.name}/devices/"
         self.client: mqtt.Client = self._create_mqtt_client()
         self.mqtt_settings = Settings.MQTT(client=self.client)
+
+        # Core context
+        self.pinkeeper = PinKeeper(dgb_context=self.dgb_context)
+        self.binder = Binder(dgb_context=self.dgb_context)
+        self.devicekeeper = DeviceKeeper(
+            self.mqtt_settings, dgb_context=self.dgb_context
+        )
 
         # System devices (platform + app) - create before DeviceKeeper
         self.system_devices = SystemDevices(
             mqtt_settings=self.mqtt_settings,
             dgb_context=self.dgb_context,
-            device_name=name,
+            device_name=self.name,
             location=self.location,
             dgb_restart=self.restart,  # Pass reference to restart callback
         )
         self.system_devices.create_devices()
-
-        # User-defined devices (from config topic)
-        self.devicekeeper = DeviceKeeper(
-            self.mqtt_settings, dgb_context=self.dgb_context
-        )
 
         # Sensor update loop
         self.sensor_thread = threading.Thread(
@@ -120,15 +121,13 @@ class DGBservice:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.stop()
 
-    def _set_all_unavailable(self):
-        for unique_id, device_obj in list(self.dgb_context._devices_objects.items()):
-            try:
-                if device_obj._settings.manual_availability:
-                    self.logger.info(device_obj.availability_topic)
-                    self.client.publish(device_obj.availability_topic, "offline")
-                    self.logger.info("Setting device %s unavailable", unique_id)
-            except Exception as e:
-                self.logger.warning("Error unpublishing devices: %s", e)
+    def _set_unavailable(self):
+        self.client.publish(
+            self.dgb_context.availability_topic_ns,
+            payload="offline",
+            qos=1,
+            retain=True,
+        )
 
     def run_forever(self) -> None:
         self.start()
@@ -140,7 +139,7 @@ class DGBservice:
         except KeyboardInterrupt:
             self.logger.info("KeyboardInterrupt received")
         finally:
-            self._set_all_unavailable()
+            self._set_unavailable()
             self.stop()
             self.logger.info("Runtime stopped")
 
@@ -162,20 +161,23 @@ class DGBservice:
         client.on_subscribe = self._on_subscribe
 
         client.will_set(
-            f"sys/{self.name}/status",
+            self.dgb_context.availability_topic_ns,
             payload="offline",
-            qos=0,
+            qos=1,
             retain=True,
         )
-
-        client.connect(self.broker, self.port)
-        client.publish(f"sys/{self.name}/status", "online", retain=True)
+        client.connect(
+            self.broker, self.port, keepalive=self.system_sensor_update_rate + 10
+        )
         client.subscribe(self.config_topic + "#", qos=1)
 
         return client
 
     def _on_connect(self, client, userdata, flags, rc, properties):
         self.logger.info("Connected to MQTT broker (rc=%s)", rc)
+        self.client.publish(
+            self.dgb_context.availability_topic_ns, payload="online", qos=1, retain=True
+        )
 
     def _on_subscribe(self, client, userdata, mid, granted_qos, properties):
         self.logger.info("Subscribed (mid=%s qos=%s)", mid, granted_qos)
@@ -227,26 +229,23 @@ class DGBservice:
         Stop the DGB app, restart is handeled by systemd.
 
         """
-        self.logger.info("Restarting DGB app - full reinitialization and cleanup")
+        self.logger.info("Restarting DGB app")
 
         # Restart the service and keep all config (inbound and outbound) info OR do a hard reset clearing all config info
-        self.logger.info("Unpublishing devices from Home Assistant")
-        for unique_id, device_obj in list(self.dgb_context._devices_objects.items()):
-            try:
-                if hard_restart:
-                    self.logger.info(device_obj.config_topic)
+        self._set_unavailable()
+        if hard_restart:
+            self.logger.info("Full reinitialization and cleanup")
+            for unique_id, device_obj in list(
+                self.dgb_context._devices_objects.items()
+            ):
+                try:
                     self.client.publish(device_obj.config_topic, payload=None)
                     self.logger.info("Cleared device %s from registry", unique_id)
                     self.dgb_context._devices_objects.pop(unique_id)
-                else:
-                    device_obj.set_availability(False)
-            except Exception as e:
-                self.logger.warning("Error unpublishing devices: %s", e)
-        if hard_restart:
-            self.logger.info(self.config_topic + "test")
-            self.client.publish(self.config_topic + "test", payload=None)
+                except Exception as e:
+                    self.logger.warning("Error unpublishing devices: %s", e)
+            self.client.publish(self.config_topic, payload=None)
             self.client.loop(timeout=0.5)
-
         self.stop()
 
     # ------------------------------------------------------------------

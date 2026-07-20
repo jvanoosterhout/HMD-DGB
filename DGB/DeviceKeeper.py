@@ -169,7 +169,7 @@ class DeviceKeeper(object):
                 "closing": device.closing,
             },
         )
-        finalize_device(device)
+        self.finalize_device(device)
 
     def configure_valve(self, payload, dst: bool):
         if "time_based_state" in payload["EntityInfo"]:
@@ -211,7 +211,7 @@ class DeviceKeeper(object):
                 "position": device.position,
             },
         )
-        finalize_device(device)
+        self.finalize_device(device)
 
     def configure_sensor(self, payload, dst: bool):
         self.logger.info("creating sensor")
@@ -221,7 +221,7 @@ class DeviceKeeper(object):
         self.dgb_context.add_device(
             str(device._entity.unique_id), device, {"set_state": device.set_state}
         )
-        finalize_device(device)
+        self.finalize_device(device)
 
     def configure_switch(self, payload, dst: bool):
         switch_info = sensors.SwitchInfo(**payload["EntityInfo"])
@@ -240,7 +240,7 @@ class DeviceKeeper(object):
         self.dgb_context.add_device(
             str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
         )
-        finalize_device(device)
+        self.finalize_device(device)
 
     def configure_light(self, payload, dst: bool):
         pass
@@ -264,7 +264,7 @@ class DeviceKeeper(object):
         self.dgb_context.add_device(
             str(device._entity.unique_id), device, {"set_text": device.set_text}
         )
-        finalize_device(device)
+        self.finalize_device(device)
 
     def configure_number(self, payload, dst: bool):
         number_info = sensors.NumberInfo(**payload["EntityInfo"])
@@ -285,7 +285,7 @@ class DeviceKeeper(object):
         self.dgb_context.add_device(
             str(device._entity.unique_id), device, {"set_value": device.set_value}
         )
-        finalize_device(device)
+        self.finalize_device(device)
 
     def configure_select(self, payload, dst: bool):
         select_info = sensors.SelectInfo(**payload["EntityInfo"])
@@ -304,7 +304,7 @@ class DeviceKeeper(object):
             device,
             {"select_option": device.select_option},
         )
-        finalize_device(device)
+        self.finalize_device(device)
 
     def configure_binary_sensor(self, payload, dst: bool):
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
@@ -313,7 +313,19 @@ class DeviceKeeper(object):
         self.dgb_context.add_device(
             str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
         )
-        finalize_device(device)
+        self.finalize_device(device)
+
+    def finalize_device(self, device: Discoverable):
+        device.availability_topic = self.dgb_context.availability_topic_ns
+        device.write_config()
+        # device.set_availability(True) # build in function does curently not use retain=True
+        # device._update_state(state="online", topic=device.availability_topic, retain=True)
+
+        self.logger.info(
+            "Device of type '{}' with unique_id '{}' created and set discoverable.".format(
+                device._entity.component, device._entity.unique_id
+            )
+        )
 
 
 def build_callback(
@@ -338,16 +350,3 @@ def build_callback(
             state_transition_function(payload)
 
     return callback
-
-
-def finalize_device(device: Discoverable):
-    logger = logging.getLogger("DeviceKeeper")
-    device.write_config()
-    # device.set_availability(True) # build in function does curently not use retain=True
-    # device._update_state(state="online", topic=device.availability_topic, retain=True)
-
-    logger.info(
-        "Device of type '{}' with unique_id '{}' created and set discoverable.".format(
-            device._entity.component, device._entity.unique_id
-        )
-    )

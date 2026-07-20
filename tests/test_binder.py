@@ -18,6 +18,9 @@ class DummyDGBContext:
         self._pins = {}
         self.engine_lock = threading.Lock()
         self.bindings = {}
+        self._runtime_phase = "live"
+        self._binding_cycle = {}
+        self._last_live_cycle_id = 0
 
     def get_functions(self, device_id):
         return self._functions.get(device_id, {})
@@ -32,12 +35,31 @@ class DummyDGBContext:
         if device_id not in self.bindings:
             self.bindings[device_id] = set()
         self.bindings[device_id].add(ruleset_name)
+        # Track cycle
+        self._binding_cycle[ruleset_name] = 0
 
     def get_bindings(self, device_id):
         return self.bindings.get(device_id, set())
 
     def put_to_binder_queue(self, cmd, payload):
         pass
+
+    def set_runtime_phase(self, phase):
+        self._runtime_phase = phase
+
+    def get_runtime_phase(self):
+        return self._runtime_phase
+
+    def is_live_dispatch_enabled(self):
+        return self._runtime_phase == "live"
+
+    def is_binding_dispatch_allowed(self, ruleset_name):
+        binding_cycle = self._binding_cycle.get(ruleset_name, 0)
+        return binding_cycle <= self._last_live_cycle_id
+
+    def complete_config_cycle(self, cycle_id):
+        if cycle_id > self._last_live_cycle_id:
+            self._last_live_cycle_id = cycle_id
 
 
 class DummyContext:
@@ -568,6 +590,30 @@ def test_handle_post_with_missing_device_logs_warning(binder, dgb_context):
         with patch.object(binder.logger, "warning") as mock_warning:
             binder._handle_post({"unique_id": "unknown_dev", "data": "test"})
             mock_warning.assert_called_once()
+
+
+def test_handle_post_suppressed_when_not_live(binder, dgb_context):
+    """_handle_post should not dispatch if binding cycle is not yet live (per Option B)."""
+    # Simulate: binding added in cycle 1, but only cycle 0 is live
+    dgb_context._binding_cycle["ruleset1"] = 1
+    dgb_context._last_live_cycle_id = 0
+    dgb_context.bindings["dev1"] = {"ruleset1"}
+
+    with patch("DGB.Binder.post") as mock_post:
+        binder._handle_post({"unique_id": "dev1", "data": "test"})
+        mock_post.assert_not_called()
+
+
+def test_handle_post_allowed_when_live(binder, dgb_context):
+    """_handle_post should dispatch when binding cycle is live (per Option B)."""
+    # Binding in cycle 1, cycle 1 is now live
+    dgb_context._binding_cycle["ruleset1"] = 1
+    dgb_context._last_live_cycle_id = 1
+    dgb_context.bindings["dev1"] = {"ruleset1"}
+
+    with patch("DGB.Binder.post") as mock_post:
+        binder._handle_post({"unique_id": "dev1", "data": "test"})
+        mock_post.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

@@ -344,11 +344,21 @@ class Binder:
                 self.logger.warning(
                     "no rulesets found (Yet) for device %s", payload["unique_id"]
                 )
-                # TODO: this cannot jet be an error: may throw an error if rule is registerd, device is build, but not jet registerd and fired first callback
-                # raise KeyError(f"Device '{payload['unique_id']}' is not registered or has no bindings" )
-
         else:
             rulesets = [payload["rulesetname"]]
+
+        # Filter rulesets by their cycle status: only allow dispatch for live bindings
+        allowed_rulesets = [
+            rs for rs in rulesets if self.dgb_context.is_binding_dispatch_allowed(rs)
+        ]
+
+        if not allowed_rulesets:
+            self.logger.info(
+                "Suppressing post event: no bindings are live yet: %s", payload
+            )
+            return
+
+        rulesets = allowed_rulesets
 
         try:
             with self.dgb_context.engine_lock:

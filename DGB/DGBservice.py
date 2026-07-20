@@ -94,6 +94,11 @@ class DGBservice:
             name="system-sensors",
             daemon=True,
         )
+        self.config_thread = threading.Thread(
+            target=self.config_dispatcher,
+            name="config-dispatcher",
+            daemon=True,
+        )
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -102,6 +107,7 @@ class DGBservice:
     def start(self) -> None:
         self.logger.info("Starting runtime")
         self.binder.start_event_dispatcher()
+        self.config_thread.start()
         self.client.loop_start()
         self.sensor_thread.start()
 
@@ -117,6 +123,7 @@ class DGBservice:
         self.client.disconnect()
 
         self.dgb_context.put_to_binder_queue("shutdown", {})
+        self.dgb_context.put_to_config_queue("shutdown", {})
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.stop()
@@ -195,9 +202,56 @@ class DGBservice:
             self.logger.error(f"Line: {e.lineno}, column: {e.colno}, char: {e.pos}")
             return
 
-        self._handle_devices(payload)
-        self._handle_pins(payload)
-        self._handle_bindings(payload)
+        self.dgb_context.put_to_config_queue("apply", payload)
+
+    def config_dispatcher(self) -> None:
+        while True:
+            msg = self.dgb_context.config_queue.get()
+
+            if msg.cmd == "shutdown":
+                self.logger.info("Config dispatcher shutdown requested")
+                self.dgb_context.config_queue.task_done()
+                break
+
+            if msg.cmd == "apply":
+                self._run_config_apply_cycle(msg.payload)
+                self.dgb_context.config_queue.task_done()
+
+    def _run_config_apply_cycle(self, payload: dict) -> None:
+        cycle_id = self.dgb_context.begin_config_apply_cycle()
+        payload_hash = self.dgb_context.compute_payload_hash(payload)
+
+        # Idempotency check: skip if this exact payload was already applied.
+        if self.dgb_context.payload_already_applied(payload_hash):
+            self.logger.info(
+                "Config apply cycle %s: payload already applied (idempotent skip)",
+                cycle_id,
+            )
+            return
+
+        self.logger.info("Config apply cycle %s entered creation phase", cycle_id)
+
+        try:
+            self._handle_devices(payload)
+            self._handle_pins(payload)
+            self._handle_bindings(payload)
+
+            self.dgb_context.set_runtime_phase("apply")
+            self.logger.info("Config apply cycle %s entered apply phase", cycle_id)
+        except Exception:
+            self.dgb_context.set_runtime_phase("blocked")
+            self.logger.exception(
+                "Config apply cycle %s failed; runtime phase set to blocked", cycle_id
+            )
+            return
+
+        # Transition to live.
+        self.dgb_context.set_runtime_phase("live")
+        self.dgb_context.complete_config_cycle(cycle_id)
+        self.logger.info("Config apply cycle %s entered live phase", cycle_id)
+
+        # Record this payload as applied for future dedup.
+        self.dgb_context.record_payload_hash(payload_hash)
 
     # ------------------------------------------------------------------
     # Payload handlers

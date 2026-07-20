@@ -1,7 +1,7 @@
 import pytest
 import queue
 
-from DGB.DGBContext import DGBContext, BinderMessage
+from DGB.DGBContext import DGBContext, BinderMessage, ConfigMessage
 
 
 # ---------------------------------------------------------------------------
@@ -269,3 +269,92 @@ def test_normalize_ruleset_with_multiple_dollar_signs(dgb_context):
     bindings = dgb_context.get_bindings("dev1")
     assert "ruleset" in bindings
     assert "ruleset$extra$more" not in bindings
+
+
+# ---------------------------------------------------------------------------
+# Level 1: Runtime phase / config apply cycle
+# ---------------------------------------------------------------------------
+
+
+def test_runtime_phase_defaults_to_live(dgb_context):
+    """Default phase is live for backward compatibility."""
+    assert dgb_context.get_runtime_phase() == "live"
+    assert dgb_context.is_live_dispatch_enabled() is True
+
+
+def test_begin_config_apply_cycle_sets_creation_phase(dgb_context):
+    """Starting a config cycle increments id and enters creation phase."""
+    cycle = dgb_context.begin_config_apply_cycle()
+
+    assert cycle == 1
+    assert dgb_context.get_config_apply_cycle_id() == 1
+    assert dgb_context.get_runtime_phase() == "creation"
+    assert dgb_context.is_live_dispatch_enabled() is False
+
+
+def test_set_runtime_phase_roundtrip(dgb_context):
+    """Runtime phase can be changed explicitly."""
+    dgb_context.set_runtime_phase("apply")
+    assert dgb_context.get_runtime_phase() == "apply"
+    assert dgb_context.is_live_dispatch_enabled() is False
+
+    dgb_context.set_runtime_phase("live")
+    assert dgb_context.get_runtime_phase() == "live"
+    assert dgb_context.is_live_dispatch_enabled() is True
+
+
+# ---------------------------------------------------------------------------
+# Level 1: Stage 11 - Buffering and idempotency
+# ---------------------------------------------------------------------------
+
+
+def test_payload_hash_idempotency(dgb_context):
+    """Payload hash dedup works correctly."""
+    payload = {"Devices": [], "Pins": []}
+    hash1 = dgb_context.compute_payload_hash(payload)
+
+    assert dgb_context.payload_already_applied(hash1) is False
+
+    dgb_context.record_payload_hash(hash1)
+
+    assert dgb_context.payload_already_applied(hash1) is True
+
+
+def test_payload_hash_different_payloads(dgb_context):
+    """Different payloads produce different hashes."""
+    payload1 = {"Devices": [], "Pins": []}
+    payload2 = {"Devices": [{"id": "1"}], "Pins": []}
+
+    hash1 = dgb_context.compute_payload_hash(payload1)
+    hash2 = dgb_context.compute_payload_hash(payload2)
+
+    assert hash1 != hash2
+
+
+def test_payload_hash_deterministic(dgb_context):
+    """Same payload produces same hash (deterministic)."""
+    payload = {"Devices": [{"id": "1"}], "Pins": [{"pin": 17}]}
+
+    hash1 = dgb_context.compute_payload_hash(payload)
+    hash2 = dgb_context.compute_payload_hash(payload)
+
+    assert hash1 == hash2
+
+
+def test_put_to_config_queue(dgb_context):
+    """Test putting messages into config queue."""
+    dgb_context.put_to_config_queue("apply", {"Devices": []})
+
+    msg = dgb_context.config_queue.get_nowait()
+    assert isinstance(msg, ConfigMessage)
+    assert msg.cmd == "apply"
+    assert msg.payload == {"Devices": []}
+
+
+def test_put_config_shutdown_command(dgb_context):
+    """Test putting config shutdown command."""
+    dgb_context.put_to_config_queue("shutdown", {})
+
+    msg = dgb_context.config_queue.get_nowait()
+    assert msg.cmd == "shutdown"
+    assert msg.payload == {}

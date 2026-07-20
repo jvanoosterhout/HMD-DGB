@@ -21,7 +21,7 @@ from DGB.PinCount import Pin_count
 from DGB.PinNWayOut import Pin_N_way_out
 from DGB.Pin import Pin
 from DGB.PinModels import PinType, PinModel
-from DGB.DGBContext import DGBContext
+from DGB.DGBContext import DGBContext, DuplicatePolicy
 import logging
 
 
@@ -76,7 +76,9 @@ class PinKeeper(object):
         self.logger.info("Got an unrecognized configuration.")
         return False
 
-    def SetPin(self, config: PinModel) -> bool:
+    def SetPin(
+        self, config: PinModel, policy: DuplicatePolicy = DuplicatePolicy.SKIP
+    ) -> bool:
         """
         Set the configuration of a pin, in case the pin does not jet exists, it sends to creates one.
 
@@ -86,6 +88,9 @@ class PinKeeper(object):
         Returns:
         bool: True if succesfully made or new settings succesfully processed, otherwise False.
         """
+        if not self._handle_existing_pin(config.pin, policy):
+            return False
+
         pin_id = self.DoIExist(config)
         if isinstance(pin_id, bool):  # pin does not exist jet
             if config.ptype == PinType.pinnwayout.value:
@@ -118,6 +123,31 @@ class PinKeeper(object):
                 return self.PinList[pin_id].ProcessPinUpdate(config)
             else:
                 return False
+
+    def _handle_existing_pin(
+        self,
+        pin: int,
+        policy: DuplicatePolicy,
+    ) -> bool:
+        """
+        Check whether a pin already exists and apply policy.
+
+        Returns:
+            True  -> caller may proceed with creating/updating the pin
+            False -> caller must skip
+        """
+        existing = next((p for p in self.PinList if p.config.pin == pin), None)
+        if existing is None:  # pin does not exist yet
+            return True
+
+        if policy == DuplicatePolicy.SKIP:
+            self.logger.warning(f"Pin {pin} already exists -- skipping")
+            return False
+
+        self.logger.warning(
+            f"Pin {pin} already exists -- unknown policy '{policy}', skipping"
+        )
+        return False
 
     def DoIExist(self, config: PinModel):
         """

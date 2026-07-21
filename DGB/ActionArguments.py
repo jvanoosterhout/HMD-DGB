@@ -36,6 +36,16 @@ class ArgDefinition:
     accepts_none: bool = False  # True if type is Optional or Union with None
 
 
+@dataclass
+class ResolvedAction:
+    """Normalized callable action definition resolved against a function map."""
+
+    unique_id: str
+    call_name: str
+    action_fn: Callable
+    arg_defs: list[ArgDefinition]
+
+
 class ArgumentBuilder:
     """
     Builds and coerces arguments for function calls from durable.lang context.
@@ -371,3 +381,40 @@ class ArgumentBuilder:
             )
 
         return call_args
+
+    def resolve_callable_action(
+        self,
+        action_payload: dict[str, Any],
+        function_resolver: Callable[[str, str], Callable | None],
+        source_label: str = "action",
+        allow_context_refs: bool = True,
+    ) -> ResolvedAction:
+        """
+        Resolve and validate an action-like payload to a callable + typed arg defs.
+
+        Expected payload shape:
+          {"unique_id": str, "call": str, "args": list[dict] (optional)}
+        """
+        unique_id = action_payload.get("unique_id")
+        call_name = action_payload.get("call")
+        args_config = action_payload.get("args", None)
+
+        if not isinstance(unique_id, str) or not unique_id:
+            raise ValueError(f"{source_label}.unique_id must be non-empty str")
+        if not isinstance(call_name, str) or not call_name:
+            raise ValueError(f"{source_label}.call must be non-empty str")
+
+        action_fn = function_resolver(unique_id, call_name)
+        if action_fn is None:
+            raise KeyError(f"No action function '{call_name}' for device '{unique_id}'")
+
+        arg_defs = self.parse_argument_definitions(args_config, action_fn)
+        if not allow_context_refs and any(arg.is_context_ref for arg in arg_defs):
+            raise ValueError(f"{source_label}.args does not support context references")
+
+        return ResolvedAction(
+            unique_id=unique_id,
+            call_name=call_name,
+            action_fn=action_fn,
+            arg_defs=arg_defs,
+        )

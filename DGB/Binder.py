@@ -175,22 +175,22 @@ class Binder:
             call_name: Function name to call
             args_config: Optional list of {"name": str, "value": Any or "$c.path_to_value"} argument definitions
         """
-        if not isinstance(unique_id, str) or not unique_id:
-            raise ValueError(
-                f"action.unique_id must be non-empty str (rule '{rule_name}')"
-            )
-        if not isinstance(call_name, str) or not call_name:
-            raise ValueError(f"action.call must be non-empty str (rule '{rule_name}')")
-
-        action_fn = self.dgb_context.get_functions(unique_id).get(call_name)
-        if action_fn is None:
-            raise KeyError(
-                f"No action function '{call_name}' for device '{unique_id}' "
-                f"(rule '{rule_name}')"
-            )
-
-        # Parse and validate argument definitions
-        arg_defs = self.arg_builder.parse_argument_definitions(args_config, action_fn)
+        resolved = self.arg_builder.resolve_callable_action(
+            action_payload={
+                "unique_id": unique_id,
+                "call": call_name,
+                "args": args_config,
+            },
+            function_resolver=lambda uid, call: self.dgb_context.get_functions(uid).get(
+                call
+            ),
+            source_label="action",
+            allow_context_refs=True,
+        )
+        unique_id = resolved.unique_id
+        call_name = resolved.call_name
+        action_fn = resolved.action_fn
+        arg_defs = resolved.arg_defs
 
         self.logger.info(
             "building action for %s.%s with %d args",
@@ -387,10 +387,7 @@ class Binder:
         for path, all_parent in iter_parents(bind, "all"):
             for _, id_parent in iter_parents(all_parent["all"], "unique_id"):
                 uid = id_parent["unique_id"]
-                if (
-                    self.dgb_context.get_device(uid) is None
-                    and self.dgb_context.get_pin(uid) is None
-                ):
+                if self.dgb_context.get_object(uid) is None:
                     raise KeyError(
                         f"Device '{uid}' not found in dgb_context for binding"
                     )

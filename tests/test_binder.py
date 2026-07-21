@@ -14,8 +14,7 @@ from DGB.Binder import Binder, TimerRegistry, iter_parents
 class DummyDGBContext:
     def __init__(self):
         self._functions = {}
-        self._devices = {}
-        self._pins = {}
+        self._objects = {}
         self.engine_lock = threading.Lock()
         self.bindings = {}
         self._runtime_phase = "live"
@@ -25,11 +24,8 @@ class DummyDGBContext:
     def get_functions(self, device_id):
         return self._functions.get(device_id, {})
 
-    def get_device(self, device_id):
-        return self._devices.get(device_id)
-
-    def get_pin(self, pin_id):
-        return self._pins.get(pin_id)
+    def get_object(self, unique_id):
+        return self._objects.get(unique_id)
 
     def add_binding(self, device_id, ruleset_name):
         if device_id not in self.bindings:

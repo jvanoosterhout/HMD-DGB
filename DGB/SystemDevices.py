@@ -156,7 +156,7 @@ class SystemDevices:
             )
         )
         self.cpu_temp.availability_topic = self.dgb_context.availability_topic_ns
-        self.dgb_context.add_device(str(self.cpu_temp._entity.unique_id), self.cpu_temp)
+        self.dgb_context.add_object(str(self.cpu_temp._entity.unique_id), self.cpu_temp)
         # self.cpu_temp._update_state(
         #     state="online", topic=self.cpu_temp.availability_topic, retain=True
         # )
@@ -174,7 +174,7 @@ class SystemDevices:
             )
         )
         self.cpu_usage.availability_topic = self.dgb_context.availability_topic_ns
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(self.cpu_usage._entity.unique_id), self.cpu_usage
         )
         # self.cpu_usage._update_state(
@@ -194,7 +194,7 @@ class SystemDevices:
             )
         )
         self.mem_usage.availability_topic = self.dgb_context.availability_topic_ns
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(self.mem_usage._entity.unique_id), self.mem_usage
         )
         # self.mem_usage._update_state(
@@ -218,7 +218,7 @@ class SystemDevices:
         # self.uptime._update_state(
         #     state="online", topic=self.uptime.availability_topic, retain=True
         # )
-        self.dgb_context.add_device(str(self.uptime._entity.unique_id), self.uptime)
+        self.dgb_context.add_object(str(self.uptime._entity.unique_id), self.uptime)
 
         self.logger.info("Node device created with 4 sensors")
 
@@ -271,7 +271,7 @@ class SystemDevices:
         # self.version_sensor._update_state(
         #     state="online", topic=self.version_sensor.availability_topic, retain=True
         # )
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(self.version_sensor._entity.unique_id), self.version_sensor
         )
 
@@ -301,7 +301,7 @@ class SystemDevices:
         # self.restart_button._update_state(
         #     state="online", topic=self.restart_button.availability_topic, retain=True
         # )
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(self.restart_button._entity.unique_id), self.restart_button
         )
 
@@ -331,7 +331,7 @@ class SystemDevices:
         # self.restart_button._update_state(
         #     state="online", topic=self.restart_button.availability_topic, retain=True
         # )
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(self.restart_button._entity.unique_id), self.restart_button
         )
 

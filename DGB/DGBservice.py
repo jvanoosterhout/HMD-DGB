@@ -31,7 +31,14 @@ from DGB.DeviceKeeper import DeviceKeeper
 from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import PinModel
 from DGB.Binder import Binder
+from DGB.ActionArguments import ArgumentBuilder
 from DGB.DGBContext import DGBContext
+from DGB.StartupStateInitializer import StartupStateInitializer
+from DGB.StartupPolicy import (
+    StartupPolicy,
+    parse_startup_policy,
+    resolve_state_sources,
+)
 from DGB.SystemDevices import SystemDevices
 
 
@@ -54,6 +61,7 @@ class DGBservice:
         self.username = username
         self.password = password
         self.system_sensor_update_rate = system_sensor_update_rate
+        self.arg_builder = ArgumentBuilder()
 
         self.client_id = f"dgb-{self.name}"
 
@@ -68,6 +76,7 @@ class DGBservice:
 
         # MQTT
         self.config_topic = topic or f"config/{self.name}/devices/"
+        self.state_shadow_prefix = f"state/{self.name}/"
         self.client: mqtt.Client = self._create_mqtt_client()
         self.mqtt_settings = Settings.MQTT(client=self.client)
 
@@ -76,6 +85,13 @@ class DGBservice:
         self.binder = Binder(dgb_context=self.dgb_context)
         self.devicekeeper = DeviceKeeper(
             self.mqtt_settings, dgb_context=self.dgb_context
+        )
+        self.startup_state = StartupStateInitializer(
+            dgb_context=self.dgb_context,
+            mqtt_client=self.client,
+            logger=self.logger,
+            arg_builder=self.arg_builder,
+            state_shadow_prefix=self.state_shadow_prefix,
         )
 
         # System devices (platform + app) - create before DeviceKeeper
@@ -192,6 +208,10 @@ class DGBservice:
     def _on_message(self, client, userdata, msg):
         self.logger.info("Message received on %s", msg.topic)
 
+        if self.startup_state.is_state_shadow_topic(msg.topic):
+            self.startup_state.handle_state_shadow_message(msg)
+            return
+
         if self.config_topic not in msg.topic:
             return
 
@@ -224,12 +244,20 @@ class DGBservice:
         # Idempotency check: skip if this exact payload was already applied.
         if self.dgb_context.payload_already_applied(payload_hash):
             self.logger.info(
-                "Config apply cycle %s: payload already applied (idempotent skip)",
+                "Config cycle %s: payload already applied (idempotent skip)",
                 cycle_id,
             )
             return
 
-        self.logger.info("Config apply cycle %s entered creation phase", cycle_id)
+        self.logger.info("Config cycle %s entered creation phase", cycle_id)
+
+        # Parse and normalize startup_policy (Stage 2)
+        startup_policy: StartupPolicy = parse_startup_policy(
+            payload.get("startup_policy", {})
+        )
+
+        # Resolve winning state source per unique_id (Stage 3)
+        decisions = resolve_state_sources(startup_policy.state_initialization)
 
         try:
             self._handle_devices(payload)
@@ -237,18 +265,21 @@ class DGBservice:
             self._handle_bindings(payload)
 
             self.dgb_context.set_runtime_phase("apply")
-            self.logger.info("Config apply cycle %s entered apply phase", cycle_id)
+            self.logger.info("Config cycle %s entered apply phase", cycle_id)
+            self.startup_state.register_retained_subscriptions(decisions)
+            self.startup_state.resolve_retained_sources(decisions)
+            self.startup_state.apply_configured_defaults(decisions)
         except Exception:
             self.dgb_context.set_runtime_phase("blocked")
             self.logger.exception(
-                "Config apply cycle %s failed; runtime phase set to blocked", cycle_id
+                "Config cycle %s failed; runtime phase set to blocked", cycle_id
             )
             return
 
         # Transition to live.
         self.dgb_context.set_runtime_phase("live")
         self.dgb_context.complete_config_cycle(cycle_id)
-        self.logger.info("Config apply cycle %s entered live phase", cycle_id)
+        self.logger.info("Config cycle %s entered live phase", cycle_id)
 
         # Record this payload as applied for future dedup.
         self.dgb_context.record_payload_hash(payload_hash)
@@ -289,13 +320,13 @@ class DGBservice:
         self._set_unavailable()
         if hard_restart:
             self.logger.info("Full reinitialization and cleanup")
-            for unique_id, device_obj in list(
-                self.dgb_context._devices_objects.items()
-            ):
+            for unique_id, dgb_obj in self.dgb_context.iter_objects():
                 try:
-                    self.client.publish(device_obj.config_topic, payload=None)
+                    if not hasattr(dgb_obj, "config_topic"):
+                        continue
+                    self.client.publish(dgb_obj.config_topic, payload=None)
                     self.logger.info("Cleared device %s from registry", unique_id)
-                    self.dgb_context._devices_objects.pop(unique_id)
+                    self.dgb_context.remove_object(unique_id)
                 except Exception as e:
                     self.logger.warning("Error unpublishing devices: %s", e)
             self.client.publish(self.config_topic, payload=None)

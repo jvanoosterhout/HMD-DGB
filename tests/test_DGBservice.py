@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import json
+from contextlib import contextmanager
 
 from DGB.DGBservice import DGBservice
 
@@ -11,17 +12,40 @@ from DGB.DGBservice import DGBservice
 
 
 @pytest.fixture
-def mock_mqtt_client():
-    """Create a mock MQTT client"""
-    client = MagicMock()
-    return client
+def make_service():
+    """Create DGBservice with patched constructor dependencies."""
+
+    def _make_service(**kwargs):
+        with (
+            patch("DGB.DGBservice.SystemDevices") as mock_system_devices_class,
+            patch("DGB.DGBservice.mqtt.Client") as mock_client_class,
+            patch("DGB.DGBservice.Settings.MQTT") as mock_settings_mqtt,
+        ):
+            mock_client = MagicMock()
+            mock_client_class.return_value = mock_client
+            mock_settings_mqtt.return_value = MagicMock()
+            mock_system_devices_class.return_value = MagicMock()
+
+            service = DGBservice(
+                name=kwargs.pop("name", "test"),
+                broker=kwargs.pop("broker", "localhost"),
+                **kwargs,
+            )
+
+        return service, mock_client
+
+    return _make_service
 
 
-@pytest.fixture
-def mock_mqtt_settings():
-    """Create a mock MQTT settings object"""
-    settings = MagicMock()
-    return settings
+@contextmanager
+def patched_apply_handlers(service):
+    """Patch payload handlers during config-cycle tests."""
+    with (
+        patch.object(service, "_handle_devices") as mock_devices,
+        patch.object(service, "_handle_pins") as mock_pins,
+        patch.object(service, "_handle_bindings") as mock_bindings,
+    ):
+        yield mock_devices, mock_pins, mock_bindings
 
 
 # ---------------------------------------------------------------------------
@@ -29,21 +53,10 @@ def mock_mqtt_settings():
 # ---------------------------------------------------------------------------
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_init(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_init(make_service):
     """Test DGBservice initialization sets core attributes"""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices = MagicMock()
-    mock_system_devices_class.return_value = mock_system_devices
-
-    service = DGBservice(
+    service, _ = make_service(
         name="test-device",
-        broker="localhost",
         port=1883,
         username="user",
         password="pass",
@@ -56,79 +69,30 @@ def test_dgbservice_init(
     assert service.password == "pass"
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_client_id_format(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_client_id_format(make_service):
     """Test MQTT client ID follows expected format"""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(
-        name="garage",
-        broker="localhost",
-    )
+    service, _ = make_service(name="garage")
 
     assert service.client_id == "dgb-garage"
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_config_topic_default(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_config_topic_default(make_service):
     """Test default config topic format"""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(
-        name="test",
-        broker="localhost",
-    )
+    service, _ = make_service(name="test")
 
     assert service.config_topic == "config/test/devices/"
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_config_topic_custom(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_config_topic_custom(make_service):
     """Test custom config topic"""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(
-        name="test",
-        broker="localhost",
-        topic="custom/topic/",
-    )
+    service, _ = make_service(name="test", topic="custom/topic/")
 
     assert service.config_topic == "custom/topic/"
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_shutdown_event_not_set_initially(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_shutdown_event_not_set_initially(make_service):
     """Test shutdown event is not set on initialization"""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(
-        name="test",
-        broker="localhost",
-    )
+    service, _ = make_service(name="test")
 
     assert not service.shutdown_event.is_set()
 
@@ -138,44 +102,18 @@ def test_dgbservice_shutdown_event_not_set_initially(
 # ---------------------------------------------------------------------------
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_stop_sets_shutdown_event(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_stop_sets_shutdown_event(make_service):
     """Test stop() sets shutdown event"""
-    mock_client = MagicMock()
-    mock_client_class.return_value = mock_client
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(
-        name="test",
-        broker="localhost",
-    )
+    service, _ = make_service(name="test")
 
     service.stop()
 
     assert service.shutdown_event.is_set()
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_stop_is_idempotent(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_stop_is_idempotent(make_service):
     """Test calling stop() twice doesn't cause issues"""
-    mock_client = MagicMock()
-    mock_client_class.return_value = mock_client
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(
-        name="test",
-        broker="localhost",
-    )
+    service, _ = make_service(name="test")
 
     service.stop()
     service.stop()  # Should not raise
@@ -183,22 +121,9 @@ def test_dgbservice_stop_is_idempotent(
     assert service.shutdown_event.is_set()
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_exit_calls_stop(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_exit_calls_stop(make_service):
     """Test __exit__ calls stop()"""
-    mock_client = MagicMock()
-    mock_client_class.return_value = mock_client
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(
-        name="test",
-        broker="localhost",
-    )
+    service, _ = make_service(name="test")
 
     service.__exit__(None, None, None)
 
@@ -210,87 +135,34 @@ def test_dgbservice_exit_calls_stop(
 # ---------------------------------------------------------------------------
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_stop_before_start(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_stop_before_start(make_service):
     """Test stopping service without starting it"""
-    mock_client = MagicMock()
-    mock_client_class.return_value = mock_client
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(
-        name="test",
-        broker="localhost",
-    )
+    service, _ = make_service(name="test")
 
     service.stop()  # Should not raise even though start() wasn't called
 
     assert service.shutdown_event.is_set()
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_on_connect_callback_exists(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_on_connect_callback_exists(make_service):
     """Test on_connect callback is registered"""
-    mock_client = MagicMock()
-    mock_client_class.return_value = mock_client
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    DGBservice(
-        name="test",
-        broker="localhost",
-    )
+    _, mock_client = make_service(name="test")
 
     # Verify callback was set
     assert mock_client.on_connect is not None
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_on_message_callback_exists(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_on_message_callback_exists(make_service):
     """Test on_message callback is registered"""
-    mock_client = MagicMock()
-    mock_client_class.return_value = mock_client
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    DGBservice(
-        name="test",
-        broker="localhost",
-    )
+    _, mock_client = make_service(name="test")
 
     # Verify callback was set
     assert mock_client.on_message is not None
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_dgbservice_create_mqtt_client_calls_connect(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_dgbservice_create_mqtt_client_calls_connect(make_service):
     """Test _create_mqtt_client connects to broker"""
-    mock_client = MagicMock()
-    mock_client_class.return_value = mock_client
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    DGBservice(
-        name="test",
-        broker="broker.local",
-        port=1883,
-    )
+    _, mock_client = make_service(name="test", broker="broker.local", port=1883)
 
     # Verify connect was called with correct args
     mock_client.connect.assert_called()
@@ -301,24 +173,11 @@ def test_dgbservice_create_mqtt_client_calls_connect(
 # ---------------------------------------------------------------------------
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_run_config_apply_cycle_sets_live_on_success(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_run_config_apply_cycle_sets_live_on_success(make_service):
     """A successful config cycle should end in live phase."""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
+    service, _ = make_service(name="test")
 
-    service = DGBservice(name="test", broker="localhost")
-
-    with (
-        patch.object(service, "_handle_devices") as mock_devices,
-        patch.object(service, "_handle_pins") as mock_pins,
-        patch.object(service, "_handle_bindings") as mock_bindings,
-    ):
+    with patched_apply_handlers(service) as (mock_devices, mock_pins, mock_bindings):
         service._run_config_apply_cycle({})
 
     assert mock_devices.called
@@ -327,18 +186,9 @@ def test_run_config_apply_cycle_sets_live_on_success(
     assert service.dgb_context.get_runtime_phase() == "live"
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_run_config_apply_cycle_sets_blocked_on_failure(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_run_config_apply_cycle_sets_blocked_on_failure(make_service):
     """A failed config cycle should set blocked phase."""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(name="test", broker="localhost")
+    service, _ = make_service(name="test")
 
     with patch.object(service, "_handle_devices", side_effect=RuntimeError("boom")):
         service._run_config_apply_cycle({})
@@ -346,18 +196,9 @@ def test_run_config_apply_cycle_sets_blocked_on_failure(
     assert service.dgb_context.get_runtime_phase() == "blocked"
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_on_message_triggers_config_apply_cycle(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_on_message_triggers_config_apply_cycle(make_service):
     """Config-topic messages should enqueue config apply command."""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(name="test", broker="localhost")
+    service, _ = make_service(name="test")
     msg = MagicMock()
     msg.topic = "config/test/devices/test"
     msg.payload = json.dumps({"Devices": []}).encode()
@@ -372,25 +213,12 @@ def test_on_message_triggers_config_apply_cycle(
 # ---------------------------------------------------------------------------
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_run_config_apply_cycle_idempotent_on_replay(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_run_config_apply_cycle_idempotent_on_replay(make_service):
     """Replaying the same payload should be idempotent (skipped)."""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(name="test", broker="localhost")
+    service, _ = make_service(name="test")
     payload = {"Devices": [], "Pins": [], "Bindings": []}
 
-    with (
-        patch.object(service, "_handle_devices"),
-        patch.object(service, "_handle_pins"),
-        patch.object(service, "_handle_bindings"),
-    ):
+    with patched_apply_handlers(service):
         # First run: payload gets recorded as applied.
         service._run_config_apply_cycle(payload)
         phase_after_first = service.dgb_context.get_runtime_phase()
@@ -404,18 +232,9 @@ def test_run_config_apply_cycle_idempotent_on_replay(
         )
 
 
-@patch("DGB.DGBservice.SystemDevices")
-@patch("DGB.DGBservice.mqtt.Client")
-@patch("DGB.DGBservice.Settings.MQTT")
-def test_run_config_apply_cycle_buffers_later_payloads(
-    mock_settings_mqtt, mock_client_class, mock_system_devices_class
-):
+def test_run_config_apply_cycle_buffers_later_payloads(make_service):
     """Config dispatcher processes queued payloads sequentially."""
-    mock_client_class.return_value = MagicMock()
-    mock_settings_mqtt.return_value = MagicMock()
-    mock_system_devices_class.return_value = MagicMock()
-
-    service = DGBservice(name="test", broker="localhost")
+    service, _ = make_service(name="test")
 
     payload1 = {"Devices": [{"id": "dev1"}], "Pins": [], "Bindings": []}
     payload2 = {"Devices": [{"id": "dev2"}], "Pins": [], "Bindings": []}
@@ -430,3 +249,196 @@ def test_run_config_apply_cycle_buffers_later_payloads(
     assert mock_cycle.call_count == 2
     assert mock_cycle.call_args_list[0].args[0] == payload1
     assert mock_cycle.call_args_list[1].args[0] == payload2
+
+
+# ---------------------------------------------------------------------------
+# Level 2: Stage 5 - Retained shadow state
+# ---------------------------------------------------------------------------
+
+
+def test_on_message_stores_state_shadow_payload(make_service):
+    service, _ = make_service(name="test")
+    msg = MagicMock()
+    msg.topic = "state/test/switch_one"
+    msg.payload = json.dumps({"value": "on"}).encode()
+
+    with patch.object(service.dgb_context, "put_to_config_queue") as mock_enqueue:
+        service._on_message(None, None, msg)
+        mock_enqueue.assert_not_called()
+
+    retained = service.dgb_context.get_retained_value("switch_one")
+    assert retained is not None
+    assert retained.topic == "state/test/switch_one"
+    assert retained.payload_decoded == {"value": "on"}
+
+
+def test_run_config_apply_cycle_subscribes_retain_state_topics(make_service):
+    service, mock_client = make_service(name="test")
+    payload = {
+        "startup_policy": {
+            "state_initialization": {
+                "retain_state": [{"unique_id": "water_meter"}],
+            }
+        }
+    }
+
+    with patched_apply_handlers(service):
+        service._run_config_apply_cycle(payload)
+
+    assert (
+        service.dgb_context.get_retained_topic("water_meter")
+        == "state/test/water_meter"
+    )
+    mock_client.subscribe.assert_any_call("state/test/water_meter", qos=1)
+
+
+def test_run_config_apply_cycle_logs_preset_fallback_when_retained_missing(
+    make_service,
+):
+    service, _ = make_service(name="test")
+    payload = {
+        "startup_policy": {
+            "state_initialization": {
+                "retain_state": [{"unique_id": "switch_one"}],
+                "preset_value": [
+                    {
+                        "unique_id": "switch_one",
+                        "call": "set_state",
+                        "args": [{"name": "value", "value": "on"}],
+                    }
+                ],
+            }
+        }
+    }
+
+    with patch.object(service.logger, "info") as mock_info:
+        with patched_apply_handlers(service):
+            service._run_config_apply_cycle(payload)
+
+    assert any(
+        "falling back to preset_value" in str(call.args[0])
+        for call in mock_info.call_args_list
+        if call.args
+    )
+
+
+# ---------------------------------------------------------------------------
+# Level 2: Stage 6 - configured_default application
+# ---------------------------------------------------------------------------
+
+
+def test_run_config_apply_cycle_applies_preset_via_set_state(make_service):
+    service, _ = make_service(name="test")
+    observed_values = []
+
+    def set_state(value: int):
+        observed_values.append(value)
+
+    service.dgb_context.add_object("sensor_1", object(), {"set_state": set_state})
+
+    payload = {
+        "startup_policy": {
+            "state_initialization": {
+                "preset_value": [
+                    {
+                        "unique_id": "sensor_1",
+                        "call": "set_state",
+                        "args": [{"name": "value", "value": "42"}],
+                    }
+                ],
+            }
+        }
+    }
+
+    with patched_apply_handlers(service):
+        service._run_config_apply_cycle(payload)
+
+    assert observed_values == [42]
+
+
+def test_run_config_apply_cycle_applies_preset_via_action_call_and_args(make_service):
+    service, _ = make_service(name="test")
+    observed = {}
+
+    def log(integer: int | None = None, string: str | None = None):
+        observed["integer"] = integer
+        observed["string"] = string
+        return True
+
+    service.dgb_context.add_object("p1", object(), {"log": log})
+
+    payload = {
+        "startup_policy": {
+            "state_initialization": {
+                "preset_value": [
+                    {
+                        "unique_id": "p1",
+                        "call": "log",
+                        "args": [
+                            {"name": "integer", "value": "1"},
+                            {"name": "string", "value": 1},
+                        ],
+                    }
+                ],
+            }
+        }
+    }
+
+    with patched_apply_handlers(service):
+        service._run_config_apply_cycle(payload)
+
+    assert observed["integer"] == 1
+    assert observed["string"] == "1"
+
+
+def test_run_config_apply_cycle_applies_preset_via_on_off(make_service):
+    service, _ = make_service(name="test")
+    on_fn = MagicMock()
+    off_fn = MagicMock()
+    service.dgb_context.add_object("17", object(), {"on": on_fn, "off": off_fn})
+
+    payload = {
+        "startup_policy": {
+            "state_initialization": {
+                "preset_value": [
+                    {
+                        "unique_id": "17",
+                        "call": "off",
+                        "args": [],
+                    }
+                ],
+            }
+        }
+    }
+
+    with patched_apply_handlers(service):
+        service._run_config_apply_cycle(payload)
+
+    off_fn.assert_called_once()
+    on_fn.assert_not_called()
+
+
+def test_run_config_apply_cycle_preset_missing_functions_logs_warning(make_service):
+    service, _ = make_service(name="test")
+    payload = {
+        "startup_policy": {
+            "state_initialization": {
+                "preset_value": [
+                    {
+                        "unique_id": "unknown_device",
+                        "call": "set_state",
+                        "args": [{"name": "value", "value": "on"}],
+                    }
+                ],
+            }
+        }
+    }
+
+    with patch.object(service.logger, "warning") as mock_warning:
+        with patched_apply_handlers(service):
+            service._run_config_apply_cycle(payload)
+
+    mock_warning.assert_any_call(
+        "Configured default for %s ignored: no registered functions",
+        "unknown_device",
+    )

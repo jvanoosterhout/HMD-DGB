@@ -195,18 +195,18 @@ class PinKeeper(object):
                 return False
         if config.ptype is PinType.pinout.value:
             P = Pin_out(config=config, dgb_context=self.dgb_context)
-            self.dgb_context.add_pin(
+            self.dgb_context.add_object(
                 str(config.pin), P, {"on": P.on, "off": P.off, "blink": P.blink}
             )
         elif config.ptype is PinType.pinin.value:
             P = Pin_in(config=config, dgb_context=self.dgb_context)
-            self.dgb_context.add_pin(str(config.pin), P)
+            self.dgb_context.add_object(str(config.pin), P)
         elif config.ptype is PinType.pincount.value:
             P = Pin_count(config=config, dgb_context=self.dgb_context)
-            self.dgb_context.add_pin(str(config.pin), P)
+            self.dgb_context.add_object(str(config.pin), P)
         elif config.ptype is PinType.pinnwayout.value:
             P = Pin_N_way_out(config=config, dgb_context=self.dgb_context)
-            self.dgb_context.add_pin(
+            self.dgb_context.add_object(
                 str(config.pin), P, {"on": P.on, "off": P.off, "blink": P.blink}
             )
             for lst in range(len(config.pin_list)):
@@ -221,7 +221,7 @@ class PinKeeper(object):
                     N.ConfigurePin()
                     P.Pins.append(N)
                     self.PinList.append(N)
-                    self.dgb_context.add_pin(str(sub_config.pin), N)
+                    self.dgb_context.add_object(str(sub_config.pin), N)
         else:
             return False
         if pw_needed:
@@ -232,8 +232,6 @@ class PinKeeper(object):
             self.logger.error("Could not set pin update")
         self.logger.info("Add pin {} to PinList".format(P.config.pin))
         self.PinList.append(P)
-        # self.PinDict[str(sub_config.pin)]["pin"] = P
-        self.logger.info(self.dgb_context._pins_objects)
-        self.logger.info(self.dgb_context.get_pin(str(P.config.pin)).config)
+        self.logger.info(self.dgb_context.get_object(str(P.config.pin)).config)
         self.logger.info("Pin {} added to PinList.".format(P.config.pin))
         return True

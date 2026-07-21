@@ -113,7 +113,7 @@ class DeviceKeeper(object):
             False -> caller must skip adding
         """
 
-        if self.dgb_context.get_device(unique_id) is None:
+        if self.dgb_context.get_object(unique_id) is None:
             return True
 
         if policy == DuplicatePolicy.SKIP:
@@ -158,7 +158,7 @@ class DeviceKeeper(object):
 
         device = sensors.Cover(settings, callback)
 
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
             {
@@ -200,7 +200,7 @@ class DeviceKeeper(object):
         settings = Settings(mqtt=self.mqtt_settings, entity=valve_info)
         device = sensors.Valve(settings, callback)
 
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
             {
@@ -218,7 +218,7 @@ class DeviceKeeper(object):
         sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=sensor_info)
         device = sensors.Sensor(settings)
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(device._entity.unique_id), device, {"set_state": device.set_state}
         )
         self.finalize_device(device)
@@ -237,7 +237,7 @@ class DeviceKeeper(object):
         )
         settings = Settings(mqtt=self.mqtt_settings, entity=switch_info)
         device = sensors.Switch(settings, callback)
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
         )
         self.finalize_device(device)
@@ -261,7 +261,7 @@ class DeviceKeeper(object):
         settings = Settings(mqtt=self.mqtt_settings, entity=text_info)
         device = sensors.Text(settings, callback)
 
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(device._entity.unique_id), device, {"set_text": device.set_text}
         )
         self.finalize_device(device)
@@ -282,7 +282,7 @@ class DeviceKeeper(object):
         settings = Settings(mqtt=self.mqtt_settings, entity=number_info)
         device = sensors.Number(settings, callback)
 
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(device._entity.unique_id), device, {"set_value": device.set_value}
         )
         self.finalize_device(device)
@@ -299,7 +299,7 @@ class DeviceKeeper(object):
         settings = Settings(mqtt=self.mqtt_settings, entity=select_info)
         device = sensors.Select(settings, callback)
 
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
             {"select_option": device.select_option},
@@ -310,7 +310,7 @@ class DeviceKeeper(object):
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
         device = sensors.BinarySensor(settings)
-        self.dgb_context.add_device(
+        self.dgb_context.add_object(
             str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
         )
         self.finalize_device(device)

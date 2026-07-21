@@ -23,9 +23,9 @@ def dgb_context():
 def test_add_device_without_functions(dgb_context):
     """Test adding a device without functions"""
     device_obj = {"type": "relay"}
-    dgb_context.add_device("relay1", device_obj)
+    dgb_context.add_object("relay1", device_obj)
 
-    assert dgb_context.get_device("relay1") == device_obj
+    assert dgb_context.get_object("relay1") == device_obj
     assert dgb_context.get_functions("relay1") == {}
 
 
@@ -33,15 +33,15 @@ def test_add_device_with_functions(dgb_context):
     """Test adding a device with functions"""
     device_obj = {"type": "relay"}
     functions = {"on": lambda: True, "off": lambda: False}
-    dgb_context.add_device("relay1", device_obj, functions=functions)
+    dgb_context.add_object("relay1", device_obj, functions=functions)
 
-    assert dgb_context.get_device("relay1") == device_obj
+    assert dgb_context.get_object("relay1") == device_obj
     assert dgb_context.get_functions("relay1") == functions
 
 
 def test_get_nonexistent_device(dgb_context):
     """Test getting a non-existent device returns None"""
-    assert dgb_context.get_device("nonexistent") is None
+    assert dgb_context.get_object("nonexistent") is None
 
 
 # ---------------------------------------------------------------------------
@@ -52,9 +52,9 @@ def test_get_nonexistent_device(dgb_context):
 def test_add_pin_without_functions(dgb_context):
     """Test adding a pin without functions"""
     pin_obj = {"pin": 17, "mode": "OUT"}
-    dgb_context.add_pin("gpio17", pin_obj)
+    dgb_context.add_object("gpio17", pin_obj)
 
-    assert dgb_context.get_pin("gpio17") == pin_obj
+    assert dgb_context.get_object("gpio17") == pin_obj
     assert dgb_context.get_functions("gpio17") == {}
 
 
@@ -62,15 +62,15 @@ def test_add_pin_with_functions(dgb_context):
     """Test adding a pin with functions"""
     pin_obj = {"pin": 17, "mode": "OUT"}
     functions = {"set_high": lambda: None, "set_low": lambda: None}
-    dgb_context.add_pin("gpio17", pin_obj, functions=functions)
+    dgb_context.add_object("gpio17", pin_obj, functions=functions)
 
-    assert dgb_context.get_pin("gpio17") == pin_obj
+    assert dgb_context.get_object("gpio17") == pin_obj
     assert dgb_context.get_functions("gpio17") == functions
 
 
 def test_get_nonexistent_pin(dgb_context):
     """Test getting a non-existent pin returns None"""
-    assert dgb_context.get_pin("nonexistent") is None
+    assert dgb_context.get_object("nonexistent") is None
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ def test_get_bindings_returns_copy(dgb_context):
 def test_get_functions_from_device(dgb_context):
     """Test getting functions from a device"""
     functions = {"on": lambda: True}
-    dgb_context.add_device("dev1", {}, functions=functions)
+    dgb_context.add_object("dev1", {}, functions=functions)
 
     assert dgb_context.get_functions("dev1") == functions
 
@@ -147,21 +147,19 @@ def test_get_functions_from_device(dgb_context):
 def test_get_functions_from_pin(dgb_context):
     """Test getting functions from a pin"""
     functions = {"set": lambda: True}
-    dgb_context.add_pin("pin1", {}, functions=functions)
+    dgb_context.add_object("pin1", {}, functions=functions)
 
     assert dgb_context.get_functions("pin1") == functions
 
 
-# TODO: this test should fail in the future!!!
-def test_get_functions_device_takes_precedence(dgb_context):
-    """Test that device functions are returned over pin functions"""
+def test_get_functions_last_write_wins(dgb_context):
+    """Unified object model: latest registration for a unique_id wins."""
     dev_functions = {"on": lambda: "device"}
     pin_functions = {"on": lambda: "pin"}
-    dgb_context.add_device("id1", {}, functions=dev_functions)
-    dgb_context.add_pin("id1", {}, functions=pin_functions)
+    dgb_context.add_object("id1", {}, functions=dev_functions)
+    dgb_context.add_object("id1", {}, functions=pin_functions)
 
-    # Device should take precedence
-    assert dgb_context.get_functions("id1") == dev_functions
+    assert dgb_context.get_functions("id1") == pin_functions
 
 
 def test_get_functions_nonexistent(dgb_context):
@@ -249,7 +247,7 @@ def test_exit_calls_close(dgb_context):
 
 def test_add_device_with_empty_functions(dgb_context):
     """Test adding device with empty functions dict"""
-    dgb_context.add_device("dev1", {}, functions={})
+    dgb_context.add_object("dev1", {}, functions={})
 
     assert dgb_context.get_functions("dev1") == {}
 
@@ -358,3 +356,37 @@ def test_put_config_shutdown_command(dgb_context):
     msg = dgb_context.config_queue.get_nowait()
     assert msg.cmd == "shutdown"
     assert msg.payload == {}
+
+
+# ---------------------------------------------------------------------------
+# Level 1: Stage 5 - Retained shadow state store
+# ---------------------------------------------------------------------------
+
+
+def test_register_and_get_retained_topic(dgb_context):
+    dgb_context.register_retained_interest("switch_one", "state/node/switch_one")
+
+    assert dgb_context.get_retained_topic("switch_one") == "state/node/switch_one"
+    assert dgb_context.get_retained_topic("missing") is None
+
+
+def test_record_and_get_retained_value(dgb_context):
+    dgb_context.record_retained_value(
+        unique_id="switch_one",
+        topic="state/node/switch_one",
+        payload_raw='{"value": "on"}',
+        payload_decoded={"value": "on"},
+    )
+
+    assert dgb_context.has_retained_value("switch_one") is True
+    retained = dgb_context.get_retained_value("switch_one")
+    assert retained is not None
+    assert retained.unique_id == "switch_one"
+    assert retained.topic == "state/node/switch_one"
+    assert retained.payload_raw == '{"value": "on"}'
+    assert retained.payload_decoded == {"value": "on"}
+
+
+def test_has_retained_value_false_when_missing(dgb_context):
+    assert dgb_context.has_retained_value("unknown") is False
+    assert dgb_context.get_retained_value("unknown") is None

@@ -21,9 +21,8 @@ import logging
 import queue
 import threading
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Set, Literal
-from ha_mqtt_discoverable import Discoverable
 from enum import Enum
 
 BinderCmd = Literal["post", "ruleset", "shutdown"]
@@ -43,12 +42,28 @@ class ConfigMessage:
     payload: Dict[str, Any]
 
 
+@dataclass(frozen=True)
+class RetainedShadowState:
+    unique_id: str
+    topic: str
+    payload_raw: str
+    payload_decoded: Any
+
+
 class DuplicatePolicy(Enum):
     SKIP = "skip"
     REPLACE = "replace"
 
 
 FunctionMap = Dict[str, Callable[..., Any]]
+
+
+@dataclass
+class DGBObject:
+    unique_id: str
+    dgb_obj: Any | None = None
+    obj_functions: FunctionMap = field(default_factory=dict)
+    obj_type: type[Any] | None = None
 
 
 class DGBContext:
@@ -68,11 +83,7 @@ class DGBContext:
         # availability topic for dgb devices
         # self.availability_topic_d = ""
 
-        self._devices_objects: Dict[str, Discoverable] = {}
-        self._devices_functions: Dict[str, FunctionMap] = {}
-
-        self._pins_objects: Dict[str, Any] = {}
-        self._pins_functions: Dict[str, FunctionMap] = {}
+        self.DGB_objects: Dict[str, DGBObject] = {}
 
         # Bindings should be unique: device_id -> set(ruleset_name)
         self._bindings: Dict[str, Set[str]] = {}
@@ -92,6 +103,8 @@ class DGBContext:
         # Track which cycle each binding was registered in, and last completed cycle
         self._binding_cycle: Dict[str, int] = {}
         self._last_live_cycle_id = 0
+        self._retained_topics: Dict[str, str] = {}
+        self._retained_values: Dict[str, RetainedShadowState] = {}
 
         self._closed = False
         self._logger.info("DGBContext initialized.")
@@ -108,33 +121,46 @@ class DGBContext:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
 
-    def add_device(
+    def add_object(
         self,
         unique_id: str,
-        device_obj: Any,
+        obj: Any,
         functions: dict[str, Callable[..., Any]] | None = None,
     ) -> None:
-        self._devices_objects[unique_id] = device_obj
-        self._devices_functions[unique_id] = functions if functions else {}
+        dgb_object = self._register_dgb_object(
+            unique_id=unique_id,
+            obj=obj,
+            functions=functions,
+        )
         self._logger.info(
-            "Added device %s with functions %s",
+            "Added object %s with functions %s",
             unique_id,
-            sorted(self._devices_functions[unique_id].keys()),
+            sorted(dgb_object.obj_functions.keys()),
         )
 
-    def add_pin(
+    def _register_dgb_object(
         self,
         unique_id: str,
-        pin_obj: Any,
+        obj: Any,
         functions: dict[str, Callable[..., Any]] | None = None,
-    ) -> None:
-        self._pins_objects[unique_id] = pin_obj
-        self._pins_functions[unique_id] = functions if functions else {}
-        self._logger.info(
-            "Added pin %s with functions %s",
-            unique_id,
-            sorted(self._pins_functions[unique_id].keys()),
-        )
+    ) -> DGBObject:
+        fn_map: FunctionMap = functions if functions else {}
+        dgb_object = self.DGB_objects.get(unique_id)
+        if dgb_object is None:
+            dgb_object = DGBObject(unique_id=unique_id)
+            self.DGB_objects[unique_id] = dgb_object
+
+        dgb_object.dgb_obj = obj
+        dgb_object.obj_functions = fn_map
+        dgb_object.obj_type = type(obj)
+
+        return dgb_object
+
+    def _get_dgb_object(
+        self,
+        unique_id: str,
+    ) -> DGBObject | None:
+        return self.DGB_objects.get(unique_id)
 
     @staticmethod
     def _normalize_ruleset_name(ruleset_name: str) -> str:
@@ -166,18 +192,26 @@ class DGBContext:
         # return a copy to prevent external mutation
         return set(self._bindings.get(device_id, set()))
 
-    def get_device(self, unique_id: str) -> Any:
-        return self._devices_objects.get(unique_id)
-
-    def get_pin(self, unique_id: str) -> Any:
-        return self._pins_objects.get(unique_id)
+    def get_object(self, unique_id: str) -> Any:
+        dgb_object = self._get_dgb_object(unique_id)
+        return dgb_object.dgb_obj if dgb_object is not None else None
 
     def get_functions(self, unique_id: str) -> FunctionMap:
-        if unique_id in self._devices_functions:
-            return self._devices_functions[unique_id]
-        if unique_id in self._pins_functions:
-            return self._pins_functions[unique_id]
-        return {}
+        dgb_object = self._get_dgb_object(unique_id)
+        if dgb_object is None:
+            return {}
+
+        return dgb_object.obj_functions
+
+    def iter_objects(self) -> list[tuple[str, Any]]:
+        return [
+            (unique_id, dgb_object.dgb_obj)
+            for unique_id, dgb_object in self.DGB_objects.items()
+            if dgb_object.dgb_obj is not None
+        ]
+
+    def remove_object(self, unique_id: str) -> None:
+        self.DGB_objects.pop(unique_id, None)
 
     def begin_config_apply_cycle(self) -> int:
         """Start a new config-apply cycle and move to creation phase."""
@@ -186,7 +220,7 @@ class DGBContext:
             self._runtime_phase = "creation"
             cycle_id = self._config_apply_cycle_id
 
-        self._logger.info("Config apply cycle %s started", cycle_id)
+        self._logger.info("Config cycle %s started", cycle_id)
         return cycle_id
 
     def set_runtime_phase(self, phase: RuntimePhase) -> None:
@@ -224,6 +258,37 @@ class DGBContext:
         if self._closed and cmd != "shutdown":
             raise RuntimeError("DGBContext is closed; no further commands allowed.")
         self.config_queue.put(ConfigMessage(cmd=cmd, payload=payload))
+
+    def register_retained_interest(self, unique_id: str, topic: str) -> None:
+        with self._phase_lock:
+            self._retained_topics[unique_id] = topic
+
+    def get_retained_topic(self, unique_id: str) -> str | None:
+        with self._phase_lock:
+            return self._retained_topics.get(unique_id)
+
+    def record_retained_value(
+        self,
+        unique_id: str,
+        topic: str,
+        payload_raw: str,
+        payload_decoded: Any,
+    ) -> None:
+        with self._phase_lock:
+            self._retained_values[unique_id] = RetainedShadowState(
+                unique_id=unique_id,
+                topic=topic,
+                payload_raw=payload_raw,
+                payload_decoded=payload_decoded,
+            )
+
+    def has_retained_value(self, unique_id: str) -> bool:
+        with self._phase_lock:
+            return unique_id in self._retained_values
+
+    def get_retained_value(self, unique_id: str) -> RetainedShadowState | None:
+        with self._phase_lock:
+            return self._retained_values.get(unique_id)
 
     def record_payload_hash(self, payload_hash: str) -> None:
         """Record that a payload has been applied, for idempotency tracking."""

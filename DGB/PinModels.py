@@ -15,9 +15,11 @@
 #
 #    BaseModel to handel the generic rest GPIO api calls to control.
 
-from pydantic import BaseModel, model_validator, Field, RootModel
-from typing import Literal, Union
 from enum import Enum
+from typing import Literal
+
+from pydantic import BaseModel, Field, RootModel, model_validator
+
 from DGB.Tools import IOT_tools
 
 
@@ -116,11 +118,10 @@ class PinOut(BaseModel):
                 )
         else:
             self.value = self.initial
-        if self.blink is not None:
-            if self.blink <= 0:
-                raise ValueError(
-                    f"{self.blink} is not a valid number. Blink must be larger >0"
-                )
+        if self.blink is not None and self.blink <= 0:
+            raise ValueError(
+                f"{self.blink} is not a valid number. Blink must be larger >0"
+            )
         if self.password is None:
             self.password = ""
         return self
@@ -199,13 +200,12 @@ class PinNWayOut(BaseModel):
                 raise ValueError(
                     f"The {i}th initial {self.initial[i]} is not a valid number. Initial must be either 1 or 0"
                 )
-            if not self.pin_names[i] == "":
+            if self.pin_names[i] != "":
                 for j in range(len(self.pin_names)):
-                    if not i == j:
-                        if self.pin_names[i] == self.pin_names[j]:
-                            raise ValueError(
-                                f"The {i}th pin_names has an identical name as the {j}th name. All should be empty or unique."
-                            )
+                    if i != j and self.pin_names[i] == self.pin_names[j]:
+                        raise ValueError(
+                            f"The {i}th pin_names has an identical name as the {j}th name. All should be empty or unique."
+                        )
             if self.initial[i] not in [1, 0]:
                 raise ValueError(
                     f"The {i}th initial {self.initial[i]} is not a valid number. Initial must be either 1 or 0"
@@ -216,18 +216,17 @@ class PinNWayOut(BaseModel):
                 f"{self.ptype} is not a valid pin configuration. Please leave this value empty in the configuration."
             )
 
-        if self.active_pin is not None:
-            if self.active_pin not in self.pin_names:
-                if IOT_tools.is_int(self.active_pin):
-                    self.active_pin = int(self.active_pin)
-                else:
-                    raise ValueError(
-                        f"Active_pin {self.active_pin} is neither in the pin list nor an int."
-                    )
-                if self.active_pin not in self.pin_list:
-                    raise ValueError(
-                        f"Active_pin {self.active_pin} is neither in the pin list nor in the pin_names list."
-                    )
+        if self.active_pin is not None and self.active_pin not in self.pin_names:
+            if IOT_tools.is_int(self.active_pin):
+                self.active_pin = int(self.active_pin)
+            else:
+                raise ValueError(
+                    f"Active_pin {self.active_pin} is neither in the pin list nor an int."
+                )
+            if self.active_pin not in self.pin_list:
+                raise ValueError(
+                    f"Active_pin {self.active_pin} is neither in the pin list nor in the pin_names list."
+                )
         return self
 
 
@@ -280,7 +279,7 @@ class PinCount(BaseModel):
 
 
 class PinModel(RootModel):
-    root: Union[PinIn, PinOut, PinCount, PinNWayOut] = Field(..., discriminator="ptype")
+    root: PinIn | PinOut | PinCount | PinNWayOut = Field(..., discriminator="ptype")
 
     def __getattr__(self, name: str) -> any:
         """_summary_

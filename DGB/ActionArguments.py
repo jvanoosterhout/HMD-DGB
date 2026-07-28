@@ -19,9 +19,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, get_type_hints, get_origin, get_args, Union
 import types
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any, Union, get_args, get_origin, get_type_hints
 
 
 @dataclass
@@ -121,7 +122,7 @@ class ArgumentBuilder:
         # Get function signature type hints
         try:
             hints = get_type_hints(function)
-        except Exception as e:
+        except (NameError, TypeError, AttributeError) as e:
             self.logger.debug(f"Could not get type hints for {function}: {e}")
             hints = {}
 
@@ -145,7 +146,7 @@ class ArgumentBuilder:
                 context_path = value[len(self.CONTEXT_REF_PREFIX) :]
 
             # Get target type from function hints
-            annotation = hints.get(name, None)
+            annotation = hints.get(name)
             target_types, accepts_none = self._extract_non_none_types(annotation)
 
             arg_def = ArgDefinition(
@@ -236,7 +237,7 @@ class ArgumentBuilder:
         try:
             return fallback_type(value)
         except (TypeError, ValueError) as e:
-            self.logger.error(
+            self.logger.exception(
                 f"Could not coerce {value!r} to {fallback_type}: {e}. Returning False."
             )
             return False
@@ -397,7 +398,7 @@ class ArgumentBuilder:
         """
         unique_id = action_payload.get("unique_id")
         call_name = action_payload.get("call")
-        args_config = action_payload.get("args", None)
+        args_config = action_payload.get("args")
 
         if not isinstance(unique_id, str) or not unique_id:
             raise ValueError(f"{source_label}.unique_id must be non-empty str")

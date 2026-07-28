@@ -1,8 +1,6 @@
 import pytest
-from typing import Optional
 
-from DGB.ActionArguments import ArgumentBuilder, ArgDefinition
-
+from DGB.ActionArguments import ArgDefinition, ArgumentBuilder
 
 # ---------------------------------------------------------------------------
 # Minimal helpers
@@ -28,7 +26,7 @@ def func_with_types(value: int, flag: bool, ratio: float) -> None:
     pass
 
 
-def func_with_optional(value: Optional[int]) -> None:
+def func_with_optional(value: int | None) -> None:
     pass
 
 
@@ -190,7 +188,7 @@ def test_extract_non_none_type_simple_type(builder):
 
 def test_extract_non_none_type_optional(builder):
     """Test extracting type from Optional annotation"""
-    target_types, accepts_none = builder._extract_non_none_types(Optional[str])
+    target_types, accepts_none = builder._extract_non_none_types(str | None)
     assert target_types == (str,)
     assert accepts_none is True
 
@@ -232,12 +230,12 @@ def test_coerce_value_union_uses_strict_type_match(builder):
 def test_parse_argument_definitions_stores_all_union_target_types(builder):
     """Union annotations are preserved for smarter type matching."""
 
-    def func(value: bytes | str | int | float) -> None:
+    def func(value: bytes | str | float) -> None:
         pass
 
     defs = builder.parse_argument_definitions([{"name": "value", "value": 5}], func)
 
-    assert defs[0].target_types == (bytes, str, int, float)
+    assert defs[0].target_types == (bytes, str, float)
 
 
 def test_build_call_args_with_literals(builder):

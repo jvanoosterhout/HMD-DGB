@@ -90,7 +90,7 @@ def _parse_preset_value_bucket(raw_sources: dict) -> tuple[dict[str, Any], ...]:
     elif isinstance(raw_preset, list):
         raw_list = raw_preset
     else:
-        raise ValueError(
+        raise TypeError(
             "startup_policy.state_initialization.preset_value: expected a list or dict, "
             f"got {type(raw_preset).__name__!r}"
         )
@@ -126,7 +126,7 @@ def _parse_set_state_args(raw_entry: dict[str, Any]) -> tuple[str, Any]:
     state_name_arg = args[0]
     value_arg = args[1]
     if not isinstance(state_name_arg, dict) or not isinstance(value_arg, dict):
-        raise ValueError(
+        raise TypeError(
             "startup_policy.state_initialization.preset_value: args must be dict entries"
         )
     if state_name_arg.get("name") != "state_name" or "value" not in state_name_arg:
@@ -174,7 +174,7 @@ def parse_startup_policy(raw_policy: dict[str, Any]) -> StartupPolicy:
     This parser focuses on lifecycle behavior controls.
     """
     if not isinstance(raw_policy, dict):
-        raise ValueError(
+        raise TypeError(
             f"startup_policy must be a dict, got {type(raw_policy).__name__!r}"
         )
 

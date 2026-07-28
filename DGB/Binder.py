@@ -25,14 +25,14 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Mapping, Sequence, Callable
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from durable.lang import post, get_host
 from durable.engine import MessageNotHandledException, MessageObservedException
+from durable.lang import get_host, post
 
-from DGB.DGBContext import DGBContext, BinderMessage, DuplicatePolicy
 from DGB.ActionArguments import ArgumentBuilder
+from DGB.DGBContext import BinderMessage, DGBContext, DuplicatePolicy
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -46,14 +46,14 @@ def iter_parents(tree, child_key, path=()):
     """
     if isinstance(tree, Mapping):
         if child_key in tree:
-            yield (path + (child_key,), tree)
+            yield ((*path, child_key), tree)
 
         for k, v in tree.items():
-            yield from iter_parents(v, child_key, path + (k,))
+            yield from iter_parents(v, child_key, (*path, k))
 
     elif isinstance(tree, Sequence) and not isinstance(tree, (str, bytes, bytearray)):
         for i, item in enumerate(tree):
-            yield from iter_parents(item, child_key, path + (i,))
+            yield from iter_parents(item, child_key, (*path, i))
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +149,7 @@ class Binder:
 
     def _build_log_action(self, rule_name: str, msg: Any) -> Callable[[Any], None]:
         if not isinstance(msg, str):
-            raise ValueError(f"log.msg must be str (rule '{rule_name}')")
+            raise TypeError(f"log.msg must be str (rule '{rule_name}')")
 
         self.logger.info("building log %s", msg)
 
@@ -318,7 +318,7 @@ class Binder:
         t.start()
 
     def event_dispatcher(self):
-        msg = BinderMessage("", {"", ""})
+        msg = BinderMessage("", {""})
         while True:
             msg = self.dgb_context.binder_queue.get()
 
@@ -369,11 +369,11 @@ class Binder:
                     post(ruleset, payload)
 
         except MessageNotHandledException as e:
-            self.logger.error("Unmatched event: %s", e.message)
+            self.logger.exception("Unmatched event: %s", e.message)
         except MessageObservedException as e:
-            self.logger.error("Event already observed: %s", e.message)
+            self.logger.exception("Event already observed: %s", e.message)
         except Exception as e:
-            self.logger.error(f"Exception {e} for {set}")
+            self.logger.exception(f"Exception {e} for {set}")
 
     def new_binding(self, bind: dict, policy: DuplicatePolicy = DuplicatePolicy.SKIP):
 

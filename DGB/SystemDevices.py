@@ -34,13 +34,14 @@ from __future__ import annotations
 import logging
 import platform
 import socket
-from typing import Optional
 from collections.abc import Callable
-from ghapi.core import GhApi
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import PackageNotFoundError, version
+
 import psutil
+from ghapi.core import GhApi
 from gpiozero import CPUTemperature
-from ha_mqtt_discoverable import Settings, DeviceInfo, sensors
+from ha_mqtt_discoverable import DeviceInfo, Settings, sensors
+
 from DGB.DGBContext import DGBContext
 
 
@@ -61,7 +62,7 @@ class SystemDevices:
         dgb_context: DGBContext,
         device_name: str,
         dgb_restart: Callable[[], None],
-        location: Optional[str] = None,
+        location: str | None = None,
     ) -> None:
         """
         Initialize system devices manager.
@@ -90,13 +91,13 @@ class SystemDevices:
         self.logger.info("SystemDevices initialized")
 
         # Sensor objects (held for state updates)
-        self.cpu_temp: Optional[sensors.Sensor] = None
-        self.cpu_usage: Optional[sensors.Sensor] = None
-        self.mem_usage: Optional[sensors.Sensor] = None
-        self.uptime: Optional[sensors.Sensor] = None
+        self.cpu_temp: sensors.Sensor | None = None
+        self.cpu_usage: sensors.Sensor | None = None
+        self.mem_usage: sensors.Sensor | None = None
+        self.uptime: sensors.Sensor | None = None
 
         # Button objects (for state management if needed)
-        self.restart_button: Optional[sensors.Button] = None
+        self.restart_button: sensors.Button | None = None
 
     def create_devices(self) -> None:
         """
@@ -238,7 +239,7 @@ class SystemDevices:
             api = GhApi(owner="jvanoosterhout", repo="HMD-DGB")
             releases = api.repos.list_releases(per_page=5)
             latest_release = releases[0].tag_name if releases else "unknown"
-        except Exception as e:
+        except (ConnectionError, OSError, RuntimeError, TimeoutError, IndexError) as e:
             self.logger.warning("Could not fetch release versions from GitHub: %s", e)
             latest_release = "unknown"
         self.logger.info(f"latest_release: {latest_release}")
@@ -282,7 +283,7 @@ class SystemDevices:
             try:
                 self.dgb_restart(hard_restart=False)
             except Exception as e:
-                self.logger.error("Error during restart: %s", e)
+                self.logger.exception("Error during restart: %s", e)
 
         self.restart_button = sensors.Button(
             Settings(
@@ -312,7 +313,7 @@ class SystemDevices:
             try:
                 self.dgb_restart(hard_restart=True)
             except Exception as e:
-                self.logger.error("Error during restart: %s", e)
+                self.logger.exception("Error during restart: %s", e)
 
         self.restart_button = sensors.Button(
             Settings(
@@ -352,24 +353,24 @@ class SystemDevices:
 
         try:
             self.cpu_temp.set_state(round(CPUTemperature().temperature, 1))
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             self.logger.warning("Could not read CPU temperature: %s", e)
 
         try:
             self.cpu_usage.set_state(psutil.cpu_percent(interval=1))
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             self.logger.warning("Could not read CPU usage: %s", e)
 
         try:
             self.mem_usage.set_state(psutil.virtual_memory().percent)
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             self.logger.warning("Could not read memory usage: %s", e)
 
         try:
             import time
 
             self.uptime.set_state(round(time.monotonic() / 3600, 1))
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             self.logger.warning("Could not read uptime: %s", e)
 
     def get_parent_device_id(self, device_type: str = "service") -> str:
@@ -407,7 +408,7 @@ class SystemDevices:
             ip = s.getsockname()[0]
             s.close()
             return f"http://{ip}"
-        except Exception as e:
+        except OSError as e:
             logging.getLogger("SystemDevices").warning(
                 "Could not determine IP address: %s", e
             )
@@ -424,7 +425,7 @@ def get_machine_id():
 
 def get_rpi_cpu_serial():
     try:
-        with open("/proc/cpuinfo", "r") as f:
+        with open("/proc/cpuinfo") as f:
             for line in f:
                 if line.startswith("Serial"):
                     return line.split(":")[1].strip()

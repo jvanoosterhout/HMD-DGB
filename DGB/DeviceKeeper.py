@@ -17,16 +17,19 @@
 
 import logging
 from functools import partial
-from ha_mqtt_discoverable import Settings, sensors, EntityType, Discoverable
-from paho.mqtt.client import Client, MQTTMessage
-from DGB.DGBContext import DGBContext, DuplicatePolicy
 from typing import Any
+
+from ha_mqtt_discoverable import Discoverable, EntityType, Settings, sensors
+from paho.mqtt.client import Client, MQTTMessage
+
+from DGB.DGBContext import DGBContext, DuplicatePolicy
+
 # from DGB.Binder import post_event
 
 logging.basicConfig(level="INFO")
 
 
-class DeviceKeeper(object):
+class DeviceKeeper:
     def __init__(self, mqtt_settings: Settings.MQTT, dgb_context: DGBContext):
         self.entities = []
         self.mqtt_settings = mqtt_settings
@@ -191,7 +194,7 @@ class DeviceKeeper(object):
             try:
                 payload = int(payload)
             except (TypeError, ValueError):
-                self.logger.error(
+                self.logger.exception(
                     "Wrong payload type for valve %s: %r", unique_id, payload
                 )
                 return False
@@ -272,7 +275,7 @@ class DeviceKeeper(object):
         device: Discoverable,
         dst: bool,
         state_name: str,
-        payload: bytes | str | int | float,
+        payload: bytes | str | float,
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -458,9 +461,7 @@ class DeviceKeeper(object):
         # device._update_state(state="online", topic=device.availability_topic, retain=True)
 
         self.logger.info(
-            "Device of type '{}' with unique_id '{}' created and set discoverable.".format(
-                device._entity.component, device._entity.unique_id
-            )
+            f"Device of type '{device._entity.component}' with unique_id '{device._entity.unique_id}' created and set discoverable."
         )
 
 
@@ -474,9 +475,7 @@ def build_callback(
     def callback(client: Client, user_data, message: MQTTMessage):
         payload = message.payload.decode()
         logger.info(
-            "Device of type '{}' with unique_id '{}' commanded: {}".format(
-                entity.component, entity.unique_id, payload
-            )
+            f"Device of type '{entity.component}' with unique_id '{entity.unique_id}' commanded: {payload}"
         )
         dgb_context.put_to_binder_queue(
             "post", {"unique_id": entity.unique_id, "payload": payload}

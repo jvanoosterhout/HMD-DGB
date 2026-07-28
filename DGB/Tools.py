@@ -22,34 +22,34 @@ logging.basicConfig(level="INFO")
 
 
 class IOT_tools:
-    def is_float(str: str) -> bool:
+    def is_float(self: str) -> bool:
         try:
-            float(str)
-            logger.debug(f"{str} is een geldige float.")
+            float(self)
+            logger.debug(f"{self} is een geldige float.")
             return True
         except ValueError:
-            logger.debug(f"{str} is geen geldige float.")
+            logger.debug(f"{self} is geen geldige float.")
             return False
 
-    def is_int(str: str) -> bool:
+    def is_int(self: str) -> bool:
         try:
-            int(str)
-            logger.debug(f"{str} is een geldige integer.")
+            int(self)
+            logger.debug(f"{self} is een geldige integer.")
             return True
         except ValueError:
-            logger.debug(f"{str} is geen geldige integer.")
+            logger.debug(f"{self} is geen geldige integer.")
             return False
 
-    def strtobool(val: str) -> int:
+    def strtobool(self: str) -> int:
         """Convert a string representation of truth to true (1) or false (0).
         True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
         are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
         'val' is anything else.
         """
-        val = val.lower()
-        if val in ("y", "yes", "t", "true", "on", "1"):
+        self = self.lower()
+        if self in ("y", "yes", "t", "true", "on", "1"):
             return 1
-        elif val in ("n", "no", "f", "false", "off", "0"):
+        elif self in ("n", "no", "f", "false", "off", "0"):
             return 0
         else:
-            raise ValueError("invalid truth value %r" % (val,))
+            raise ValueError(f"invalid truth value {self!r}")

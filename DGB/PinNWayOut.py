@@ -17,12 +17,12 @@
 
 from __future__ import annotations
 
-
-from DGB.PinOut import Pin_out
-from DGB.PinModels import PinType, PinModel
-from DGB.Pin import Pin
 from gpiozero import DigitalOutputDevice
+
 from DGB.DGBContext import DGBContext
+from DGB.Pin import Pin
+from DGB.PinModels import PinModel, PinType
+from DGB.PinOut import Pin_out
 
 
 class Pin_N_way_out(Pin):
@@ -46,32 +46,24 @@ class Pin_N_way_out(Pin):
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
-        if not config.ptype == self.config.ptype:
+        if config.ptype != self.config.ptype:
             self.logger.warning(
-                'New "ptype" {} for pin {} is different from known "ptype" {}'.format(
-                    config.ptype, self.config.pin, self.config.ptype
-                )
+                f'New "ptype" {config.ptype} for pin {self.config.pin} is different from known "ptype" {self.config.ptype}'
             )
             return False
-        if not config.pin_list == self.config.pin_list:
+        if config.pin_list != self.config.pin_list:
             self.logger.warning(
-                'New "pin_list" {} for pin {} is different from known "pin_list" {}'.format(
-                    config.pin_list, self.config.pin, self.config.pin_list
-                )
+                f'New "pin_list" {config.pin_list} for pin {self.config.pin} is different from known "pin_list" {self.config.pin_list}'
             )
             return False
-        if not config.active_state == self.config.active_state:
+        if config.active_state != self.config.active_state:
             self.logger.warning(
-                'New "active_state" {} for pin {} is different from known "active_state" {}'.format(
-                    config.active_state, self.config.pin, self.config.active_state
-                )
+                f'New "active_state" {config.active_state} for pin {self.config.pin} is different from known "active_state" {self.config.active_state}'
             )
             return False
-        if not config.pin_names == self.config.pin_names:
+        if config.pin_names != self.config.pin_names:
             self.logger.warning(
-                'New "pin_names" {} for pin {} is different from known "pin_names" {}'.format(
-                    config.pin_names, self.config.pin, self.config.pin_names
-                )
+                f'New "pin_names" {config.pin_names} for pin {self.config.pin} is different from known "pin_names" {self.config.pin_names}'
             )
             return False
         return True
@@ -124,12 +116,10 @@ class Pin_N_way_out(Pin):
 
     def GetPinIndex(self, active_pin) -> int:
         n = -1
-        if isinstance(active_pin, str):
-            if active_pin in self.config.pin_names:
-                n = self.config.pin_names.index(active_pin)
-        if isinstance(active_pin, int):
-            if active_pin in self.config.pin_list:
-                n = self.config.pin_list.index(active_pin)
+        if isinstance(active_pin, str) and active_pin in self.config.pin_names:
+            n = self.config.pin_names.index(active_pin)
+        if isinstance(active_pin, int) and active_pin in self.config.pin_list:
+            n = self.config.pin_list.index(active_pin)
         return n
 
     def GenerateSubPinConfig(self, n: int) -> PinModel:
@@ -170,14 +160,12 @@ class Pin_N_way_out(Pin):
             return False
         if self.config.pin_list[n] == -1:
             self.logger.info(
-                'N Way Out dummy pin with name "{}" turned on'.format(
-                    self.config.pin_names[n]
-                )
+                f'N Way Out dummy pin with name "{self.config.pin_names[n]}" turned on'
             )
             self.config.active_pin = active_pin
             return True
 
-        if not self.config.pin_list[n] == self.config.pin:
+        if self.config.pin_list[n] != self.config.pin:
             for p in self.Pins:
                 if p.config.pin == self.config.pin_list[n]:
                     p.on(is_PinNWayOut=True)
@@ -186,9 +174,7 @@ class Pin_N_way_out(Pin):
             self.config.value = 1
 
         self.logger.info(
-            'N Way Out pin {} with name "{}" turned on'.format(
-                self.config.pin_list[n], self.config.pin_names[n]
-            )
+            f'N Way Out pin {self.config.pin_list[n]} with name "{self.config.pin_names[n]}" turned on'
         )
 
         self.config.active_pin = active_pin
@@ -210,10 +196,7 @@ class Pin_N_way_out(Pin):
             )
             return False
 
-        if value is None:
-            result = self.off()
-        else:
-            result = self.on(active_pin=value)
+        result = self.off() if value is None else self.on(active_pin=value)
 
         if result and self.dgb_context.is_retain_required(str(self.config.pin)):
             self.dgb_context.publish_state_value(

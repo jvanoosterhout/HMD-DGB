@@ -17,11 +17,11 @@
 
 from __future__ import annotations
 
-
-from DGB.Pin import Pin
 from gpiozero import DigitalOutputDevice
-from DGB.PinModels import PinModel
+
 from DGB.DGBContext import DGBContext
+from DGB.Pin import Pin
+from DGB.PinModels import PinModel
 
 
 class Pin_out(Pin):
@@ -48,18 +48,14 @@ class Pin_out(Pin):
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
-        if not config.ptype == self.config.ptype:
+        if config.ptype != self.config.ptype:
             self.logger.warning(
-                'New "ptype" {} for pin {} is different from known "ptype" {}'.format(
-                    config.ptype, self.config.pin, self.config.ptype
-                )
+                f'New "ptype" {config.ptype} for pin {self.config.pin} is different from known "ptype" {self.config.ptype}'
             )
             return False
-        if not config.active_state == self.config.active_state:
+        if config.active_state != self.config.active_state:
             self.logger.warning(
-                'New "active_state" {} for pin {} is different from known "active_state" {}'.format(
-                    config.active_state, self.config.pin, self.config.active_state
-                )
+                f'New "active_state" {config.active_state} for pin {self.config.pin} is different from known "active_state" {self.config.active_state}'
             )
             return False
         return True
@@ -76,12 +72,10 @@ class Pin_out(Pin):
         )  # ,
         #  pin_factory = LGPIOFactory(chip=0))
 
-    def blink(self, blink: int = None, is_PinNWayOut: bool = False) -> bool:
+    def blink(self, blink: int | None = None, is_PinNWayOut: bool = False) -> bool:
         if self.is_PinNWayOut == is_PinNWayOut:
             if blink is None and self.blink is None:
-                self.logger.info(
-                    "pin {} is has no blink configured".format(self.config.pin)
-                )
+                self.logger.info(f"pin {self.config.pin} is has no blink configured")
                 return False
             elif blink is not None:
                 on_time = blink
@@ -92,7 +86,7 @@ class Pin_out(Pin):
                 on_time=on_time, off_time=on_time, n=1, background=True
             )
             self.logger.info(
-                "pin {} has value {} for {} seconds".format(self.config.pin, 1, on_time)
+                f"pin {self.config.pin} has value {1} for {on_time} seconds"
             )
             return True
         return False
@@ -100,14 +94,14 @@ class Pin_out(Pin):
     def on(self, is_PinNWayOut: bool = False) -> bool:
         if self.is_PinNWayOut == is_PinNWayOut:
             self.pin_device.on()
-            self.logger.info("pin {} is on".format(self.config.pin))
+            self.logger.info(f"pin {self.config.pin} is on")
             return True
         return False
 
     def off(self, is_PinNWayOut: bool = False) -> bool:
         if self.is_PinNWayOut == is_PinNWayOut:
             self.pin_device.off()
-            self.logger.info("pin {} is off".format(self.config.pin))
+            self.logger.info(f"pin {self.config.pin} is off")
             return True
         return False
 
@@ -121,21 +115,20 @@ class Pin_out(Pin):
                 )
                 return False
             result = self.blink(blink=value, is_PinNWayOut=self.is_PinNWayOut)
-        else:
-            if state_name != "state":
-                self.logger.warning(
-                    "pin %s unsupported state name %r", self.config.pin, state_name
-                )
-                return False
+        elif state_name != "state":
+            self.logger.warning(
+                "pin %s unsupported state name %r", self.config.pin, state_name
+            )
+            return False
 
         if isinstance(value, bool):
             value = "on" if value else "off"
         else:
             value = str(value).lower().strip()
 
-        if value == "on" or value == "1":
+        if value in {"on", "1"}:
             result = self.on(is_PinNWayOut=self.is_PinNWayOut)
-        elif value == "off" or value == "0":
+        elif value in {"off", "0"}:
             result = self.off(is_PinNWayOut=self.is_PinNWayOut)
         else:
             self.logger.warning(

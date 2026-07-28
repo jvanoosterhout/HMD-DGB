@@ -53,3 +53,6 @@ fallback_version = "v0.0.0"
 
 [tool.ruff.format]
 exclude = ["DGB/_version.py"]
+
+[tool.ruff.lint]
+ignore = ["N999"]

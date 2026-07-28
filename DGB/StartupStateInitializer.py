@@ -23,9 +23,10 @@ import threading
 import time
 from typing import Any
 
+import paho.mqtt.client as mqtt
+
 from DGB.ActionArguments import ArgumentBuilder
 from DGB.DGBContext import DGBContext
-import paho.mqtt.client as mqtt
 
 
 class StartupStateInitializer:
@@ -152,7 +153,7 @@ class StartupStateInitializer:
         """Parse a bucket."""
         raw_list = raw_startup_policy.get(key, [])
         if not isinstance(raw_list, list):
-            raise ValueError(
+            raise TypeError(
                 f"Key {key} in given dict does not contain a list, got {type(raw_list).__name__!r}"
             )
         return raw_list
@@ -165,7 +166,7 @@ class StartupStateInitializer:
         """Parse a bucket."""
         raw_list = raw_startup_policy.get(key, {})
         if not isinstance(raw_list, dict):
-            raise ValueError(
+            raise TypeError(
                 f"Key {key} in given dict does not contain a dict, got {type(raw_list).__name__!r}"
             )
         return raw_list
@@ -189,7 +190,7 @@ class StartupStateInitializer:
         elif isinstance(raw_preset, list):
             raw_list = raw_preset
         else:
-            raise ValueError(
+            raise TypeError(
                 "Preset_value expected a list or dict, "
                 f"got {type(raw_preset).__name__!r}"
             )
@@ -207,10 +208,10 @@ class StartupStateInitializer:
 
     def _parse_state_args(self, args: dict[str, Any]) -> tuple[str, Any]:
         """Validate and normalize set_state startup args into (state_name, value)."""
-        state_name_arg = args.get("name", None)
-        value_arg = args.get("value", None)
+        state_name_arg = args.get("name")
+        value_arg = args.get("value")
         if not isinstance(state_name_arg, str):
-            raise ValueError("preset_value arg 'name' must be str entries")
+            raise TypeError("preset_value arg 'name' must be str entries")
         if state_name_arg is None or value_arg is None:
             raise ValueError(
                 "preset_value 'name' or 'value' are not or incorrect defined"

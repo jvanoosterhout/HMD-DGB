@@ -1,10 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, patch
 import json
 from contextlib import contextmanager
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from DGB.DGBservice import DGBservice
-
 
 # ---------------------------------------------------------------------------
 # Minimal helpers

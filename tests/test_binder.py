@@ -1,10 +1,10 @@
-import pytest
+import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
-import threading
+
+import pytest
 
 from DGB.Binder import Binder, TimerRegistry, iter_parents
-
 
 # ---------------------------------------------------------------------------
 # Minimal helpers
@@ -54,8 +54,7 @@ class DummyDGBContext:
         return binding_cycle <= self._last_live_cycle_id
 
     def complete_config_cycle(self, cycle_id):
-        if cycle_id > self._last_live_cycle_id:
-            self._last_live_cycle_id = cycle_id
+        self._last_live_cycle_id = max(self._last_live_cycle_id, cycle_id)
 
 
 class DummyContext:
@@ -283,7 +282,7 @@ def test_build_timer_cancel_action(binder, dgb_context):
 
 
 def test_log_action_wrong_value_raises_value_error(binder):
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         binder.build_action(
             "ruleset1",
             "rule1",
@@ -582,10 +581,12 @@ def test_handle_post_missing_both_raises_error(binder):
 
 def test_handle_post_with_missing_device_logs_warning(binder, dgb_context):
     """Test _handle_post logs warning for unregistered device"""
-    with patch("DGB.Binder.post"):
-        with patch.object(binder.logger, "warning") as mock_warning:
-            binder._handle_post({"unique_id": "unknown_dev", "data": "test"})
-            mock_warning.assert_called_once()
+    with (
+        patch("DGB.Binder.post"),
+        patch.object(binder.logger, "warning") as mock_warning,
+    ):
+        binder._handle_post({"unique_id": "unknown_dev", "data": "test"})
+        mock_warning.assert_called_once()
 
 
 def test_handle_post_suppressed_when_not_live(binder, dgb_context):

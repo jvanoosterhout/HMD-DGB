@@ -15,25 +15,28 @@
 #
 #    Pin keeper class to create and manage all pins
 
-from DGB.PinOut import Pin_out
-from DGB.PinIn import Pin_in
-from DGB.PinCount import Pin_count
-from DGB.PinNWayOut import Pin_N_way_out
-from DGB.Pin import Pin
-from DGB.PinModels import PinType, PinModel
-from DGB.DGBContext import DGBContext, DuplicatePolicy
 import logging
 
+from DGB.DGBContext import DGBContext, DuplicatePolicy
+from DGB.Pin import Pin
+from DGB.PinCount import Pin_count
+from DGB.PinIn import Pin_in
+from DGB.PinModels import PinModel, PinType
+from DGB.PinNWayOut import Pin_N_way_out
+from DGB.PinOut import Pin_out
 
-class PinKeeper(object):
+
+class PinKeeper:
     def __init__(
         self,
         dgb_context: DGBContext,
-        pin_pw_list: dict = {},
+        pin_pw_list: dict | None = None,
     ):
         """
         Initialize the PinKeeper class with default values.
         """
+        if pin_pw_list is None:
+            pin_pw_list = {}
         self.PinPWList = pin_pw_list
         self.PinList: list[Pin] = []
         self.logger = logging.getLogger("PinKeeper")
@@ -59,17 +62,13 @@ class PinKeeper(object):
         """
         pin_id = self.DoIExist(config)
         if isinstance(pin_id, bool):  # is pin config, but does not exist jet
-            self.logger.info(
-                "Is config for pin{}, but does not exist jet.".format(config.pin)
-            )
+            self.logger.info(f"Is config for pin{config.pin}, but does not exist jet.")
             if self.SetPin(config):
                 pin_id = self.DoIExist(config)
                 return self.PinList[pin_id].GetPinValue()
         else:  # is pin config, and it exists --> ask its value
             self.logger.info(
-                "Is config for pin {}, and it exists, therefore requesting its value.".format(
-                    config.pin
-                )
+                f"Is config for pin {config.pin}, and it exists, therefore requesting its value."
             )
             return self.PinList[pin_id].GetPinValue()
 
@@ -96,29 +95,31 @@ class PinKeeper(object):
             if config.ptype == PinType.pinnwayout.value:
                 # check if n ways do also not jet exist
                 for p in config.pin_list:
-                    if p >= 0 and not p == config.pin:
-                        if isinstance(
+                    if (
+                        p >= 0
+                        and p != config.pin
+                        and isinstance(
                             self.DoIExist(
                                 PinModel({"pin": p, "ptype": PinType.pinout.value}), int
                             )
-                        ):
-                            self.logger.warning(
-                                "Pin {} already exists. Cannot override existing pin to make an nwayout pin.".format(
-                                    p
-                                )
-                            )
-                            return False
+                        )
+                    ):
+                        self.logger.warning(
+                            f"Pin {p} already exists. Cannot override existing pin to make an nwayout pin."
+                        )
+                        return False
             if self.MakeNewPin(config):
                 return True
             else:
                 self.logger.warning("No pin configuration recognized.")
                 return False
         else:  # is pin config, and exists, thus process update
-            self.logger.info("Proces update for pin {}.".format(config.pin))
-            if self.PinList[pin_id].config.pin in self.PinPWList:
-                if not self.PinList[pin_id].CheckPW(config.password):
-                    self.logger.warning("Worng password for pin {}!".format(config.pin))
-                    return False
+            self.logger.info(f"Proces update for pin {config.pin}.")
+            if self.PinList[pin_id].config.pin in self.PinPWList and not self.PinList[
+                pin_id
+            ].CheckPW(config.password):
+                self.logger.warning(f"Worng password for pin {config.pin}!")
+                return False
             if self.PinList[pin_id].HasSameConfig(config):
                 return self.PinList[pin_id].ProcessPinUpdate(config)
             else:
@@ -177,20 +178,18 @@ class PinKeeper(object):
         Returns:
         bool: True if succesfully made, otherwise False.
         """
-        self.logger.info("Make a new pin with config: {}".format(config))
+        self.logger.info(f"Make a new pin with config: {config}")
         pw_needed = False
         if config.pin in self.PinPWList:
             if config.password is not None:
                 if config.password == self.PinPWList[config.pin]:
                     pw_needed = True
                 else:
-                    self.logger.warning("Worng password for pin {}!".format(config.pin))
+                    self.logger.warning(f"Worng password for pin {config.pin}!")
                     return False
             else:
                 self.logger.warning(
-                    "No password provided for pin {}, while this is required!".format(
-                        config.pin
-                    )
+                    f"No password provided for pin {config.pin}, while this is required!"
                 )
                 return False
         if config.ptype is PinType.pinout.value:
@@ -224,9 +223,9 @@ class PinKeeper(object):
                 },
             )
             for lst in range(len(config.pin_list)):
-                if not config.pin_list[lst] == config.pin and config.pin_list[lst] >= 0:
+                if config.pin_list[lst] != config.pin and config.pin_list[lst] >= 0:
                     sub_config = P.GenerateSubPinConfig(lst)
-                    self.logger.info("Configure sub pin {}.".format(sub_config))
+                    self.logger.info(f"Configure sub pin {sub_config}.")
                     N = Pin_out(
                         config=sub_config,
                         is_PinNWayOut=True,
@@ -240,12 +239,12 @@ class PinKeeper(object):
             return False
         if pw_needed:
             P.pw = {config.pin: self.PinPWList[config.pin]}
-        self.logger.info("Configure pin {}.".format(P.config.pin))
+        self.logger.info(f"Configure pin {P.config.pin}.")
         P.ConfigurePin()
         if not P.ProcessPinUpdate(config):
             self.logger.error("Could not set pin update")
-        self.logger.info("Add pin {} to PinList".format(P.config.pin))
+        self.logger.info(f"Add pin {P.config.pin} to PinList")
         self.PinList.append(P)
         self.logger.info(self.dgb_context.get_object(str(P.config.pin)).config)
-        self.logger.info("Pin {} added to PinList.".format(P.config.pin))
+        self.logger.info(f"Pin {P.config.pin} added to PinList.")
         return True

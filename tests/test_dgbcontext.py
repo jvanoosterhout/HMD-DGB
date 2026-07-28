@@ -1,9 +1,9 @@
-import pytest
 import queue
 from unittest.mock import MagicMock
 
-from DGB.DGBContext import DGBContext, BinderMessage, ConfigMessage
+import pytest
 
+from DGB.DGBContext import BinderMessage, ConfigMessage, DGBContext
 
 # ---------------------------------------------------------------------------
 # Fixtures

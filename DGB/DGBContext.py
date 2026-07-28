@@ -17,14 +17,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import queue
 import threading
-import hashlib
-import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Set, Literal
 from enum import Enum
+from typing import Any, Literal
 
 BinderCmd = Literal["post", "ruleset", "shutdown"]
 ConfigCmd = Literal["apply", "shutdown"]
@@ -34,13 +35,13 @@ RuntimePhase = Literal["creation", "apply", "live", "blocked", "quarantine"]
 @dataclass(frozen=True)
 class BinderMessage:
     cmd: BinderCmd
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
 
 
 @dataclass(frozen=True)
 class ConfigMessage:
     cmd: ConfigCmd
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
 
 
 class DuplicatePolicy(Enum):
@@ -48,7 +49,7 @@ class DuplicatePolicy(Enum):
     REPLACE = "replace"
 
 
-FunctionMap = Dict[str, Callable[..., Any]]
+FunctionMap = dict[str, Callable[..., Any]]
 
 _UNSET = object()
 
@@ -81,15 +82,15 @@ class DGBContext:
         # availability topic for dgb devices
         # self.availability_topic_d = ""
 
-        self.DGB_objects: Dict[str, DGBObject] = {}
+        self.DGB_objects: dict[str, DGBObject] = {}
 
         # Bindings should be unique: device_id -> set(ruleset_name)
-        self._bindings: Dict[str, Set[str]] = {}
+        self._bindings: dict[str, set[str]] = {}
 
         self.device_registry: dict[str, str] = {}
 
-        self.binder_queue: "queue.Queue[BinderMessage]" = queue.Queue()
-        self.config_queue: "queue.Queue[ConfigMessage]" = queue.Queue()
+        self.binder_queue: queue.Queue[BinderMessage] = queue.Queue()
+        self.config_queue: queue.Queue[ConfigMessage] = queue.Queue()
         self.engine_lock: threading.Lock = threading.Lock()
 
         self._phase_lock = threading.Lock()
@@ -97,9 +98,9 @@ class DGBContext:
         # config-apply cycle explicitly transitions phases.
         self._runtime_phase: RuntimePhase = "live"
         self._config_apply_cycle_id = 0
-        self._applied_payload_hashes: Set[str] = set()
+        self._applied_payload_hashes: set[str] = set()
         # Track which cycle each binding was registered in, and last completed cycle
-        self._binding_cycle: Dict[str, int] = {}
+        self._binding_cycle: dict[str, int] = {}
         self._last_live_cycle_id = 0
         self._retained_state_prefix = ""
         self._retained_state_publish_fn: Callable[..., Any] | None = None
@@ -193,7 +194,7 @@ class DGBContext:
             self._config_apply_cycle_id,
         )
 
-    def get_bindings(self, device_id: str) -> Set[str]:
+    def get_bindings(self, device_id: str) -> set[str]:
         # return a copy to prevent external mutation
         return set(self._bindings.get(device_id, set()))
 
@@ -294,7 +295,6 @@ class DGBContext:
             dgb_object = self._ensure_dgb_object(unique_id)
             for state_name in states:
                 dgb_object.retain_required.append(state_name)
-        return
 
     def publish_state_value(
         self,
@@ -375,7 +375,7 @@ class DGBContext:
                 self._last_live_cycle_id = cycle_id
                 self._logger.info("Config cycle %s completed and is now live", cycle_id)
 
-    def put_to_config_queue(self, cmd: ConfigCmd, payload: Dict[str, Any]) -> None:
+    def put_to_config_queue(self, cmd: ConfigCmd, payload: dict[str, Any]) -> None:
         if self._closed and cmd != "shutdown":
             raise RuntimeError("DGBContext is closed; no further commands allowed.")
         self.config_queue.put(ConfigMessage(cmd=cmd, payload=payload))
@@ -396,12 +396,12 @@ class DGBContext:
             return payload_hash in self._applied_payload_hashes
 
     @staticmethod
-    def compute_payload_hash(payload: Dict[str, Any]) -> str:
+    def compute_payload_hash(payload: dict[str, Any]) -> str:
         """Compute a deterministic hash of a payload for deduplication."""
         payload_json = json.dumps(payload, sort_keys=True, default=str)
         return hashlib.sha256(payload_json.encode()).hexdigest()
 
-    def put_to_binder_queue(self, cmd: BinderCmd, payload: Dict[str, Any]) -> None:
+    def put_to_binder_queue(self, cmd: BinderCmd, payload: dict[str, Any]) -> None:
         if self._closed and cmd != "shutdown":
             raise RuntimeError("DGBContext is closed; no further commands allowed.")
         self.binder_queue.put(BinderMessage(cmd=cmd, payload=payload))

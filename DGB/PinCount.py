@@ -16,11 +16,13 @@
 #    Pin count configurator class
 
 
-from DGB.Pin import Pin
-from gpiozero import DigitalInputDevice
-from DGB.PinModels import PinModel
-from DGB.DGBContext import DGBContext
 import time
+
+from gpiozero import DigitalInputDevice
+
+from DGB.DGBContext import DGBContext
+from DGB.Pin import Pin
+from DGB.PinModels import PinModel
 
 
 class Pin_count(Pin):
@@ -44,52 +46,34 @@ class Pin_count(Pin):
         Returns:
         bool: True if the configuration matches, otherwise False.
         """
-        if not config.ptype == self.config.ptype:
+        if config.ptype != self.config.ptype:
             self.logger.warning(
-                'New "ptype" {} for pin {} is different from known "ptype" {}'.format(
-                    config.ptype, self.config.pin, self.config.ptype
-                )
+                f'New "ptype" {config.ptype} for pin {self.config.pin} is different from known "ptype" {self.config.ptype}'
             )
             return False
-        if not config.active_state == self.config.active_state:
+        if config.active_state != self.config.active_state:
             self.logger.warning(
-                'New "active_state" {} for pin {} is different from known "active_state" {}'.format(
-                    config.active_state, self.config.pin, self.config.active_state
-                )
+                f'New "active_state" {config.active_state} for pin {self.config.pin} is different from known "active_state" {self.config.active_state}'
             )
             return False
-        if not config.pull_up == self.config.pull_up:
+        if config.pull_up != self.config.pull_up:
             self.logger.warning(
-                'New "pull_up" {} for pin {} is different from known "pull_up" {}'.format(
-                    config.pull_up, self.config.pin, self.config.pull_up
-                )
+                f'New "pull_up" {config.pull_up} for pin {self.config.pin} is different from known "pull_up" {self.config.pull_up}'
             )
             return False
-        if not config.when_activated == self.config.when_activated:
+        if config.when_activated != self.config.when_activated:
             self.logger.warning(
-                'New "when_activated" {} for pin {} is different from known "when_activated" {}'.format(
-                    config.when_activated,
-                    self.config.pin,
-                    self.config.when_activated,
-                )
+                f'New "when_activated" {config.when_activated} for pin {self.config.pin} is different from known "when_activated" {self.config.when_activated}'
             )
             return False
-        if not config.when_deactivated == self.config.when_deactivated:
+        if config.when_deactivated != self.config.when_deactivated:
             self.logger.warning(
-                'New "when_deactivated" {} for pin {} is different from known "when_deactivated" {}'.format(
-                    config.when_deactivated,
-                    self.config.pin,
-                    self.config.when_deactivated,
-                )
+                f'New "when_deactivated" {config.when_deactivated} for pin {self.config.pin} is different from known "when_deactivated" {self.config.when_deactivated}'
             )
             return False
-        if not config.scaling_factor == self.config.scaling_factor:
+        if config.scaling_factor != self.config.scaling_factor:
             self.logger.warning(
-                'New "scaling_factor" {} for pin {} is different from known "scaling_factor" {}'.format(
-                    config.scaling_factor,
-                    self.config.pin,
-                    self.config.scaling_factor,
-                )
+                f'New "scaling_factor" {config.scaling_factor} for pin {self.config.pin} is different from known "scaling_factor" {self.config.scaling_factor}'
             )
             return False
         return True
@@ -196,13 +180,7 @@ class Pin_count(Pin):
         self.count_laatste_blok = self.count_total
         scaled_total = self.count_total / self.config.scaling_factor
         self.logger.info(
-            "pin {} has {} counts total, with {} counts the last {} s, and a flow of {} per second".format(
-                self.config.pin,
-                self.count_total,
-                count_laatste_blok,
-                duur,
-                self.stroom,
-            )
+            f"pin {self.config.pin} has {self.count_total} counts total, with {count_laatste_blok} counts the last {duur} s, and a flow of {self.stroom} per second"
         )
         return {
             "totaal": scaled_total,
@@ -223,13 +201,11 @@ class Pin_count(Pin):
         bool: True if update succesful, otherwise False.
         """
         self.logger.info(
-            "pin {} heeft {} tellen totaal, met een stroom van {} per seconde".format(
-                self.config.pin, self.count_total, self.stroom
-            )
+            f"pin {self.config.pin} heeft {self.count_total} tellen totaal, met een stroom van {self.stroom} per seconde"
         )
         return True
 
-    def set_state(self, state_name: str, value: float | int) -> bool:
+    def set_state(self, state_name: str, value: float) -> bool:
         if state_name not in {"scaled_total", "count_total"}:
             self.logger.warning(
                 "pin %s unsupported state name %r", self.config.pin, state_name

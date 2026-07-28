@@ -17,22 +17,21 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import threading
-from typing import Optional
-import argparse
 
 import paho.mqtt.client as mqtt
-from pydantic import ValidationError
 from ha_mqtt_discoverable import Settings
+from pydantic import ValidationError
 
+from DGB.ActionArguments import ArgumentBuilder
+from DGB.Binder import Binder
 from DGB.DeviceKeeper import DeviceKeeper
+from DGB.DGBContext import DGBContext
 from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import PinModel
-from DGB.Binder import Binder
-from DGB.ActionArguments import ArgumentBuilder
-from DGB.DGBContext import DGBContext
 from DGB.StartupStateInitializer import StartupStateInitializer
 from DGB.SystemDevices import SystemDevices
 
@@ -43,7 +42,7 @@ class DGBservice:
         name: str,
         broker: str,
         port: int = 1883,
-        topic: Optional[str] = None,
+        topic: str | None = None,
         username: str = "me",
         password: str = "secret",
         location: str = "home",
@@ -359,7 +358,7 @@ class DGBservice:
                     self.client.publish(dgb_obj.config_topic, payload=None)
                     self.logger.info("Cleared device %s from registry", unique_id)
                     self.dgb_context.remove_object(unique_id)
-                except Exception as e:
+                except (AttributeError, OSError, RuntimeError, ValueError) as e:
                     self.logger.warning("Error unpublishing devices: %s", e)
             self.client.publish(self.config_topic, payload=None)
             self.client.loop(timeout=0.5)

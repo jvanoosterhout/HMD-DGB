@@ -1,9 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
-from DGB.SystemDevices import SystemDevices
-from DGB.DGBContext import DGBContext
+import pytest
 
+from DGB.DGBContext import DGBContext
+from DGB.SystemDevices import SystemDevices
 
 # ---------------------------------------------------------------------------
 # Minimal helpers
@@ -151,7 +151,7 @@ def test_get_ip_success():
 def test_get_ip_fallback_on_error():
     """Test IP detection fallback on error"""
     with patch("socket.socket") as mock_socket_class:
-        mock_socket_class.side_effect = Exception("Connection failed")
+        mock_socket_class.side_effect = OSError("Connection failed")
 
         ip = SystemDevices._get_ip()
 
@@ -192,21 +192,23 @@ def test_create_devices_sets_registry(
     mock_button._entity.unique_id = "button_id"
     mock_button_class.return_value = mock_button
 
-    with patch("DGB.SystemDevices.CPUTemperature"):
-        with patch("DGB.SystemDevices.platform.uname") as mock_uname:
-            mock_uname.return_value = ("Linux", "RPi", "5.10.0", "arm64", "armv7l")
+    with (
+        patch("DGB.SystemDevices.CPUTemperature"),
+        patch("DGB.SystemDevices.platform.uname") as mock_uname,
+    ):
+        mock_uname.return_value = ("Linux", "RPi", "5.10.0", "arm64", "armv7l")
 
-            system_devices = SystemDevices(
-                mqtt_settings=mock_mqtt_settings,
-                dgb_context=dgb_context,
-                dgb_restart=dgb_restart,
-                device_name="test",
-            )
-            system_devices.create_devices()
+        system_devices = SystemDevices(
+            mqtt_settings=mock_mqtt_settings,
+            dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
+            device_name="test",
+        )
+        system_devices.create_devices()
 
-            assert hasattr(dgb_context, "device_registry")
-            assert dgb_context.device_registry["node"] == system_devices.NODE_ID
-            assert dgb_context.device_registry["service"] == system_devices.SERVICE_ID
+        assert hasattr(dgb_context, "device_registry")
+        assert dgb_context.device_registry["node"] == system_devices.NODE_ID
+        assert dgb_context.device_registry["service"] == system_devices.SERVICE_ID
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +265,7 @@ def test_create_service_device_version_unknown_on_error(
     dgb_context,
 ):
     """Test service device version defaults to unknown on error"""
-    mock_ghapi_class.side_effect = Exception("GitHub API error")
+    mock_ghapi_class.side_effect = ConnectionError("GitHub API error")
     mock_settings_class.return_value = MagicMock()
 
     mock_sensor = MagicMock()

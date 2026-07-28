@@ -14,11 +14,11 @@
 #    limitations under the License.
 
 import pytest
+
 from DGB.StartupPolicy import (
     StartupPolicy,
     parse_startup_policy,
 )
-
 
 # ---------------------------------------------------------------------------
 # Defaults

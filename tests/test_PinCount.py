@@ -1,8 +1,9 @@
 from unittest.mock import MagicMock, patch
+
 import pytest
 
-from DGB.PinModels import PinModel
 from DGB.PinCount import Pin_count
+from DGB.PinModels import PinModel
 
 
 def test_pincount_model_defaults_enable_both_edges():

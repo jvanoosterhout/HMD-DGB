@@ -1,5 +1,6 @@
 import pytest
 import queue
+from unittest.mock import MagicMock
 
 from DGB.DGBContext import DGBContext, BinderMessage, ConfigMessage
 
@@ -165,6 +166,25 @@ def test_get_functions_last_write_wins(dgb_context):
 def test_get_functions_nonexistent(dgb_context):
     """Test getting functions for non-existent device/pin returns empty dict"""
     assert dgb_context.get_functions("nonexistent") == {}
+
+
+def test_retained_value_updates_dgb_object_state_store(dgb_context):
+    dgb_context.record_retained_state("switch_2", "state", "on")
+
+    retained = dgb_context.get_retained_state("switch_2")
+    assert retained == {"state": "on"}
+    assert dgb_context.get_retained_state("switch_2") == {"state": "on"}
+
+
+def test_publish_state_value_calls_publish_fn(dgb_context):
+    publish_fn = MagicMock()
+    dgb_context.configure_retained_state_publishing("state/test/", publish_fn)
+
+    dgb_context.publish_state_value("switch_7", "state", "off")
+
+    publish_fn.assert_called_once_with(
+        "state/test/switch_7/state", payload='"off"', qos=1, retain=True
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -363,30 +383,14 @@ def test_put_config_shutdown_command(dgb_context):
 # ---------------------------------------------------------------------------
 
 
-def test_register_and_get_retained_topic(dgb_context):
-    dgb_context.register_retained_interest("switch_one", "state/node/switch_one")
-
-    assert dgb_context.get_retained_topic("switch_one") == "state/node/switch_one"
-    assert dgb_context.get_retained_topic("missing") is None
-
-
-def test_record_and_get_retained_value(dgb_context):
-    dgb_context.record_retained_value(
-        unique_id="switch_one",
-        topic="state/node/switch_one",
-        payload_raw='{"value": "on"}',
-        payload_decoded={"value": "on"},
-    )
+def test_record_and_get_retained_state(dgb_context):
+    dgb_context.record_retained_state("switch_one", "payload", {"value": "on"})
 
     assert dgb_context.has_retained_value("switch_one") is True
-    retained = dgb_context.get_retained_value("switch_one")
-    assert retained is not None
-    assert retained.unique_id == "switch_one"
-    assert retained.topic == "state/node/switch_one"
-    assert retained.payload_raw == '{"value": "on"}'
-    assert retained.payload_decoded == {"value": "on"}
+    assert dgb_context.get_retained_state("switch_one") == {"payload": {"value": "on"}}
+    assert dgb_context.get_retained_state("switch_one") == {"payload": {"value": "on"}}
 
 
 def test_has_retained_value_false_when_missing(dgb_context):
     assert dgb_context.has_retained_value("unknown") is False
-    assert dgb_context.get_retained_value("unknown") is None
+    assert dgb_context.get_retained_state("unknown") == {}

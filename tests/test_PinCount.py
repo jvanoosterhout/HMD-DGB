@@ -79,3 +79,21 @@ def test_pincount_callback_posts_scaled_total():
     dgb_context.put_to_binder_queue.assert_called_once_with(
         "post", {"unique_id": "5", "payload": 0.1}
     )
+
+
+def test_pincount_set_state_restores_scaled_total():
+    config = PinModel(
+        {
+            "pin": 5,
+            "ptype": "count",
+            "scaling_factor": 10.0,
+            "when_activated": False,
+            "when_deactivated": False,
+        }
+    )
+    dgb_context = MagicMock()
+
+    pin = Pin_count(config=config, dgb_context=dgb_context)
+
+    assert pin.set_state("scaled_total", 1.5) is True
+    assert pin.count_total == 15

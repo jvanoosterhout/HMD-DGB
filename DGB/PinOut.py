@@ -15,6 +15,9 @@
 #
 #    Pin uit class om GPIO pinnen in te stellen als output
 
+from __future__ import annotations
+
+
 from DGB.Pin import Pin
 from gpiozero import DigitalOutputDevice
 from DGB.PinModels import PinModel
@@ -107,6 +110,44 @@ class Pin_out(Pin):
             self.logger.info("pin {} is off".format(self.config.pin))
             return True
         return False
+
+    def set_state(self, state_name: str, value: int | str | bool) -> bool:
+        if state_name == "blink":
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                self.logger.warning(
+                    "pin %s blink state rejected: %r", self.config.pin, value
+                )
+                return False
+            result = self.blink(blink=value, is_PinNWayOut=self.is_PinNWayOut)
+        else:
+            if state_name != "state":
+                self.logger.warning(
+                    "pin %s unsupported state name %r", self.config.pin, state_name
+                )
+                return False
+
+        if isinstance(value, bool):
+            value = "on" if value else "off"
+        else:
+            value = str(value).lower().strip()
+
+        if value == "on" or value == "1":
+            result = self.on(is_PinNWayOut=self.is_PinNWayOut)
+        elif value == "off" or value == "0":
+            result = self.off(is_PinNWayOut=self.is_PinNWayOut)
+        else:
+            self.logger.warning(
+                "pin %s unsupported state value %r", self.config.pin, value
+            )
+            return False
+
+        if result and self.dgb_context.is_retain_required(str(self.config.pin)):
+            self.dgb_context.publish_state_value(
+                str(self.config.pin), state_name, value
+            )
+        return result
 
     def ProcessPinUpdate(self, config: PinModel, is_PinNWayOut: bool = False) -> bool:
         """

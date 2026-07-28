@@ -196,18 +196,32 @@ class PinKeeper(object):
         if config.ptype is PinType.pinout.value:
             P = Pin_out(config=config, dgb_context=self.dgb_context)
             self.dgb_context.add_object(
-                str(config.pin), P, {"on": P.on, "off": P.off, "blink": P.blink}
+                str(config.pin),
+                P,
+                {
+                    "on": P.on,
+                    "off": P.off,
+                    "blink": P.blink,
+                    "set_state": P.set_state,
+                },
             )
         elif config.ptype is PinType.pinin.value:
             P = Pin_in(config=config, dgb_context=self.dgb_context)
             self.dgb_context.add_object(str(config.pin), P)
         elif config.ptype is PinType.pincount.value:
             P = Pin_count(config=config, dgb_context=self.dgb_context)
-            self.dgb_context.add_object(str(config.pin), P)
+            self.dgb_context.add_object(str(config.pin), P, {"set_state": P.set_state})
         elif config.ptype is PinType.pinnwayout.value:
             P = Pin_N_way_out(config=config, dgb_context=self.dgb_context)
             self.dgb_context.add_object(
-                str(config.pin), P, {"on": P.on, "off": P.off, "blink": P.blink}
+                str(config.pin),
+                P,
+                {
+                    "on": P.on,
+                    "off": P.off,
+                    "blink": P.blink,
+                    "set_state": P.set_state,
+                },
             )
             for lst in range(len(config.pin_list)):
                 if not config.pin_list[lst] == config.pin and config.pin_list[lst] >= 0:

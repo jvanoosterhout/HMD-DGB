@@ -16,11 +16,11 @@
 #    Device keeper to manage home assistant device and entity configurations.
 
 import logging
+from functools import partial
 from ha_mqtt_discoverable import Settings, sensors, EntityType, Discoverable
 from paho.mqtt.client import Client, MQTTMessage
 from DGB.DGBContext import DGBContext, DuplicatePolicy
-from typing import Any, Optional
-from collections.abc import Callable
+from typing import Any
 # from DGB.Binder import post_event
 
 logging.basicConfig(level="INFO")
@@ -70,7 +70,7 @@ class DeviceKeeper(object):
                 elif dev["EntityInfo"]["component"] == "valve":
                     self.configure_valve(dev, dst)
                 elif dev["EntityInfo"]["component"] == "sensor":
-                    self.configure_sensor(dev, dst)
+                    self.configure_sensor(dev, True)
                 elif dev["EntityInfo"]["component"] == "switch":
                     self.configure_switch(dev, dst)
                 elif dev["EntityInfo"]["component"] == "light":
@@ -84,7 +84,7 @@ class DeviceKeeper(object):
                 elif dev["EntityInfo"]["component"] == "select":
                     self.configure_select(dev, dst)
                 elif dev["EntityInfo"]["component"] == "binary_sensor":
-                    self.configure_binary_sensor(dev, dst)
+                    self.configure_binary_sensor(dev, True)
                 else:
                     self.logger.warning(
                         "Unknown component '{}', skipping this configuration".format(
@@ -134,6 +134,183 @@ class DeviceKeeper(object):
         )
         return False
 
+    def _record_state_if_required(
+        self, unique_id: str, state_name: str, value: Any
+    ) -> None:
+        if self.dgb_context.is_retain_required(unique_id):
+            self.dgb_context.publish_state_value(unique_id, state_name, value)
+
+    def _set_cover_state(
+        self, device: Discoverable, dst: bool, state_name: str, payload: str
+    ) -> bool:
+        unique_id = str(device._entity.unique_id)
+        if state_name != "state":
+            self.logger.warning(
+                "Unsupported cover state name for %s: %r", unique_id, state_name
+            )
+            return False
+        if payload == device._entity.payload_open:
+            if dst:
+                device.open()
+        elif payload == device._entity.payload_close:
+            if dst:
+                device.closed()
+        elif payload == device._entity.payload_stop:
+            if dst:
+                device.stopped()
+        else:
+            self.logger.warning(
+                "Unsupported cover payload for %s: %r", unique_id, payload
+            )
+            return False
+
+        self._record_state_if_required(unique_id, state_name, payload)
+        return True
+
+    def _set_valve_state(
+        self, device: Discoverable, dst: bool, state_name: str, payload: str | int
+    ) -> bool:
+        unique_id = str(device._entity.unique_id)
+        if state_name not in {"state", "position"}:
+            self.logger.warning(
+                "Unsupported valve state name for %s: %r", unique_id, state_name
+            )
+            return False
+
+        if payload == device._entity.payload_open:
+            if dst:
+                device.open()
+        elif payload == device._entity.payload_close:
+            if dst:
+                device.closed()
+        elif payload == device._entity.payload_stop:
+            if dst:
+                device.stopped()
+        else:
+            state_name = "position"
+            try:
+                payload = int(payload)
+            except (TypeError, ValueError):
+                self.logger.error(
+                    "Wrong payload type for valve %s: %r", unique_id, payload
+                )
+                return False
+            if dst:
+                device.position(payload)
+
+        self._record_state_if_required(unique_id, state_name, payload)
+        return True
+
+    def _set_switch_state(
+        self, device: Discoverable, dst: bool, state_name: str, payload: str
+    ) -> bool:
+        unique_id = str(device._entity.unique_id)
+        if state_name != "state":
+            self.logger.warning(
+                "Unsupported switch state name for %s: %r", unique_id, state_name
+            )
+            return False
+        if payload == device._entity.payload_on:
+            if dst:
+                device.on()
+        elif payload == device._entity.payload_off:
+            if dst:
+                device.off()
+        else:
+            self.logger.warning(
+                "Unsupported switch payload for %s: %r", unique_id, payload
+            )
+            return False
+
+        self._record_state_if_required(unique_id, state_name, payload)
+        return True
+
+    def _set_text_state(
+        self, device: Discoverable, dst: bool, state_name: str, payload: str
+    ) -> bool:
+        unique_id = str(device._entity.unique_id)
+        if state_name != "state":
+            self.logger.warning(
+                "Unsupported text state name for %s: %r", unique_id, state_name
+            )
+            return False
+        if dst:
+            device.set_text(payload)
+        self._record_state_if_required(unique_id, state_name, payload)
+        return True
+
+    def _set_number_state(
+        self, device: Discoverable, dst: bool, state_name: str, payload: float
+    ) -> bool:
+        unique_id = str(device._entity.unique_id)
+        if state_name != "state":
+            self.logger.warning(
+                "Unsupported number state name for %s: %r", unique_id, state_name
+            )
+            return False
+        if dst:
+            device.set_value(payload)
+        self._record_state_if_required(unique_id, state_name, payload)
+        return True
+
+    def _set_select_state(
+        self, device: Discoverable, dst: bool, state_name: str, payload: str
+    ) -> bool:
+        unique_id = str(device._entity.unique_id)
+        if state_name != "state":
+            self.logger.warning(
+                "Unsupported select state name for %s: %r", unique_id, state_name
+            )
+            return False
+        if dst:
+            device.select_option(payload)
+        self._record_state_if_required(unique_id, state_name, payload)
+        return True
+
+    def _set_sensor_state(
+        self,
+        device: Discoverable,
+        dst: bool,
+        state_name: str,
+        payload: bytes | str | int | float,
+    ) -> bool:
+        unique_id = str(device._entity.unique_id)
+        if state_name != "state":
+            self.logger.warning(
+                "Unsupported sensor state name for %s: %r", unique_id, state_name
+            )
+            return False
+        device.set_state(payload)
+        self._record_state_if_required(unique_id, state_name, payload)
+        return True
+
+    def _set_binary_sensor_state(
+        self,
+        device: Discoverable,
+        dst: bool,
+        state_name: str,
+        payload: bool | int | str,
+    ) -> bool:
+        unique_id = str(device._entity.unique_id)
+        if state_name != "state":
+            self.logger.warning(
+                "Unsupported binary_sensor state name for %s: %r", unique_id, state_name
+            )
+            return False
+        normalized = str(payload).lower().strip()
+        if normalized in {"on", "1", "true"}:
+            device.on()
+        elif normalized in {"off", "0", "false"}:
+            device.off()
+        else:
+            self.logger.warning(
+                "Unsupported binary_sensor payload for %s: %r", unique_id, payload
+            )
+            return False
+
+        self._record_state_if_required(unique_id, state_name, payload)
+        return True
+
     def configure_cover(self, payload, dst: bool):
         if "time_based_state" in payload["EntityInfo"]:
             self.logger.info("cover has time_based_state, adding to settings")
@@ -143,20 +320,10 @@ class DeviceKeeper(object):
 
         cover_info = sensors.CoverInfo(**payload["EntityInfo"])
 
-        def state_transition_function(payload: Any):
-            if payload == device._entity.payload_open:
-                device.open()
-            elif payload == device._entity.payload_close:
-                device.closed()
-            elif payload == device._entity.payload_stop:
-                device.stopped()
-
-        callback = build_callback(
-            cover_info, self.dgb_context, dst, state_transition_function
-        )
         settings = Settings(mqtt=self.mqtt_settings, entity=cover_info)
-
+        callback = build_callback(cover_info, self.dgb_context, dst)
         device = sensors.Cover(settings, callback)
+        set_state = partial(self._set_cover_state, device, dst)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -167,6 +334,7 @@ class DeviceKeeper(object):
                 "stopped": device.stopped,
                 "opening": device.opening,
                 "closing": device.closing,
+                "set_state": set_state,
             },
         )
         self.finalize_device(device)
@@ -179,26 +347,10 @@ class DeviceKeeper(object):
             del payload["EntityInfo"]["time_based_state"]
 
         valve_info = sensors.ValveInfo(**payload["EntityInfo"])
-
-        def state_transition_function(payload: Any):
-            if payload == device._entity.payload_open:
-                device.open()
-            elif payload == device._entity.payload_close:
-                device.closed()
-            elif payload == device._entity.payload_stop:
-                pass
-            else:
-                try:
-                    payload = int(payload)
-                    device.position(payload)
-                except Exception as e:
-                    self.logger.error("Wrong payload type: %s", e)
-
-        callback = build_callback(
-            valve_info, self.dgb_context, dst, state_transition_function
-        )
         settings = Settings(mqtt=self.mqtt_settings, entity=valve_info)
+        callback = build_callback(valve_info, self.dgb_context, dst)
         device = sensors.Valve(settings, callback)
+        set_state = partial(self._set_valve_state, device, dst)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -209,6 +361,7 @@ class DeviceKeeper(object):
                 "opening": device.opening,
                 "closing": device.closing,
                 "position": device.position,
+                "set_state": set_state,
             },
         )
         self.finalize_device(device)
@@ -218,27 +371,22 @@ class DeviceKeeper(object):
         sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=sensor_info)
         device = sensors.Sensor(settings)
+        set_state = partial(self._set_sensor_state, device, dst)
         self.dgb_context.add_object(
-            str(device._entity.unique_id), device, {"set_state": device.set_state}
+            str(device._entity.unique_id), device, {"set_state": set_state}
         )
         self.finalize_device(device)
 
     def configure_switch(self, payload, dst: bool):
         switch_info = sensors.SwitchInfo(**payload["EntityInfo"])
-
-        def state_transition_function(payload: Any):
-            if payload == device._entity.payload_on:
-                device.on()
-            elif payload == device._entity.payload_off:
-                device.off()
-
-        callback = build_callback(
-            switch_info, self.dgb_context, dst, state_transition_function
-        )
         settings = Settings(mqtt=self.mqtt_settings, entity=switch_info)
+        callback = build_callback(switch_info, self.dgb_context, dst)
         device = sensors.Switch(settings, callback)
+        set_state = partial(self._set_switch_state, device, dst)
         self.dgb_context.add_object(
-            str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
+            str(device._entity.unique_id),
+            device,
+            {"on": device.on, "off": device.off, "set_state": set_state},
         )
         self.finalize_device(device)
 
@@ -250,68 +398,56 @@ class DeviceKeeper(object):
 
     def configure_text(self, payload, dst: bool):
         text_info = sensors.TextInfo(**payload["EntityInfo"])
-
-        def state_transition_function(payload: Any):
-            if dst:
-                device.set_text(payload)
-
-        callback = build_callback(
-            text_info, self.dgb_context, dst, state_transition_function
-        )
         settings = Settings(mqtt=self.mqtt_settings, entity=text_info)
+        callback = build_callback(text_info, self.dgb_context, dst)
         device = sensors.Text(settings, callback)
+        set_state = partial(self._set_text_state, device, dst)
 
         self.dgb_context.add_object(
-            str(device._entity.unique_id), device, {"set_text": device.set_text}
+            str(device._entity.unique_id),
+            device,
+            {"set_text": device.set_text, "set_state": set_state},
         )
         self.finalize_device(device)
 
     def configure_number(self, payload, dst: bool):
         number_info = sensors.NumberInfo(**payload["EntityInfo"])
-
-        def state_transition_function(payload: Any):
-            try:
-                payload = int(payload)
-                device.set_value(payload)
-            except Exception as e:
-                self.logger.error("Wrong payload type: %s", e)
-
-        callback = build_callback(
-            number_info, self.dgb_context, dst, state_transition_function
-        )
         settings = Settings(mqtt=self.mqtt_settings, entity=number_info)
+        callback = build_callback(number_info, self.dgb_context, dst)
         device = sensors.Number(settings, callback)
+        set_state = partial(self._set_number_state, device, dst)
 
         self.dgb_context.add_object(
-            str(device._entity.unique_id), device, {"set_value": device.set_value}
+            str(device._entity.unique_id),
+            device,
+            {"set_value": device.set_value, "set_state": set_state},
         )
         self.finalize_device(device)
 
     def configure_select(self, payload, dst: bool):
         select_info = sensors.SelectInfo(**payload["EntityInfo"])
-
-        def state_transition_function(payload: Any):
-            device.select_option(payload)
-
-        callback = build_callback(
-            select_info, self.dgb_context, dst, state_transition_function
-        )
         settings = Settings(mqtt=self.mqtt_settings, entity=select_info)
+        callback = build_callback(select_info, self.dgb_context, dst)
         device = sensors.Select(settings, callback)
+        set_state = partial(self._set_select_state, device, dst)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
-            {"select_option": device.select_option},
+            {"select_option": device.select_option, "set_state": set_state},
         )
         self.finalize_device(device)
 
     def configure_binary_sensor(self, payload, dst: bool):
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
-        device = sensors.BinarySensor(settings)
+        callback = build_callback(binarysensor_info, self.dgb_context, dst)
+        device = sensors.BinarySensor(settings, callback)
+        set_state = partial(self._set_binary_sensor_state, device, dst)
         self.dgb_context.add_object(
-            str(device._entity.unique_id), device, {"on": device.on, "off": device.off}
+            str(device._entity.unique_id),
+            device,
+            {"on": device.on, "off": device.off, "set_state": set_state},
         )
         self.finalize_device(device)
 
@@ -332,7 +468,6 @@ def build_callback(
     entity: EntityType,
     dgb_context: DGBContext,
     dst: bool,
-    state_transition_function: Optional[Callable[[Any, bool], None]],
 ):
     logger = logging.getLogger("DeviceKeeper")
 
@@ -346,7 +481,12 @@ def build_callback(
         dgb_context.put_to_binder_queue(
             "post", {"unique_id": entity.unique_id, "payload": payload}
         )
-        if state_transition_function and dst:
-            state_transition_function(payload)
+        state_transition = dgb_context.get_functions(str(entity.unique_id)).get(
+            "set_state"
+        )
+        if callable(state_transition):
+            state_transition(
+                "state", payload
+            )  # works for now, though hacky for valve with positions.
 
     return callback

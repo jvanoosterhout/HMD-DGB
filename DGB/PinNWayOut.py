@@ -15,6 +15,9 @@
 #
 #    Pin uit class om GPIO pinnen in te stellen als output
 
+from __future__ import annotations
+
+
 from DGB.PinOut import Pin_out
 from DGB.PinModels import PinType, PinModel
 from DGB.Pin import Pin
@@ -199,6 +202,24 @@ class Pin_N_way_out(Pin):
         self.config.value = 0
         self.logger.info("All N Way Out pins turned off")
         return True
+
+    def set_state(self, state_name: str, value: int | str | None) -> bool:
+        if state_name not in {"active_pin"}:
+            self.logger.warning(
+                "pin %s unsupported state name %r", self.config.pin, state_name
+            )
+            return False
+
+        if value is None:
+            result = self.off()
+        else:
+            result = self.on(active_pin=value)
+
+        if result and self.dgb_context.is_retain_required(str(self.config.pin)):
+            self.dgb_context.publish_state_value(
+                str(self.config.pin), "active_pin", value
+            )
+        return result
 
     def ProcessPinUpdate(self, config: PinModel) -> bool:
         """

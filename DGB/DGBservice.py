@@ -34,11 +34,6 @@ from DGB.Binder import Binder
 from DGB.ActionArguments import ArgumentBuilder
 from DGB.DGBContext import DGBContext
 from DGB.StartupStateInitializer import StartupStateInitializer
-from DGB.StartupPolicy import (
-    StartupPolicy,
-    parse_startup_policy,
-    resolve_state_sources,
-)
 from DGB.SystemDevices import SystemDevices
 
 
@@ -76,7 +71,7 @@ class DGBservice:
 
         # MQTT
         self.config_topic = topic or f"config/{self.name}/devices/"
-        self.state_shadow_prefix = f"state/{self.name}/"
+        self.state_retain_topic_prefix = f"state/{self.name}/"
         self.client: mqtt.Client = self._create_mqtt_client()
         self.mqtt_settings = Settings.MQTT(client=self.client)
 
@@ -89,9 +84,12 @@ class DGBservice:
         self.startup_state = StartupStateInitializer(
             dgb_context=self.dgb_context,
             mqtt_client=self.client,
-            logger=self.logger,
             arg_builder=self.arg_builder,
-            state_shadow_prefix=self.state_shadow_prefix,
+            state_retain_topic_prefix=self.state_retain_topic_prefix,
+        )
+        self.dgb_context.configure_retained_state_publishing(
+            prefix=self.state_retain_topic_prefix,
+            publish_fn=self.client.publish,
         )
 
         # System devices (platform + app) - create before DeviceKeeper
@@ -122,7 +120,11 @@ class DGBservice:
 
     def start(self) -> None:
         self.logger.info("Starting runtime")
+
+        # start phase 1: preload
+        self.startup_state.handle_subscription_to_retaind_state_topic()
         self.binder.start_event_dispatcher()
+        # state phase 2-5: config-create-apply-live
         self.config_thread.start()
         self.client.loop_start()
         self.sensor_thread.start()
@@ -209,7 +211,7 @@ class DGBservice:
         self.logger.info("Message received on %s", msg.topic)
 
         if self.startup_state.is_state_shadow_topic(msg.topic):
-            self.startup_state.handle_state_shadow_message(msg)
+            self.startup_state.handle_retaind_state_message(msg)
             return
 
         if self.config_topic not in msg.topic:
@@ -251,13 +253,23 @@ class DGBservice:
 
         self.logger.info("Config cycle %s entered creation phase", cycle_id)
 
-        # Parse and normalize startup_policy (Stage 2)
-        startup_policy: StartupPolicy = parse_startup_policy(
-            payload.get("startup_policy", {})
-        )
+        # Validate startup policy and extract startup state values.
+        raw_startup_policy = self.startup_state.get_dict(payload, "startup_policy")
+        # policy = parse_startup_policy(raw_startup_policy)
 
-        # Resolve winning state source per unique_id (Stage 3)
-        decisions = resolve_state_sources(startup_policy.state_initialization)
+        # phase 2.1 record retained state needs
+        state_initialization = self.startup_state.get_dict(
+            raw_startup_policy, "state_initialization"
+        )
+        self.startup_state.register_retained_state_need(state_initialization)
+        # phase 2.2 record preset state values
+        self.startup_state.register_preset_states(state_initialization)
+
+        # preset_state_values = parse_state_initialization(raw_startup_policy)
+        # preload_required = self._register_startup_state_requirements(
+        #     retain_state=retain_states,
+        #     preset_value=preset_state_values,
+        # )
 
         try:
             self._handle_devices(payload)
@@ -266,9 +278,7 @@ class DGBservice:
 
             self.dgb_context.set_runtime_phase("apply")
             self.logger.info("Config cycle %s entered apply phase", cycle_id)
-            self.startup_state.register_retained_subscriptions(decisions)
-            self.startup_state.resolve_retained_sources(decisions)
-            self.startup_state.apply_configured_defaults(decisions)
+            self.startup_state.apply_startup_state()
         except Exception:
             self.dgb_context.set_runtime_phase("blocked")
             self.logger.exception(
@@ -283,6 +293,28 @@ class DGBservice:
 
         # Record this payload as applied for future dedup.
         self.dgb_context.record_payload_hash(payload_hash)
+
+    # def _register_startup_state_requirements(
+    #     self,
+    #     retain_state: tuple[str, ...],
+    #     preset_value: tuple[dict[str, Any], ...],
+    # ) -> bool:
+    #     pass
+    # """Register retain/preset intent in context before apply handlers run."""
+    # for unique_id in retain_state:
+    # self.dgb_context.register_startup_state_requirement(
+    #         "1", retain_required=True
+    #     )
+
+    # for entry in preset_value:
+    #     self.dgb_context.record_preset_state(
+    #         unique_id=entry["unique_id"],
+    #         state_name=entry["state_name"],
+    #         value=entry["value"],
+    #     )
+
+    # return bool(retain_state)
+    # pass
 
     # ------------------------------------------------------------------
     # Payload handlers

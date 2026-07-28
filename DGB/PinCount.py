@@ -15,6 +15,7 @@
 #
 #    Pin count configurator class
 
+
 from DGB.Pin import Pin
 from gpiozero import DigitalInputDevice
 from DGB.PinModels import PinModel
@@ -128,6 +129,13 @@ class Pin_count(Pin):
         self.dgb_context.put_to_binder_queue(
             "post", {"unique_id": str(self.config.pin), "payload": scaled_total}
         )
+        if self.dgb_context.is_retain_required(str(self.config.pin)):
+            self.dgb_context.publish_state_value(
+                str(self.config.pin), "scaled_total", scaled_total
+            )
+            self.dgb_context.publish_state_value(
+                str(self.config.pin), "count_total", self.count_total
+            )
 
     def is_update_relevant(self):
         """
@@ -219,4 +227,32 @@ class Pin_count(Pin):
                 self.config.pin, self.count_total, self.stroom
             )
         )
+        return True
+
+    def set_state(self, state_name: str, value: float | int) -> bool:
+        if state_name not in {"scaled_total", "count_total"}:
+            self.logger.warning(
+                "pin %s unsupported state name %r", self.config.pin, state_name
+            )
+            return False
+
+        if state_name == "scaled_total":
+            try:
+                total = float(value)
+            except (TypeError, ValueError):
+                self.logger.warning(
+                    "pin %s rejected retained count value %r for %s",
+                    self.config.pin,
+                    value,
+                    state_name,
+                )
+                return False
+            total = total * self.config.scaling_factor
+
+        self.count_total = int(total)
+        self.count_laatste_blok = 0
+        self.tijd_laatste_count = time.monotonic()
+        self.tijd_laatste_block = self.tijd_laatste_count
+
+        self.logger.info("pin %s total restored to %s", self.config.pin, total)
         return True

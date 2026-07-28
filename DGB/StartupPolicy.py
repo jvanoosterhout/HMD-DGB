@@ -13,7 +13,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-#    Parser and model for the startup_policy config section.
+#    Parser for startup_policy validation and startup-state payloads.
 
 from __future__ import annotations
 
@@ -23,14 +23,15 @@ from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
+# ------------------------------------------------------------------
+# DGB Startup Behavior Policy
+# ------------------------------------------------------------------
+
 # loading_mode: controls how Creation -> Apply -> Live phases are orchestrated
 LoadingMode = Literal["gated", "unsupervised"]
 
 # unknown_state_policy: what to do when a unique_id has no resolved state source
 UnknownStatePolicy = Literal["warn", "quarantine", "block"]
-
-# ResolvedSource: the winning state initialization source for a unique_id
-ResolvedSource = Literal["retain_state", "preset_value", "no_state"]
 
 _VALID_LOADING_MODES: set[str] = {"gated", "unsupervised"}
 
@@ -40,96 +41,48 @@ _DEFAULT_LOADING_MODE: LoadingMode = "gated"
 _DEFAULT_UNKNOWN_STATE_POLICY: UnknownStatePolicy = "warn"
 
 
-@dataclass(frozen=True)
-class StartupEntry:
-    """A single entry in a state_initialization bucket."""
-
-    unique_id: str
-    value: Any = None
-
-
-@dataclass(frozen=True)
-class SourceDecision:
-    """
-    The resolved startup source decision for a single unique_id.
-
-    source:         the primary intent (retain_state, preset_value, or no_state)
-    value:          the configured value, only set when source == "preset_value"
-    fallback:       used by Stage 5 when source == "retain_state" and the
-                    retained topic has no value; defaults to "no_state"
-    fallback_value: the configured value for the fallback, only set when
-                    fallback == "preset_value"
-    """
-
-    unique_id: str
-    source: ResolvedSource
-    value: Any = None
-    fallback: ResolvedSource = "no_state"
-    fallback_value: Any = None
-
-
-@dataclass(frozen=True)
-class StateInitialization:
-    """
-    State initialization sources: what value each entity starts with.
-
-    Precedence (highest first):
-      retain_state > preset_value > no_state
-    """
-
-    retain_state: tuple[StartupEntry, ...]  # restore from retained MQTT shadow
-    preset_value: tuple[StartupEntry, ...]  # apply a fixed startup value
-    no_state: tuple[StartupEntry, ...]  # create/discover without forcing any value
+# ------------------------------------------------------------------
+# DGB Startup Policy Model
+# ------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class StartupPolicy:
-    """Normalized startup policy extracted from a config payload."""
+    """Normalized startup behavior policy for a config apply cycle."""
 
     # Controls when phases progress and whether gating is enforced
     loading_mode: LoadingMode
-    # Controls what value each entity starts with
-    state_initialization: StateInitialization
     # Controls what to do when a unique_id has no resolved state source
     unknown_state_policy: UnknownStatePolicy
 
 
-def _parse_entry(raw: Any, bucket_name: str) -> StartupEntry:
-    """Parse a single entry dict into a StartupEntry."""
-    if not isinstance(raw, dict):
-        raise ValueError(
-            f"startup_policy.state_initialization.{bucket_name}: each entry must be a dict, got {type(raw).__name__!r}"
-        )
+# ------------------------------------------------------------------
+# DGB Startup State Source Parsing
+# ------------------------------------------------------------------
 
-    unique_id = raw.get("unique_id")
-    if not isinstance(unique_id, str) or not unique_id.strip():
-        raise ValueError(
-            f"startup_policy.state_initialization.{bucket_name}: entry has missing or empty 'unique_id': {raw!r}"
-        )
-
-    return StartupEntry(unique_id=unique_id, value=raw.get("value", None))
-
-
-def _parse_bucket(
-    raw_sources: dict,
-    key: str,
-) -> tuple[StartupEntry, ...]:
-    """Parse a bucket list from the raw state_initialization dict."""
-    raw_list = raw_sources.get(key, [])
-    if not isinstance(raw_list, list):
-        raise ValueError(
-            f"startup_policy.state_initialization.{key}: expected a list, got {type(raw_list).__name__!r}"
-        )
-    return tuple(_parse_entry(item, key) for item in raw_list)
+# def _parse_bucket(
+#     raw_sources: dict,
+#     key: str,
+# ) -> tuple[str, ...]:
+#     """Parse a unique_id bucket (used for retain_state registrations)."""
+#     raw_list = raw_sources.get(key, [])
+#     if not isinstance(raw_list, list):
+#         raise ValueError(
+#             f"startup_policy.state_initialization.{key}: expected a list, got {type(raw_list).__name__!r}"
+#         )
+#     return tuple(raw_sources.get("unique_id") for item in raw_list)
 
 
-def _parse_preset_value_bucket(raw_sources: dict) -> tuple[StartupEntry, ...]:
+def _parse_preset_value_bucket(raw_sources: dict) -> tuple[dict[str, Any], ...]:
     """
-    Parse preset_value entries.
+    Parse preset startup state entries.
 
-    Supported shapes:
-    - Action-like: {"unique_id": "id", "call": "fn", "args": [...]}
-    - Single object for convenience instead of list.
+    For this DGB stage, preset startup values are restricted to:
+    - call: "set_state"
+    - args: [{"name": "state_name", "value": ...}, {"name": "value", "value": ...}]
+
+    Output is normalized to:
+    - {"unique_id": str, "state_name": str, "value": Any}
     """
     raw_preset = raw_sources.get("preset_value", [])
     if isinstance(raw_preset, dict):
@@ -142,35 +95,83 @@ def _parse_preset_value_bucket(raw_sources: dict) -> tuple[StartupEntry, ...]:
             f"got {type(raw_preset).__name__!r}"
         )
 
-    parsed: list[StartupEntry] = []
+    parsed: list[dict[str, Any]] = []
     for raw in raw_list:
-        entry = _parse_entry(raw, "preset_value")
-
-        call = raw.get("call")
-        args = raw.get("args", [])
-        if not isinstance(call, str) or not call:
-            raise ValueError(
-                "startup_policy.state_initialization.preset_value: 'call' must be non-empty str"
-            )
-        if not isinstance(args, list):
-            raise ValueError(
-                "startup_policy.state_initialization.preset_value: 'args' must be a list"
-            )
-        entry = StartupEntry(
-            unique_id=entry.unique_id,
-            value={"call": call, "args": args},
+        unique_id = raw.get("unique_id")
+        state_name, value = _parse_set_state_args(raw)
+        parsed.append(
+            {
+                "unique_id": unique_id,
+                "state_name": state_name,
+                "value": value,
+            }
         )
-
-        parsed.append(entry)
 
     return tuple(parsed)
 
 
+def _parse_set_state_args(raw_entry: dict[str, Any]) -> tuple[str, Any]:
+    """Validate and normalize set_state startup args into (state_name, value)."""
+    call = raw_entry.get("call")
+    args = raw_entry.get("args", [])
+    if call != "set_state":
+        raise ValueError(
+            "startup_policy.state_initialization.preset_value: 'call' must be 'set_state'"
+        )
+    if not isinstance(args, list) or len(args) != 2:
+        raise ValueError(
+            "startup_policy.state_initialization.preset_value: 'args' must contain state_name and value"
+        )
+
+    state_name_arg = args[0]
+    value_arg = args[1]
+    if not isinstance(state_name_arg, dict) or not isinstance(value_arg, dict):
+        raise ValueError(
+            "startup_policy.state_initialization.preset_value: args must be dict entries"
+        )
+    if state_name_arg.get("name") != "state_name" or "value" not in state_name_arg:
+        raise ValueError(
+            "startup_policy.state_initialization.preset_value: first arg must define state_name"
+        )
+    if value_arg.get("name") != "value" or "value" not in value_arg:
+        raise ValueError(
+            "startup_policy.state_initialization.preset_value: second arg must define value"
+        )
+
+    state_name = state_name_arg.get("value")
+    if not isinstance(state_name, str) or not state_name.strip():
+        raise ValueError(
+            "startup_policy.state_initialization.preset_value: state_name must be non-empty str"
+        )
+    return state_name, value_arg.get("value")
+
+
+# ------------------------------------------------------------------
+# DGB Policy Intake
+# ------------------------------------------------------------------
+
+
+# def parse_state_initialization(
+#     raw_policy: dict[str, Any],
+# ) -> tuple[tuple[str, ...], tuple[dict[str, Any], ...]]:
+#     """Parse startup state sources used to seed DGBObject startup state."""
+#     raw_sources = raw_policy.get("state_initialization", {})
+#     if not isinstance(raw_sources, dict):
+#         raise ValueError(
+#             f"startup_policy.state_initialization: expected a dict, got {type(raw_sources).__name__!r}"
+#         )
+
+#     retain_state = "_parse_bucket(raw_sources, "retain_state")
+#     preset_value = _parse_preset_value_bucket(raw_sources)
+#     return retain_state, preset_value
+
+
 def parse_startup_policy(raw_policy: dict[str, Any]) -> StartupPolicy:
     """
-    Parse and normalize a raw startup_policy dict into a StartupPolicy.
+    Parse and normalize startup behavior controls for a config cycle.
 
-    Fills in defaults for missing keys. Raises ValueError on invalid values.
+    Startup state payloads are parsed separately via parse_state_initialization.
+    This parser focuses on lifecycle behavior controls.
     """
     if not isinstance(raw_policy, dict):
         raise ValueError(
@@ -195,99 +196,19 @@ def parse_startup_policy(raw_policy: dict[str, Any]) -> StartupPolicy:
         )
     unknown_state_policy: UnknownStatePolicy = raw_usp  # type: ignore[assignment]
 
-    # --- state_initialization ---
-    raw_sources = raw_policy.get("state_initialization", {})
-    if not isinstance(raw_sources, dict):
-        raise ValueError(
-            f"startup_policy.state_initialization: expected a dict, got {type(raw_sources).__name__!r}"
-        )
-
-    state_initialization = StateInitialization(
-        retain_state=_parse_bucket(raw_sources, "retain_state"),
-        preset_value=_parse_preset_value_bucket(raw_sources),
-        no_state=_parse_bucket(raw_sources, "no_state"),
-    )
+    # retain_state, preset_value = parse_state_initialization(raw_policy)
 
     policy = StartupPolicy(
         loading_mode=loading_mode,
-        state_initialization=state_initialization,
         unknown_state_policy=unknown_state_policy,
     )
 
     logger.info(
-        "Parsed startup_policy: loading_mode=%s usp=%s retain=%d preset=%d no_state=%d",
+        "Parsed startup_policy: loading_mode=%s usp=%s retain=%d preset=%d",
         policy.loading_mode,
         policy.unknown_state_policy,
-        len(policy.state_initialization.retain_state),
-        len(policy.state_initialization.preset_value),
-        len(policy.state_initialization.no_state),
+        0,
+        0,
     )
 
     return policy
-
-
-def resolve_state_sources(
-    state_initialization: StateInitialization,
-) -> dict[str, SourceDecision]:
-    """
-    Resolve the winning startup source for each unique_id.
-
-    Rules:
-    - Items not listed in retain_state or preset_value default to no_state
-      (absence from the returned dict means no_state).
-    - preset_value produces a deterministic SourceDecision with source="preset_value".
-    - retain_state is highest priority; if the same unique_id also appears in
-      preset_value, the fallback is "preset_value"; otherwise "no_state".
-
-    Returns:
-        dict mapping unique_id -> SourceDecision for all items with a non-default
-        source. Items absent from the result are implicitly no_state.
-    """
-    # Index preset_value entries for O(1) fallback lookup
-    preset_index: dict[str, StartupEntry] = {
-        e.unique_id: e for e in state_initialization.preset_value
-    }
-
-    decisions: dict[str, SourceDecision] = {}
-
-    # preset_value entries (lowest explicit priority)
-    for entry in state_initialization.preset_value:
-        decisions[entry.unique_id] = SourceDecision(
-            unique_id=entry.unique_id,
-            source="preset_value",
-            value=entry.value,
-        )
-        logger.info(
-            "State source for '%s': preset_value (value=%r)",
-            entry.unique_id,
-            entry.value,
-        )
-
-    # retain_state entries override preset_value, carry fallback
-    for entry in state_initialization.retain_state:
-        preset = preset_index.get(entry.unique_id)
-        if preset is not None:
-            fallback: ResolvedSource = "preset_value"
-            fallback_value = preset.value
-            logger.info(
-                "State source for '%s': retain_state (fallback=preset_value, fallback_value=%r)",
-                entry.unique_id,
-                fallback_value,
-            )
-            decisions[entry.unique_id] = SourceDecision(
-                unique_id=entry.unique_id,
-                source="retain_state",
-                fallback=fallback,
-                fallback_value=fallback_value,
-            )
-        else:
-            logger.info(
-                "State source for '%s': retain_state (fallback=no_state)",
-                entry.unique_id,
-            )
-            decisions[entry.unique_id] = SourceDecision(
-                unique_id=entry.unique_id,
-                source="retain_state",
-            )
-
-    return decisions

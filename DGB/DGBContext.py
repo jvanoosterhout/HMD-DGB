@@ -21,6 +21,7 @@ import logging
 import queue
 import threading
 import hashlib
+import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Set, Literal
 from enum import Enum
@@ -42,20 +43,14 @@ class ConfigMessage:
     payload: Dict[str, Any]
 
 
-@dataclass(frozen=True)
-class RetainedShadowState:
-    unique_id: str
-    topic: str
-    payload_raw: str
-    payload_decoded: Any
-
-
 class DuplicatePolicy(Enum):
     SKIP = "skip"
     REPLACE = "replace"
 
 
 FunctionMap = Dict[str, Callable[..., Any]]
+
+_UNSET = object()
 
 
 @dataclass
@@ -64,6 +59,9 @@ class DGBObject:
     dgb_obj: Any | None = None
     obj_functions: FunctionMap = field(default_factory=dict)
     obj_type: type[Any] | None = None
+    retain_required: list[str] = field(default_factory=list)
+    retained_state: dict[str, Any] = field(default_factory=dict)
+    preset_value: dict[str, Any] = field(default_factory=dict)
 
 
 class DGBContext:
@@ -103,8 +101,8 @@ class DGBContext:
         # Track which cycle each binding was registered in, and last completed cycle
         self._binding_cycle: Dict[str, int] = {}
         self._last_live_cycle_id = 0
-        self._retained_topics: Dict[str, str] = {}
-        self._retained_values: Dict[str, RetainedShadowState] = {}
+        self._retained_state_prefix = ""
+        self._retained_state_publish_fn: Callable[..., Any] | None = None
 
         self._closed = False
         self._logger.info("DGBContext initialized.")
@@ -162,6 +160,13 @@ class DGBContext:
     ) -> DGBObject | None:
         return self.DGB_objects.get(unique_id)
 
+    def _ensure_dgb_object(self, unique_id: str) -> DGBObject:
+        dgb_object = self.DGB_objects.get(unique_id)
+        if dgb_object is None:
+            dgb_object = DGBObject(unique_id=unique_id)
+            self.DGB_objects[unique_id] = dgb_object
+        return dgb_object
+
     @staticmethod
     def _normalize_ruleset_name(ruleset_name: str) -> str:
         # strip suffix after '$'
@@ -202,6 +207,122 @@ class DGBContext:
             return {}
 
         return dgb_object.obj_functions
+
+    def is_retain_required(self, unique_id: str) -> bool:
+        with self._phase_lock:
+            dgb_object = self._get_dgb_object(unique_id)
+            return bool(dgb_object and dgb_object.retain_required)
+
+    def configure_retained_state_publishing(
+        self,
+        prefix: str,
+        publish_fn: Callable[..., Any] | None,
+    ) -> None:
+        with self._phase_lock:
+            self._retained_state_prefix = prefix
+            self._retained_state_publish_fn = publish_fn
+
+    def record_preset_value(
+        self,
+        unique_id: str,
+        state_name: str,
+        state: Any,
+    ) -> None:
+        """Register preset state value for a unique_id in one place."""
+        with self._phase_lock:
+            dgb_object = self._ensure_dgb_object(unique_id)
+            dgb_object.preset_value[state_name] = state
+
+    def get_preset_value(self, unique_id: str) -> Any:
+        with self._phase_lock:
+            dgb_object = self._get_dgb_object(unique_id)
+            if dgb_object is None:
+                return {}
+            return dict(dgb_object.preset_value)
+
+    def get_startup_state_snapshot(
+        self,
+    ) -> list[tuple[str, dict[str, Any], bool, dict[str, Any]]]:
+        """Return startup-state metadata copied from context objects."""
+        with self._phase_lock:
+            return [
+                (
+                    unique_id,
+                    dict(dgb_object.preset_value),
+                    dgb_object.retain_required,
+                    dict(dgb_object.retained_state),
+                )
+                for unique_id, dgb_object in self.DGB_objects.items()
+            ]
+
+    # def record_preset_state(
+    #     self,
+    #     unique_id: str,
+    #     state_name: str,
+    #     value: Any,
+    # ) -> None:
+    #     with self._phase_lock:
+    #         dgb_object = self._ensure_dgb_object(unique_id)
+    #         dgb_object.preset_value[state_name] = value
+
+    def get_retained_state(self, unique_id: str) -> dict[str, Any]:
+        with self._phase_lock:
+            dgb_object = self._get_dgb_object(unique_id)
+            if dgb_object is None:
+                return {}
+            return dict(dgb_object.retained_state)
+
+    # phase 1 preload mqtt retained values
+    def record_retained_state(
+        self,
+        unique_id: str,
+        state_name: str,
+        value: Any,
+    ) -> None:
+        with self._phase_lock:
+            dgb_object = self._ensure_dgb_object(unique_id)
+            dgb_object.retained_state[state_name] = value
+
+    # phase 2 load retain needs from config
+    def record_retained_state_need(
+        self,
+        unique_id: str,
+        states: list[str],
+    ) -> None:
+        """Register retain/preset intent for a unique_id in one place."""
+        with self._phase_lock:
+            dgb_object = self._ensure_dgb_object(unique_id)
+            for state_name in states:
+                dgb_object.retain_required.append(state_name)
+        return
+
+    def publish_state_value(
+        self,
+        unique_id: str,
+        state_name: str,
+        value: Any,
+    ) -> None:
+        with self._phase_lock:
+            prefix = self._retained_state_prefix
+            publish_fn = self._retained_state_publish_fn
+
+        if not prefix or publish_fn is None:
+            return
+
+        topic = f"{prefix}{unique_id}/{state_name}"
+        try:
+            payload = json.dumps(value)
+        except (TypeError, ValueError):
+            payload = str(value)
+
+        try:
+            publish_fn(topic, payload=payload, qos=1, retain=True)
+        except Exception:
+            self._logger.exception(
+                "Failed to publish retained state for %s/%s",
+                unique_id,
+                state_name,
+            )
 
     def iter_objects(self) -> list[tuple[str, Any]]:
         return [
@@ -259,36 +380,10 @@ class DGBContext:
             raise RuntimeError("DGBContext is closed; no further commands allowed.")
         self.config_queue.put(ConfigMessage(cmd=cmd, payload=payload))
 
-    def register_retained_interest(self, unique_id: str, topic: str) -> None:
-        with self._phase_lock:
-            self._retained_topics[unique_id] = topic
-
-    def get_retained_topic(self, unique_id: str) -> str | None:
-        with self._phase_lock:
-            return self._retained_topics.get(unique_id)
-
-    def record_retained_value(
-        self,
-        unique_id: str,
-        topic: str,
-        payload_raw: str,
-        payload_decoded: Any,
-    ) -> None:
-        with self._phase_lock:
-            self._retained_values[unique_id] = RetainedShadowState(
-                unique_id=unique_id,
-                topic=topic,
-                payload_raw=payload_raw,
-                payload_decoded=payload_decoded,
-            )
-
     def has_retained_value(self, unique_id: str) -> bool:
         with self._phase_lock:
-            return unique_id in self._retained_values
-
-    def get_retained_value(self, unique_id: str) -> RetainedShadowState | None:
-        with self._phase_lock:
-            return self._retained_values.get(unique_id)
+            dgb_object = self._get_dgb_object(unique_id)
+            return bool(dgb_object and dgb_object.retained_state)
 
     def record_payload_hash(self, payload_hash: str) -> None:
         """Record that a payload has been applied, for idempotency tracking."""
@@ -303,8 +398,6 @@ class DGBContext:
     @staticmethod
     def compute_payload_hash(payload: Dict[str, Any]) -> str:
         """Compute a deterministic hash of a payload for deduplication."""
-        import json
-
         payload_json = json.dumps(payload, sort_keys=True, default=str)
         return hashlib.sha256(payload_json.encode()).hexdigest()
 

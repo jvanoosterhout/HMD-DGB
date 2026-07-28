@@ -29,7 +29,7 @@ GitHub = "https://github.com/jvanoosterhout/HMD-DGB"
 [project.optional-dependencies]
 dev = [
     "pre-commit>=4.5.1",
-    "ruff>=0.15.11",
+    "ruff==0.16.0",
     "pytest>=9.0.3",
     "pytest-cov>=6.0.0",
     "build>=1.4.3"
@@ -51,7 +51,7 @@ local_scheme = "no-local-version"
 fallback_version = "v0.0.0"
 
 
-[tool.ruff.format]
+[tool.ruff]
 exclude = ["DGB/_version.py"]
 
 [tool.ruff.lint]

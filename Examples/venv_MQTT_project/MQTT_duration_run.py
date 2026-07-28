@@ -4,10 +4,12 @@ This example is meant to testrun the package over a longer periode of time with 
 timer → GPIO output → GPIO input → Sensor
 """
 
-from DGB.DGBservice import DGBservice
 import json
-import pkg_resources
 import threading
+
+import pkg_resources
+
+from DGB.DGBservice import DGBservice
 
 
 def main():

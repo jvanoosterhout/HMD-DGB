@@ -282,8 +282,8 @@ class SystemDevices:
             self.logger.info("Starting soft service restart sequence")
             try:
                 self.dgb_restart(hard_restart=False)
-            except Exception as e:
-                self.logger.exception("Error during restart: %s", e)
+            except Exception:
+                self.logger.exception("Error during restart")
 
         self.restart_button = sensors.Button(
             Settings(
@@ -312,8 +312,8 @@ class SystemDevices:
             self.logger.info("Starting hard service restart sequence")
             try:
                 self.dgb_restart(hard_restart=True)
-            except Exception as e:
-                self.logger.exception("Error during restart: %s", e)
+            except Exception:
+                self.logger.exception("Error during restart")
 
         self.restart_button = sensors.Button(
             Settings(

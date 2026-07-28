@@ -21,8 +21,9 @@ This closes the loop: a virtual switch triggers a physical output, which is read
 Switch → GPIO output → GPIO input → Sensor
 """
 
-from DGB.DGBservice import DGBservice
 import json
+
+from DGB.DGBservice import DGBservice
 
 
 def main():

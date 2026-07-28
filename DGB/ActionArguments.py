@@ -236,9 +236,9 @@ class ArgumentBuilder:
         # Default: try direct conversion
         try:
             return fallback_type(value)
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError):
             self.logger.exception(
-                f"Could not coerce {value!r} to {fallback_type}: {e}. Returning False."
+                f"Could not coerce {value!r} to {fallback_type}. Returning False."
             )
             return False
 

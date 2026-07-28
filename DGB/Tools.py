@@ -46,10 +46,10 @@ class IOT_tools:
         are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
         'val' is anything else.
         """
-        self = self.lower()
-        if self in ("y", "yes", "t", "true", "on", "1"):
+        value = self.lower()
+        if value in ("y", "yes", "t", "true", "on", "1"):
             return 1
-        elif self in ("n", "no", "f", "false", "off", "0"):
+        elif value in ("n", "no", "f", "false", "off", "0"):
             return 0
         else:
-            raise ValueError(f"invalid truth value {self!r}")
+            raise ValueError(f"invalid truth value {value!r}")

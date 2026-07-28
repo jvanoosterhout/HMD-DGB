@@ -372,8 +372,8 @@ class Binder:
             self.logger.exception("Unmatched event: %s", e.message)
         except MessageObservedException as e:
             self.logger.exception("Event already observed: %s", e.message)
-        except Exception as e:
-            self.logger.exception(f"Exception {e} for {set}")
+        except Exception:
+            self.logger.exception("Exception while posting event")
 
     def new_binding(self, bind: dict, policy: DuplicatePolicy = DuplicatePolicy.SKIP):
 

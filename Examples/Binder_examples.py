@@ -40,11 +40,11 @@ After starting the Binder's event dispatcher, all rule sets are loaded and a seq
 This setup offers a compact sandbox for validating Binder logic and experimenting with rules and statecharts before deploying them in a fully integrated environment.
 """
 
+import logging
 import time
+
 import DGB.Binder
 import DGB.DGBContext
-import logging
-
 
 # setup the binder class with durable rules
 binder = DGB.Binder.Binder(DGB.DGBContext.DGBContext())
@@ -59,11 +59,11 @@ class dummy_device:
         self.id = id
 
     def on(self, t="-"):
-        print("{} is on".format(self.id))
+        print(f"{self.id} is on")
         return True
 
     def off(self, t="-"):
-        print("{} is off".format(self.id))
+        print(f"{self.id} is off")
         return True
 
     def log(

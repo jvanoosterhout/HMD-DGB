@@ -1,5 +1,5 @@
-from DGB.PinAPI import Pin_api
 import uvicorn
+from DGB.PinAPI import Pin_api
 
 
 def main():

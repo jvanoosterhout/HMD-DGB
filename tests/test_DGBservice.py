@@ -201,13 +201,13 @@ def test_on_message_stores_state_shadow_payload(make_service):
         mock_enqueue.assert_not_called()
 
     retained = service.dgb_context.get_retained_state("switch_one")
-    assert retained == {"payload": {"value": "on"}}
+    assert retained == {"set_state": {"value": "on"}}
 
 
 def test_publish_state_value_uses_configured_prefix(make_service):
     service, mock_client = make_service(name="test")
 
-    service.dgb_context.publish_state_value("switch_1", "state", "on")
+    service.dgb_context.publish_state_to_retain("switch_1", "state", "on")
 
     mock_client.publish.assert_any_call(
         "state/test/switch_1/state", payload='"on"', qos=1, retain=True

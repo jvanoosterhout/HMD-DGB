@@ -52,9 +52,9 @@ class ArgumentBuilder:
     Builds and coerces arguments for function calls from durable.lang context.
 
     Syntax:
-    - Literal: {"name": "active_pin", "value": 5}
-    - Context: {"name": "active_pin", "value": "$m.payload"}
-    - Context: {"name": "active_pin", "value": "$first.payload"}
+    - Literal: {"active_pin": 5}
+    - Context: {"active_pin": "$m.payload"}
+    - Context: {"active_pin": "$first.payload"}
     """
 
     CONTEXT_REF_PREFIX = "$"
@@ -110,7 +110,7 @@ class ArgumentBuilder:
         Parse argument definitions from config and match to function signature.
 
         Args:
-            args_config: List of {"name": str, "value": Any or "$context.path"} dicts
+            args_config: List of {param_name: value_or_"$context.path"} dicts
             function: The target function to get type hints from
 
         Returns:
@@ -128,13 +128,13 @@ class ArgumentBuilder:
 
         arg_defs = []
         for arg_config in args_config:
-            name = arg_config.get("name")
-            value = arg_config.get("value")
-
+            if len(arg_config) != 1:
+                raise ValueError(
+                    f"Argument must have exactly one key-value pair: {arg_config}"
+                )
+            name, value = next(iter(arg_config.items()))
             if not name:
-                raise ValueError(f"Argument missing 'name' key: {arg_config}")
-            if value is None:
-                raise ValueError(f"Argument '{name}' missing 'value' key")
+                raise ValueError(f"Argument has empty key: {arg_config}")
 
             # Check if this is a context reference
             is_context_ref = isinstance(value, str) and value.startswith(

@@ -83,7 +83,7 @@ def main():
                             "action": {
                                 "unique_id": "20",
                                 "call": "blink",
-                                "args": [{"name": "blink", "value": 60}],
+                                "args": [{"blink": 60}],
                             }
                         },
                     ],
@@ -102,7 +102,7 @@ def main():
                     "action": {
                         "unique_id": "rpi0-sensor-duration-test",
                         "call": "set_state",
-                        "args": [{"name": "state", "value": "$m.payload"}],
+                        "args": [{"state": "$m.payload"}],
                     }
                 },
             },

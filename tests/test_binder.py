@@ -482,7 +482,7 @@ def test_device_action_with_arguments(binder, dgb_context):
             "action": {
                 "unique_id": "dev1",
                 "call": "do",
-                "args": [{"name": "value", "value": 42}],
+                "args": [{"value": 42}],
             }
         },
     )

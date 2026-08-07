@@ -141,7 +141,7 @@ class DeviceKeeper:
         self, unique_id: str, state_name: str, value: Any
     ) -> None:
         if self.dgb_context.is_retain_required(unique_id):
-            self.dgb_context.publish_state_value(unique_id, state_name, value)
+            self.dgb_context.publish_state_to_retain(unique_id, state_name, value)
 
     def _set_cover_state(
         self, device: Discoverable, dst: bool, state_name: str, payload: str

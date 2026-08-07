@@ -180,7 +180,7 @@ def test_publish_state_value_calls_publish_fn(dgb_context):
     publish_fn = MagicMock()
     dgb_context.configure_retained_state_publishing("state/test/", publish_fn)
 
-    dgb_context.publish_state_value("switch_7", "state", "off")
+    dgb_context.publish_state_to_retain("switch_7", "state", "off")
 
     publish_fn.assert_called_once_with(
         "state/test/switch_7/state", payload='"off"', qos=1, retain=True
@@ -386,11 +386,11 @@ def test_put_config_shutdown_command(dgb_context):
 def test_record_and_get_retained_state(dgb_context):
     dgb_context.record_retained_state("switch_one", "payload", {"value": "on"})
 
-    assert dgb_context.has_retained_value("switch_one") is True
+    assert dgb_context.has_retained_state("switch_one") is True
     assert dgb_context.get_retained_state("switch_one") == {"payload": {"value": "on"}}
     assert dgb_context.get_retained_state("switch_one") == {"payload": {"value": "on"}}
 
 
 def test_has_retained_value_false_when_missing(dgb_context):
-    assert dgb_context.has_retained_value("unknown") is False
+    assert dgb_context.has_retained_state("unknown") is False
     assert dgb_context.get_retained_state("unknown") == {}

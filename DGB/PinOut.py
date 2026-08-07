@@ -137,7 +137,7 @@ class Pin_out(Pin):
             return False
 
         if result and self.dgb_context.is_retain_required(str(self.config.pin)):
-            self.dgb_context.publish_state_value(
+            self.dgb_context.publish_state_to_retain(
                 str(self.config.pin), state_name, value
             )
         return result

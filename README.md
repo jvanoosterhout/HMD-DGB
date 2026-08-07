@@ -1209,10 +1209,10 @@ Actions can be set by the "action" key. Its value is a dict containing:
   - name:
   - value: "$m.payload"
 
-The call functions and args (with name and value) can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo).
+The call functions and args (with param name as key and value as value) can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo).
 
 ```JSON
-{"action": {"unique_id": "y", "call": "z", "args": [{"name": "var1", "value": "$m.payload"}]}}
+{"action": {"unique_id": "y", "call": "z", "args": [{"var1": "$m.payload"}]}}
 ```
 
 ```JSON

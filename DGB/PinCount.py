@@ -114,10 +114,10 @@ class Pin_count(Pin):
             "post", {"unique_id": str(self.config.pin), "payload": scaled_total}
         )
         if self.dgb_context.is_retain_required(str(self.config.pin)):
-            self.dgb_context.publish_state_value(
+            self.dgb_context.publish_state_to_retain(
                 str(self.config.pin), "scaled_total", scaled_total
             )
-            self.dgb_context.publish_state_value(
+            self.dgb_context.publish_state_to_retain(
                 str(self.config.pin), "count_total", self.count_total
             )
 
@@ -212,17 +212,18 @@ class Pin_count(Pin):
             )
             return False
 
+        try:
+            total = float(value)
+        except (TypeError, ValueError):
+            self.logger.warning(
+                "pin %s rejected retained count value %r for %s",
+                self.config.pin,
+                value,
+                state_name,
+            )
+            return False
+
         if state_name == "scaled_total":
-            try:
-                total = float(value)
-            except (TypeError, ValueError):
-                self.logger.warning(
-                    "pin %s rejected retained count value %r for %s",
-                    self.config.pin,
-                    value,
-                    state_name,
-                )
-                return False
             total = total * self.config.scaling_factor
 
         self.count_total = int(total)

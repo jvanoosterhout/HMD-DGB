@@ -123,8 +123,8 @@ def test_full_policy_parses_correctly():
                     "unique_id": "switch_one",
                     "call": "set_state",
                     "args": [
-                        {"name": "state_name", "value": "state"},
-                        {"name": "value", "value": "on"},
+                        {"state_name": "state"},
+                        {"value": "on"},
                     ],
                 }
             ],

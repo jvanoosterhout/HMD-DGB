@@ -238,60 +238,63 @@ class DGBservice:
                 self._run_config_apply_cycle(msg.payload)
                 self.dgb_context.config_queue.task_done()
 
+    # phase 2 - 5
     def _run_config_apply_cycle(self, payload: dict) -> None:
         cycle_id = self.dgb_context.begin_config_apply_cycle()
-        payload_hash = self.dgb_context.compute_payload_hash(payload)
-
+        # Phase 2: configure startup policy and confic checks
         # Idempotency check: skip if this exact payload was already applied.
+        payload_hash = self.dgb_context.compute_payload_hash(payload)
         if self.dgb_context.payload_already_applied(payload_hash):
             self.logger.info(
                 "Config cycle %s: payload already applied (idempotent skip)",
                 cycle_id,
             )
             return
-
-        self.logger.info("Config cycle %s entered creation phase", cycle_id)
+        self.dgb_context.record_payload_hash(payload_hash)
 
         # Validate startup policy and extract startup state values.
         raw_startup_policy = self.startup_state.get_dict(payload, "startup_policy")
         # policy = parse_startup_policy(raw_startup_policy)
 
-        # phase 2.1 record retained state needs
+        # Phase 3: creating phase
+        try:
+            cycle_id = self.dgb_context.begin_config_apply_cycle()
+            self.logger.info("Config cycle %s entered creation phase", cycle_id)
+            self._handle_devices(payload)
+            self._handle_pins(payload)
+            self._handle_bindings(payload)
+        except Exception:
+            self.dgb_context.set_runtime_phase("blocked")
+            self.logger.exception(
+                "Config cycle %s failed at create phase; runtime phase set to blocked",
+                cycle_id,
+            )
+            return
+
+        # phase 4: record retained state needs and preset state values
         state_initialization = self.startup_state.get_dict(
             raw_startup_policy, "state_initialization"
         )
         self.startup_state.register_retained_state_need(state_initialization)
-        # phase 2.2 record preset state values
         self.startup_state.register_preset_states(state_initialization)
 
-        # preset_state_values = parse_state_initialization(raw_startup_policy)
-        # preload_required = self._register_startup_state_requirements(
-        #     retain_state=retain_states,
-        #     preset_value=preset_state_values,
-        # )
-
+        # Phase 5: apply preset and retained values
         try:
-            self._handle_devices(payload)
-            self._handle_pins(payload)
-            self._handle_bindings(payload)
-
             self.dgb_context.set_runtime_phase("apply")
             self.logger.info("Config cycle %s entered apply phase", cycle_id)
-            self.startup_state.apply_startup_state()
+            self.startup_state.apply_startup_states()
         except Exception:
             self.dgb_context.set_runtime_phase("blocked")
             self.logger.exception(
-                "Config cycle %s failed; runtime phase set to blocked", cycle_id
+                "Config cycle %s failed at apply phase; runtime phase set to blocked",
+                cycle_id,
             )
             return
 
-        # Transition to live.
+        # Phase 5: Transition to live (and trigger initial values to flow though bindings).
         self.dgb_context.set_runtime_phase("live")
         self.dgb_context.complete_config_cycle(cycle_id)
         self.logger.info("Config cycle %s entered live phase", cycle_id)
-
-        # Record this payload as applied for future dedup.
-        self.dgb_context.record_payload_hash(payload_hash)
 
     # def _register_startup_state_requirements(
     #     self,
@@ -351,7 +354,7 @@ class DGBservice:
         self._set_unavailable()
         if hard_restart:
             self.logger.info("Full reinitialization and cleanup")
-            for unique_id, dgb_obj in self.dgb_context.iter_objects():
+            for unique_id, dgb_obj in self.DGB_objects.items():
                 try:
                     if not hasattr(dgb_obj, "config_topic"):
                         continue

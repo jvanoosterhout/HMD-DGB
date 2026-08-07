@@ -51,7 +51,7 @@ def builder():
 
 def test_parse_literal_argument(builder):
     """Test parsing literal arguments"""
-    args_config = [{"name": "count", "value": 5}]
+    args_config = [{"count": 5}]
     defs = builder.parse_argument_definitions(args_config, func_with_types)
 
     assert len(defs) == 1
@@ -62,7 +62,7 @@ def test_parse_literal_argument(builder):
 
 def test_parse_context_reference_argument(builder):
     """Test parsing context reference arguments"""
-    args_config = [{"name": "payload", "value": "$m.payload"}]
+    args_config = [{"payload": "$m.payload"}]
     defs = builder.parse_argument_definitions(args_config, func_with_types)
 
     assert len(defs) == 1
@@ -233,7 +233,7 @@ def test_parse_argument_definitions_stores_all_union_target_types(builder):
     def func(value: bytes | str | float) -> None:
         pass
 
-    defs = builder.parse_argument_definitions([{"name": "value", "value": 5}], func)
+    defs = builder.parse_argument_definitions([{"value": 5}], func)
 
     assert defs[0].target_types == (bytes, str, float)
 
@@ -285,24 +285,24 @@ def test_build_call_args_with_context_refs(builder):
 # ---------------------------------------------------------------------------
 
 
-def test_parse_argument_missing_name_raises_value_error(builder):
-    """Test parsing argument without 'name' key raises ValueError"""
-    args_config = [{"value": 5}]
-    with pytest.raises(ValueError, match="missing 'name'"):
+def test_parse_argument_multiple_keys_raises_value_error(builder):
+    """Test parsing argument dict with multiple keys raises ValueError"""
+    args_config = [{"a": 1, "b": 2}]
+    with pytest.raises(ValueError, match="exactly one"):
         builder.parse_argument_definitions(args_config, func_with_types)
 
 
-def test_parse_argument_missing_value_raises_value_error(builder):
-    """Test parsing argument without 'value' key raises ValueError"""
-    args_config = [{"name": "count"}]
-    with pytest.raises(ValueError, match="missing 'value'"):
+def test_parse_argument_empty_dict_raises_value_error(builder):
+    """Test parsing an empty arg dict raises ValueError"""
+    args_config = [{}]
+    with pytest.raises(ValueError, match="exactly one"):
         builder.parse_argument_definitions(args_config, func_with_types)
 
 
 def test_parse_argument_empty_name_raises_value_error(builder):
-    """Test parsing argument with empty name raises ValueError"""
-    args_config = [{"name": "", "value": 5}]
-    with pytest.raises(ValueError, match="missing 'name'"):
+    """Test parsing argument with empty key raises ValueError"""
+    args_config = [{"": 5}]
+    with pytest.raises(ValueError, match="empty key"):
         builder.parse_argument_definitions(args_config, func_with_types)
 
 

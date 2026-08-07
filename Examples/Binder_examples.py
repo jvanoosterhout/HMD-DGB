@@ -230,10 +230,10 @@ binding_with_args = {
                         "unique_id": "p1",
                         "call": "log",
                         "args": [
-                            {"name": "integer", "value": "$m.payload"},
-                            {"name": "string", "value": "$m.payload"},
-                            {"name": "boolean", "value": "$m.payload"},
-                            {"name": "floatingpoint", "value": "$m.payload"},
+                            {"integer": "$m.payload"},
+                            {"string": "$m.payload"},
+                            {"boolean": "$m.payload"},
+                            {"floatingpoint": "$m.payload"},
                         ],
                     }
                 },
@@ -243,10 +243,10 @@ binding_with_args = {
                         "unique_id": "p1",
                         "call": "log",
                         "args": [
-                            {"name": "integer", "value": 1},
-                            {"name": "string", "value": "1"},
-                            {"name": "boolean", "value": True},
-                            {"name": "floatingpoint", "value": 1.0},
+                            {"integer": 1},
+                            {"string": "1"},
+                            {"boolean": True},
+                            {"floatingpoint": 1.0},
                         ],
                     }
                 },
@@ -256,10 +256,10 @@ binding_with_args = {
                         "unique_id": "p1",
                         "call": "log",
                         "args": [
-                            {"name": "integer", "value": "1"},
-                            {"name": "string", "value": 1},
-                            {"name": "boolean", "value": "No"},
-                            {"name": "floatingpoint", "value": "1"},
+                            {"integer": "1"},
+                            {"string": 1},
+                            {"boolean": "No"},
+                            {"floatingpoint": "1"},
                         ],
                     }
                 },

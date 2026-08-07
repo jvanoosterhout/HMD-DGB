@@ -199,7 +199,7 @@ class Pin_N_way_out(Pin):
         result = self.off() if value is None else self.on(active_pin=value)
 
         if result and self.dgb_context.is_retain_required(str(self.config.pin)):
-            self.dgb_context.publish_state_value(
+            self.dgb_context.publish_state_to_retain(
                 str(self.config.pin), "active_pin", value
             )
         return result

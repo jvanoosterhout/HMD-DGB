@@ -73,77 +73,77 @@ class StartupPolicy:
 #     return tuple(raw_sources.get("unique_id") for item in raw_list)
 
 
-def _parse_preset_value_bucket(raw_sources: dict) -> tuple[dict[str, Any], ...]:
-    """
-    Parse preset startup state entries.
+# def _parse_preset_value_bucket(raw_sources: dict) -> tuple[dict[str, Any], ...]:
+#     """
+#     Parse preset startup state entries.
 
-    For this DGB stage, preset startup values are restricted to:
-    - call: "set_state"
-    - args: [{"name": "state_name", "value": ...}, {"name": "value", "value": ...}]
+#     For this DGB stage, preset startup values are restricted to:
+#     - call: "set_state"
+#     - args: [{"state_name": ...}, {"value": ...}]
 
-    Output is normalized to:
-    - {"unique_id": str, "state_name": str, "value": Any}
-    """
-    raw_preset = raw_sources.get("preset_value", [])
-    if isinstance(raw_preset, dict):
-        raw_list = [raw_preset]
-    elif isinstance(raw_preset, list):
-        raw_list = raw_preset
-    else:
-        raise TypeError(
-            "startup_policy.state_initialization.preset_value: expected a list or dict, "
-            f"got {type(raw_preset).__name__!r}"
-        )
+#     Output is normalized to:
+#     - {"unique_id": str, "state_name": str, "value": Any}
+#     """
+#     raw_preset = raw_sources.get("preset_value", [])
+#     if isinstance(raw_preset, dict):
+#         raw_list = [raw_preset]
+#     elif isinstance(raw_preset, list):
+#         raw_list = raw_preset
+#     else:
+#         raise TypeError(
+#             "startup_policy.state_initialization.preset_value: expected a list or dict, "
+#             f"got {type(raw_preset).__name__!r}"
+#         )
 
-    parsed: list[dict[str, Any]] = []
-    for raw in raw_list:
-        unique_id = raw.get("unique_id")
-        state_name, value = _parse_set_state_args(raw)
-        parsed.append(
-            {
-                "unique_id": unique_id,
-                "state_name": state_name,
-                "value": value,
-            }
-        )
+#     parsed: list[dict[str, Any]] = []
+#     for raw in raw_list:
+#         unique_id = raw.get("unique_id")
+#         state_name, value = _parse_set_state_args(raw)
+#         parsed.append(
+#             {
+#                 "unique_id": unique_id,
+#                 "state_name": state_name,
+#                 "value": value,
+#             }
+#         )
 
-    return tuple(parsed)
+#     return tuple(parsed)
 
 
-def _parse_set_state_args(raw_entry: dict[str, Any]) -> tuple[str, Any]:
-    """Validate and normalize set_state startup args into (state_name, value)."""
-    call = raw_entry.get("call")
-    args = raw_entry.get("args", [])
-    if call != "set_state":
-        raise ValueError(
-            "startup_policy.state_initialization.preset_value: 'call' must be 'set_state'"
-        )
-    if not isinstance(args, list) or len(args) != 2:
-        raise ValueError(
-            "startup_policy.state_initialization.preset_value: 'args' must contain state_name and value"
-        )
+# def _parse_set_state_args(raw_entry: dict[str, Any]) -> tuple[str, Any]:
+#     """Validate and normalize set_state startup args into (state_name, value)."""
+#     call = raw_entry.get("call")
+#     args = raw_entry.get("args", [])
+#     if call != "set_state":
+#         raise ValueError(
+#             "startup_policy.state_initialization.preset_value: 'call' must be 'set_state'"
+#         )
+#     if not isinstance(args, list) or len(args) != 2:
+#         raise ValueError(
+#             "startup_policy.state_initialization.preset_value: 'args' must contain state_name and value"
+#         )
 
-    state_name_arg = args[0]
-    value_arg = args[1]
-    if not isinstance(state_name_arg, dict) or not isinstance(value_arg, dict):
-        raise TypeError(
-            "startup_policy.state_initialization.preset_value: args must be dict entries"
-        )
-    if state_name_arg.get("name") != "state_name" or "value" not in state_name_arg:
-        raise ValueError(
-            "startup_policy.state_initialization.preset_value: first arg must define state_name"
-        )
-    if value_arg.get("name") != "value" or "value" not in value_arg:
-        raise ValueError(
-            "startup_policy.state_initialization.preset_value: second arg must define value"
-        )
+#     state_name_arg = args[0]
+#     value_arg = args[1]
+#     if not isinstance(state_name_arg, dict) or not isinstance(value_arg, dict):
+#         raise TypeError(
+#             "startup_policy.state_initialization.preset_value: args must be dict entries"
+#         )
+#     if len(state_name_arg) != 1 or "state_name" not in state_name_arg:
+#         raise ValueError(
+#             "startup_policy.state_initialization.preset_value: first arg must define state_name"
+#         )
+#     if len(value_arg) != 1 or "value" not in value_arg:
+#         raise ValueError(
+#             "startup_policy.state_initialization.preset_value: second arg must define value"
+#         )
 
-    state_name = state_name_arg.get("value")
-    if not isinstance(state_name, str) or not state_name.strip():
-        raise ValueError(
-            "startup_policy.state_initialization.preset_value: state_name must be non-empty str"
-        )
-    return state_name, value_arg.get("value")
+#     state_name = state_name_arg["state_name"]
+#     if not isinstance(state_name, str) or not state_name.strip():
+#         raise ValueError(
+#             "startup_policy.state_initialization.preset_value: state_name must be non-empty str"
+#         )
+#     return state_name, value_arg["value"]
 
 
 # ------------------------------------------------------------------

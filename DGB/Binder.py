@@ -118,7 +118,7 @@ class Binder:
         Supported shapes:
           - {"log": {"msg": str}}
           - {"action": {"unique_id": str, "call": str}}
-          - {"action": {"unique_id": str, "call": str, "args": [{"name": str, "value": Any}]}}
+          - {"action": {"unique_id": str, "call": str, "args": [{param_name: value}]}}
           - {"timer": {"name": str, "action": "start", "seconds": float}}
           - {"timer": {"name": str, "action": "cancel"}}
         """
@@ -173,7 +173,7 @@ class Binder:
             rule_name: Name of the rule
             unique_id: Device/pin unique_id
             call_name: Function name to call
-            args_config: Optional list of {"name": str, "value": Any or "$c.path_to_value"} argument definitions
+            args_config: Optional list of {param_name: value_or_"$c.path"} argument definitions
         """
         resolved = self.arg_builder.resolve_callable_action(
             action_payload={

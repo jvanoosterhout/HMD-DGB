@@ -55,6 +55,7 @@ class ArgumentBuilder:
     - Literal: {"active_pin": 5}
     - Context: {"active_pin": "$m.payload"}
     - Context: {"active_pin": "$first.payload"}
+    - Grouped args: {"state_name": "state", "state": "$m.payload"}
     """
 
     CONTEXT_REF_PREFIX = "$"
@@ -128,41 +129,44 @@ class ArgumentBuilder:
 
         arg_defs = []
         for arg_config in args_config:
-            if len(arg_config) != 1:
+            if not isinstance(arg_config, dict):
+                raise TypeError(f"Argument config must be a dict: {arg_config!r}")
+            if not arg_config:
                 raise ValueError(
-                    f"Argument must have exactly one key-value pair: {arg_config}"
+                    f"Argument config must contain at least one key-value pair: {arg_config}"
                 )
-            name, value = next(iter(arg_config.items()))
-            if not name:
-                raise ValueError(f"Argument has empty key: {arg_config}")
 
-            # Check if this is a context reference
-            is_context_ref = isinstance(value, str) and value.startswith(
-                self.CONTEXT_REF_PREFIX
-            )
-            context_path = None
+            for name, value in arg_config.items():
+                if not name:
+                    raise ValueError(f"Argument has empty key: {arg_config}")
 
-            if is_context_ref:
-                context_path = value[len(self.CONTEXT_REF_PREFIX) :]
+                # Check if this is a context reference
+                is_context_ref = isinstance(value, str) and value.startswith(
+                    self.CONTEXT_REF_PREFIX
+                )
+                context_path = None
 
-            # Get target type from function hints
-            annotation = hints.get(name)
-            target_types, accepts_none = self._extract_non_none_types(annotation)
+                if is_context_ref:
+                    context_path = value[len(self.CONTEXT_REF_PREFIX) :]
 
-            arg_def = ArgDefinition(
-                name=name,
-                value=value,
-                is_context_ref=is_context_ref,
-                context_path=context_path,
-                target_types=target_types,
-                accepts_none=accepts_none,
-            )
-            arg_defs.append(arg_def)
+                # Get target type from function hints
+                annotation = hints.get(name)
+                target_types, accepts_none = self._extract_non_none_types(annotation)
 
-            self.logger.debug(
-                f"Parsed arg '{name}': context_ref={is_context_ref}, "
-                f"path={context_path}, target_types={target_types}"
-            )
+                arg_def = ArgDefinition(
+                    name=name,
+                    value=value,
+                    is_context_ref=is_context_ref,
+                    context_path=context_path,
+                    target_types=target_types,
+                    accepts_none=accepts_none,
+                )
+                arg_defs.append(arg_def)
+
+                self.logger.debug(
+                    f"Parsed arg '{name}': context_ref={is_context_ref}, "
+                    f"path={context_path}, target_types={target_types}"
+                )
 
         return arg_defs
 

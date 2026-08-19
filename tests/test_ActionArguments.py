@@ -285,17 +285,18 @@ def test_build_call_args_with_context_refs(builder):
 # ---------------------------------------------------------------------------
 
 
-def test_parse_argument_multiple_keys_raises_value_error(builder):
-    """Test parsing argument dict with multiple keys raises ValueError"""
+def test_parse_argument_multiple_keys_parses_all_entries(builder):
+    """A single dict may define multiple arguments."""
     args_config = [{"a": 1, "b": 2}]
-    with pytest.raises(ValueError, match="exactly one"):
-        builder.parse_argument_definitions(args_config, func_with_types)
+    defs = builder.parse_argument_definitions(args_config, func_with_types)
+    assert [d.name for d in defs] == ["a", "b"]
+    assert [d.value for d in defs] == [1, 2]
 
 
 def test_parse_argument_empty_dict_raises_value_error(builder):
     """Test parsing an empty arg dict raises ValueError"""
     args_config = [{}]
-    with pytest.raises(ValueError, match="exactly one"):
+    with pytest.raises(ValueError, match="at least one"):
         builder.parse_argument_definitions(args_config, func_with_types)
 
 

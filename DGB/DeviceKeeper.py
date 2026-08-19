@@ -17,7 +17,6 @@
 
 import logging
 from functools import partial
-from typing import Any
 
 from ha_mqtt_discoverable import Discoverable, EntityType, Settings, sensors
 from paho.mqtt.client import Client, MQTTMessage
@@ -137,14 +136,12 @@ class DeviceKeeper:
         )
         return False
 
-    def _record_state_if_required(
-        self, unique_id: str, state_name: str, value: Any
-    ) -> None:
+    def _record_state_if_required(self, unique_id: str, args: dict[str, list]) -> None:
         if self.dgb_context.is_retain_required(unique_id):
-            self.dgb_context.publish_state_to_retain(unique_id, state_name, value)
+            self.dgb_context.publish_state_to_retain(unique_id, "set_state", args)
 
     def _set_cover_state(
-        self, device: Discoverable, dst: bool, state_name: str, payload: str
+        self, device: Discoverable, dst: bool, state_name: str, state: str
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -152,26 +149,27 @@ class DeviceKeeper:
                 "Unsupported cover state name for %s: %r", unique_id, state_name
             )
             return False
-        if payload == device._entity.payload_open:
+        if state == device._entity.payload_open:
             if dst:
                 device.open()
-        elif payload == device._entity.payload_close:
+        elif state == device._entity.payload_close:
             if dst:
                 device.closed()
-        elif payload == device._entity.payload_stop:
+        elif state == device._entity.payload_stop:
             if dst:
                 device.stopped()
         else:
             self.logger.warning(
-                "Unsupported cover payload for %s: %r", unique_id, payload
+                "Unsupported cover payload for %s: %r", unique_id, state
             )
             return False
 
-        self._record_state_if_required(unique_id, state_name, payload)
+        args = {"args": [{"state_name": state_name, "state": state}]}
+        self._record_state_if_required(unique_id, args)
         return True
 
     def _set_valve_state(
-        self, device: Discoverable, dst: bool, state_name: str, payload: str | int
+        self, device: Discoverable, dst: bool, state_name: str, state: str | int
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name not in {"state", "position"}:
@@ -180,32 +178,33 @@ class DeviceKeeper:
             )
             return False
 
-        if payload == device._entity.payload_open:
+        if state == device._entity.payload_open:
             if dst:
                 device.open()
-        elif payload == device._entity.payload_close:
+        elif state == device._entity.payload_close:
             if dst:
                 device.closed()
-        elif payload == device._entity.payload_stop:
+        elif state == device._entity.payload_stop:
             if dst:
                 device.stopped()
         else:
             state_name = "position"
             try:
-                payload = int(payload)
+                state = int(state)
             except (TypeError, ValueError):
                 self.logger.exception(
-                    "Wrong payload type for valve %s: %r", unique_id, payload
+                    "Wrong payload type for valve %s: %r", unique_id, state
                 )
                 return False
             if dst:
-                device.position(payload)
+                device.position(state)
 
-        self._record_state_if_required(unique_id, state_name, payload)
+        args = {"args": [{"state_name": state_name, "state": state}]}
+        self._record_state_if_required(unique_id, args)
         return True
 
     def _set_switch_state(
-        self, device: Discoverable, dst: bool, state_name: str, payload: str
+        self, device: Discoverable, dst: bool, state_name: str, state: str
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -213,23 +212,24 @@ class DeviceKeeper:
                 "Unsupported switch state name for %s: %r", unique_id, state_name
             )
             return False
-        if payload == device._entity.payload_on:
+        if state == device._entity.payload_on:
             if dst:
                 device.on()
-        elif payload == device._entity.payload_off:
+        elif state == device._entity.payload_off:
             if dst:
                 device.off()
         else:
             self.logger.warning(
-                "Unsupported switch payload for %s: %r", unique_id, payload
+                "Unsupported switch payload for %s: %r", unique_id, state
             )
             return False
 
-        self._record_state_if_required(unique_id, state_name, payload)
+        args = {"args": [{"state_name": state_name, "state": state}]}
+        self._record_state_if_required(unique_id, args)
         return True
 
     def _set_text_state(
-        self, device: Discoverable, dst: bool, state_name: str, payload: str
+        self, device: Discoverable, dst: bool, state_name: str, state: str
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -238,12 +238,14 @@ class DeviceKeeper:
             )
             return False
         if dst:
-            device.set_text(payload)
-        self._record_state_if_required(unique_id, state_name, payload)
+            device.set_text(state)
+
+        args = {"args": [{"state_name": state_name, "state": state}]}
+        self._record_state_if_required(unique_id, args)
         return True
 
     def _set_number_state(
-        self, device: Discoverable, dst: bool, state_name: str, payload: float
+        self, device: Discoverable, dst: bool, state_name: str, state: float
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -252,12 +254,14 @@ class DeviceKeeper:
             )
             return False
         if dst:
-            device.set_value(payload)
-        self._record_state_if_required(unique_id, state_name, payload)
+            device.set_value(state)
+
+        args = {"args": [{"state_name": state_name, "state": state}]}
+        self._record_state_if_required(unique_id, args)
         return True
 
     def _set_select_state(
-        self, device: Discoverable, dst: bool, state_name: str, payload: str
+        self, device: Discoverable, dst: bool, state_name: str, state: str
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -266,8 +270,10 @@ class DeviceKeeper:
             )
             return False
         if dst:
-            device.select_option(payload)
-        self._record_state_if_required(unique_id, state_name, payload)
+            device.select_option(state)
+
+        args = {"args": [{"state_name": state_name, "state": state}]}
+        self._record_state_if_required(unique_id, args)
         return True
 
     def _set_sensor_state(
@@ -275,7 +281,7 @@ class DeviceKeeper:
         device: Discoverable,
         dst: bool,
         state_name: str,
-        payload: bytes | str | float,
+        state: bytes | str | float,
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -283,8 +289,10 @@ class DeviceKeeper:
                 "Unsupported sensor state name for %s: %r", unique_id, state_name
             )
             return False
-        device.set_state(payload)
-        self._record_state_if_required(unique_id, state_name, payload)
+        device.set_state(state)
+
+        args = {"args": [{"state_name": state_name, "state": state}]}
+        self._record_state_if_required(unique_id, args)
         return True
 
     def _set_binary_sensor_state(
@@ -292,7 +300,7 @@ class DeviceKeeper:
         device: Discoverable,
         dst: bool,
         state_name: str,
-        payload: bool | int | str,
+        state: bool | int | str,
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -300,18 +308,19 @@ class DeviceKeeper:
                 "Unsupported binary_sensor state name for %s: %r", unique_id, state_name
             )
             return False
-        normalized = str(payload).lower().strip()
+        normalized = str(state).lower().strip()
         if normalized in {"on", "1", "true"}:
             device.on()
         elif normalized in {"off", "0", "false"}:
             device.off()
         else:
             self.logger.warning(
-                "Unsupported binary_sensor payload for %s: %r", unique_id, payload
+                "Unsupported binary_sensor payload for %s: %r", unique_id, state
             )
             return False
 
-        self._record_state_if_required(unique_id, state_name, payload)
+        args = {"args": [{"state_name": state_name, "state": state}]}
+        self._record_state_if_required(unique_id, args)
         return True
 
     def configure_cover(self, payload, dst: bool):

@@ -173,7 +173,7 @@ class DGBContext:
         self,
         unique_id: str,
         call_name: str,
-        args: list[dict[str, Any]],
+        args: dict[str, list],
     ) -> None:
         """Register preset state value for a unique_id in one place."""
         with self._phase_lock:
@@ -228,10 +228,7 @@ class DGBContext:
             return bool(dgb_object and dgb_object.retained_state)
 
     def publish_state_to_retain(
-        self,
-        unique_id: str,
-        state_name: str,
-        value: Any,
+        self, unique_id: str, call_name: str, args: dict[str, list]
     ) -> None:
         with self._phase_lock:
             prefix = self._retained_state_prefix
@@ -240,11 +237,11 @@ class DGBContext:
         if not prefix or publish_fn is None:
             return
 
-        topic = f"{prefix}{unique_id}/{state_name}"
+        topic = f"{prefix}{unique_id}/{call_name}"
         try:
-            payload = json.dumps(value)
+            payload = json.dumps(args)
         except (TypeError, ValueError):
-            payload = str(value)
+            payload = str(args)
 
         try:
             publish_fn(topic, payload=payload, qos=1, retain=True)
@@ -252,7 +249,7 @@ class DGBContext:
             self._logger.exception(
                 "Failed to publish retained state for %s/%s",
                 unique_id,
-                state_name,
+                call_name,
             )
 
     # ------------------------------------------------------------------

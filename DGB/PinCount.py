@@ -115,10 +115,9 @@ class Pin_count(Pin):
         )
         if self.dgb_context.is_retain_required(str(self.config.pin)):
             self.dgb_context.publish_state_to_retain(
-                str(self.config.pin), "scaled_total", scaled_total
-            )
-            self.dgb_context.publish_state_to_retain(
-                str(self.config.pin), "count_total", self.count_total
+                str(self.config.pin),
+                "set_state",
+                {"args": [{"state_name": "count_total", "state": self.count_total}]},
             )
 
     def is_update_relevant(self):
@@ -205,7 +204,7 @@ class Pin_count(Pin):
         )
         return True
 
-    def set_state(self, state_name: str, value: float) -> bool:
+    def set_state(self, state_name: str, state: float) -> bool:
         if state_name not in {"scaled_total", "count_total"}:
             self.logger.warning(
                 "pin %s unsupported state name %r", self.config.pin, state_name
@@ -213,12 +212,12 @@ class Pin_count(Pin):
             return False
 
         try:
-            total = float(value)
+            total = float(state)
         except (TypeError, ValueError):
             self.logger.warning(
                 "pin %s rejected retained count value %r for %s",
                 self.config.pin,
-                value,
+                state,
                 state_name,
             )
             return False

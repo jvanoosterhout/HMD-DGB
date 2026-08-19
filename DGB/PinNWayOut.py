@@ -114,7 +114,7 @@ class Pin_N_way_out(Pin):
             "active_pin_name": active_pin_name,
         }
 
-    def GetPinIndex(self, active_pin) -> int:
+    def GetPinIndex(self, active_pin: int | str) -> int:
         n = -1
         if isinstance(active_pin, str) and active_pin in self.config.pin_names:
             n = self.config.pin_names.index(active_pin)
@@ -148,7 +148,7 @@ class Pin_N_way_out(Pin):
     #     self.logger.info('pin {} has value {} for {} seconds'.format(self.config.pin, 1, on_time))
     #     return True
 
-    def on(self, active_pin: int) -> bool:
+    def on(self, active_pin: int | str) -> bool:
         self.off()
 
         if active_pin is None:
@@ -179,6 +179,8 @@ class Pin_N_way_out(Pin):
 
         self.config.active_pin = active_pin
 
+        self.retain_state({"args": [{"state_name": "active_pin", "state": active_pin}]})
+
         return True
 
     def off(self) -> bool:
@@ -186,23 +188,24 @@ class Pin_N_way_out(Pin):
             p.off(is_PinNWayOut=True)
         self.pin_device.off()
         self.config.value = 0
+        self.retain_state({"args": [{"state_name": "active_pin", "state": None}]})
         self.logger.info("All N Way Out pins turned off")
         return True
 
-    def set_state(self, state_name: str, value: int | str | None) -> bool:
+    def set_state(self, state_name: str, state: int | str | None) -> bool:
         if state_name not in {"active_pin"}:
             self.logger.warning(
                 "pin %s unsupported state name %r", self.config.pin, state_name
             )
             return False
 
-        result = self.off() if value is None else self.on(active_pin=value)
+        return self.off() if state is None else self.on(active_pin=state)
 
-        if result and self.dgb_context.is_retain_required(str(self.config.pin)):
+    def retain_state(self, args):
+        if self.dgb_context.is_retain_required(str(self.config.pin)):
             self.dgb_context.publish_state_to_retain(
-                str(self.config.pin), "active_pin", value
+                str(self.config.pin), "set_state", args
             )
-        return result
 
     def ProcessPinUpdate(self, config: PinModel) -> bool:
         """

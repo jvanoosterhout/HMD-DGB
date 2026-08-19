@@ -384,11 +384,11 @@ def test_put_config_shutdown_command(dgb_context):
 
 
 def test_record_and_get_retained_state(dgb_context):
-    dgb_context.record_retained_state("switch_one", "payload", {"value": "on"})
+    dgb_context.record_retained_state("switch_one", "payload", {"state": "on"})
 
     assert dgb_context.has_retained_state("switch_one") is True
-    assert dgb_context.get_retained_state("switch_one") == {"payload": {"value": "on"}}
-    assert dgb_context.get_retained_state("switch_one") == {"payload": {"value": "on"}}
+    assert dgb_context.get_retained_state("switch_one") == {"payload": {"state": "on"}}
+    assert dgb_context.get_retained_state("switch_one") == {"payload": {"state": "on"}}
 
 
 def test_has_retained_value_false_when_missing(dgb_context):

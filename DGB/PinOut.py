@@ -17,6 +17,8 @@
 
 from __future__ import annotations
 
+from inspect import currentframe
+
 from gpiozero import DigitalOutputDevice
 
 from DGB.DGBContext import DGBContext
@@ -105,40 +107,44 @@ class Pin_out(Pin):
             return True
         return False
 
-    def set_state(self, state_name: str, value: int | str | bool) -> bool:
+    def set_state(self, state_name: str, state: int | str | bool) -> bool:
         if state_name == "blink":
             try:
-                value = int(value)
+                state = int(state)
             except (TypeError, ValueError):
                 self.logger.warning(
-                    "pin %s blink state rejected: %r", self.config.pin, value
+                    "pin %s blink state rejected: %r", self.config.pin, state
                 )
                 return False
-            result = self.blink(blink=value, is_PinNWayOut=self.is_PinNWayOut)
+            result = self.blink(blink=state, is_PinNWayOut=self.is_PinNWayOut)
         elif state_name != "state":
             self.logger.warning(
                 "pin %s unsupported state name %r", self.config.pin, state_name
             )
             return False
 
-        if isinstance(value, bool):
-            value = "on" if value else "off"
+        if isinstance(state, bool):
+            state = "on" if state else "off"
         else:
-            value = str(value).lower().strip()
+            state = str(state).lower().strip()
 
-        if value in {"on", "1"}:
+        if state in {"on", "1"}:
             result = self.on(is_PinNWayOut=self.is_PinNWayOut)
-        elif value in {"off", "0"}:
+        elif state in {"off", "0"}:
             result = self.off(is_PinNWayOut=self.is_PinNWayOut)
         else:
             self.logger.warning(
-                "pin %s unsupported state value %r", self.config.pin, value
+                "pin %s unsupported state value %r", self.config.pin, state
             )
             return False
 
         if result and self.dgb_context.is_retain_required(str(self.config.pin)):
+            frame = currentframe()
+            call_name = frame.f_code.co_name if frame else "unknown"
             self.dgb_context.publish_state_to_retain(
-                str(self.config.pin), state_name, value
+                str(self.config.pin),
+                call_name,
+                {"args": [{"state_name": state_name, "state": state}]},
             )
         return result
 

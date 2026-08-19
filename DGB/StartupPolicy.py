@@ -79,7 +79,7 @@ class StartupPolicy:
 
 #     For this DGB stage, preset startup values are restricted to:
 #     - call: "set_state"
-#     - args: [{"state_name": ...}, {"value": ...}]
+#     - args: [{"state_name": ..., "state": ...}]
 
 #     Output is normalized to:
 #     - {"unique_id": str, "state_name": str, "value": Any}

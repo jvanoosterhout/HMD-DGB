@@ -194,14 +194,16 @@ def test_on_message_stores_state_shadow_payload(make_service):
     service, _ = make_service(name="test")
     msg = MagicMock()
     msg.topic = "state/test/switch_one"
-    msg.payload = json.dumps({"value": "on"}).encode()
+    msg.payload = json.dumps(
+        {"args": [{"state_name": "state", "state": "on"}]}
+    ).encode()
 
     with patch.object(service.dgb_context, "put_to_config_queue") as mock_enqueue:
         service._on_message(None, None, msg)
         mock_enqueue.assert_not_called()
 
     retained = service.dgb_context.get_retained_state("switch_one")
-    assert retained == {"set_state": {"value": "on"}}
+    assert retained == {"set_state": {"args": [{"state_name": "state", "state": "on"}]}}
 
 
 def test_publish_state_value_uses_configured_prefix(make_service):

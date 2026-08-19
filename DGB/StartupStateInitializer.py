@@ -110,7 +110,7 @@ class StartupStateInitializer:
         Handle the retained state message by saving it in DGBcontext.
 
         Args:
-            msg: MQTT msg with json payload. Its topic should have the shape of retained_state_topic_prefix/unique_id/call_name. Its payload should be in the shape of {"args": [{"state_name": "Any"}]}
+            msg: MQTT msg with json payload. Its topic should have the shape of retained_state_topic_prefix/unique_id/call_name. Its payload should be in the shape of {"args": [{"state_name": "state", "state": "Any"}]}
 
         """
         unique_id = self._unique_id_from_retained_state_topic(msg.topic)
@@ -120,6 +120,17 @@ class StartupStateInitializer:
 
         call_name = self._call_name_from_retained_state_topic(msg.topic)
         decoded_payload = self._decode_retained_state_payload(msg.payload)
+        if call_name == "set_state":
+            try:
+                decoded_payload = self._validate_set_state_payload(decoded_payload)
+            except (TypeError, ValueError) as exc:
+                self.logger.warning(
+                    "Ignoring retained set_state for %s on %s: %s",
+                    unique_id,
+                    msg.topic,
+                    exc,
+                )
+                return
         self.dgb_context.record_retained_state(
             unique_id=unique_id,
             call_name=call_name,
@@ -140,6 +151,40 @@ class StartupStateInitializer:
     # ------------------------------------------------------------------
     # phase 4.1: record retained state needs
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_set_state_args(args_list: Any) -> list[dict[str, Any]]:
+        if not isinstance(args_list, list):
+            raise TypeError("set_state args must be a list")
+        if len(args_list) != 1:
+            raise ValueError("set_state args must contain exactly one dict")
+
+        state_arg = args_list[0]
+        if not isinstance(state_arg, dict):
+            raise TypeError("set_state args[0] must be a dict")
+
+        expected_keys = {"state_name", "state"}
+        actual_keys = set(state_arg.keys())
+        if actual_keys != expected_keys:
+            raise ValueError(
+                "set_state args[0] must have exactly keys {'state_name', 'state'}"
+            )
+
+        state_name = state_arg.get("state_name")
+        if not isinstance(state_name, str) or not state_name.strip():
+            raise ValueError("set_state args[0].state_name must be a non-empty str")
+
+        return [{"state_name": state_name, "state": state_arg["state"]}]
+
+    def _validate_set_state_payload(self, payload: Any) -> Any:
+        if isinstance(payload, dict):
+            args_list = payload.get("args")
+            if args_list is None:
+                raise ValueError("set_state payload dict must contain 'args'")
+            validated = self._validate_set_state_args(args_list)
+            return {"args": validated}
+
+        return self._validate_set_state_args(payload)
 
     def register_retained_state_need(self, raw_startup_policy: dict):
         # raw_atartup_policy has
@@ -187,11 +232,11 @@ class StartupStateInitializer:
         """
         Parse preset state entries.
         raw_sources should contain "preset_value" that has a list with dicts with structure like:
-        { "unique_id": "id", "call": "set_state", "args": [{"state_name": "Any"}]}
+        { "unique_id": "id", "call": "set_state", "args": [{"state_name": "state", "state": "Any"}]}
 
         For this DGB stage, preset startup values are restricted to:
         - call: "set_state"
-        - args: [{"state_name": ...}, {"value": ...}]
+        - args: [{"state_name": ..., "state": ...}]
 
         """
         raw_list = self.get_list(raw_sources, "preset_value")
@@ -207,7 +252,11 @@ class StartupStateInitializer:
             if call_name != "set_state":
                 raise ValueError("preset_value 'call' must be 'set_state' for now")
 
-            self.dgb_context.record_preset_state(unique_id, call_name, args_list)
+            args_list = self._validate_set_state_args(args_list)
+
+            self.dgb_context.record_preset_state(
+                unique_id, call_name, {"args": args_list}
+            )
 
     # def _parse_state_args(self, args: dict[str, Any]) -> tuple[str, Any]:
     #     """Validate and normalize set_state startup args into (state_name, value)."""
@@ -230,18 +279,24 @@ class StartupStateInitializer:
             unique_id = dgb_object.unique_id
             # dict of preset states containing the {call_name: [args]}
             state_dict = dict(dgb_object.preset_state)
-            self.logger.info(f"Found preset_states: {state_dict}")
+            if state_dict:
+                self.logger.info(
+                    f"Found for unique_id: {unique_id} the preset_states: {state_dict}"
+                )
             # check if retained state must be applied, if so override / add the {call_name: [args]}
             if dgb_object.retain_required and dgb_object.retained_state:
                 for call_name, args in dgb_object.retained_state.items():
                     if call_name in dgb_object.retain_required:
                         state_dict[call_name] = args
                         self.logger.info(
-                            f"Found retained_state: '{call_name}': {args} "
+                            f"Found for unique_id: {unique_id} the retained_state: '{call_name}': {args} "
                         )
+                        self.logger.info(state_dict)
             if state_dict:
                 # state_dict = self._map_startup_states(preset_state)
-                self._apply_startup_state(unique_id=unique_id, state_dict=state_dict)
+                self._apply_startup_state(
+                    unique_id=unique_id, state_dict=dict(state_dict)
+                )
 
     # def _map_startup_states(
     #     self,
@@ -259,7 +314,7 @@ class StartupStateInitializer:
     def _apply_startup_state(
         self,
         unique_id: str,
-        state_dict: dict[str, list],
+        state_dict: dict[str, Any],
     ):
         if not isinstance(state_dict, dict):
             self.logger.warning(
@@ -278,7 +333,9 @@ class StartupStateInitializer:
 
         for call_name, args in state_dict.items():
             function = functions.get(call_name)
-            arg_def = self.arg_builder.parse_argument_definitions(args, function)
+            arg_def = self.arg_builder.parse_argument_definitions(
+                args.get("args"), function
+            )
             call_args = self.arg_builder.build_call_args(arg_def, None)
             function(**call_args)
             self.logger.info(

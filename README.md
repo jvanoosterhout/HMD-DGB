@@ -814,7 +814,7 @@ DGB parameters:
 }
 ```
 
-PinIn has no binder run.action.call and (optional) run.action.args
+PinIn has no binder run.action.call and (optional) run.action.args.
 
 [top](#table-of-contents)
 
@@ -882,7 +882,7 @@ DGB parameters:
 }
 ```
 
-PinCount has no binder run.action.call and (optional) run.action.args
+PinCount has no binder run.action.call and (optional) run.action.args.
 
 [top](#table-of-contents)
 
@@ -1206,13 +1206,13 @@ Actions can be set by the "action" key. Its value is a dict containing:
 - unique_id:
 - call:
 - args:
-  - name:
-  - value: "$m.payload"
+  - state_name: str
+  - value: Any|$m.payload
 
 The call functions and args (with param name as key and value as value) can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo).
 
 ```JSON
-{"action": {"unique_id": "y", "call": "z", "args": [{"var1": "$m.payload"}]}}
+{"action": {"unique_id": "y", "call": "z", "args": [{"state_name": "u", "value": "v"|"$m.payload"}]}}
 ```
 
 ```JSON

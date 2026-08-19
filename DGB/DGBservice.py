@@ -74,6 +74,10 @@ class DGBservice:
         self.client: mqtt.Client = self._create_mqtt_client()
         self.mqtt_settings = Settings.MQTT(client=self.client)
 
+        self.dgb_context.configure_retained_state_publishing(
+            prefix=self.state_retain_topic_prefix,
+            publish_fn=self.client.publish,
+        )
         # Core context
         self.pinkeeper = PinKeeper(dgb_context=self.dgb_context)
         self.binder = Binder(dgb_context=self.dgb_context)
@@ -85,10 +89,6 @@ class DGBservice:
             mqtt_client=self.client,
             arg_builder=self.arg_builder,
             state_retain_topic_prefix=self.state_retain_topic_prefix,
-        )
-        self.dgb_context.configure_retained_state_publishing(
-            prefix=self.state_retain_topic_prefix,
-            publish_fn=self.client.publish,
         )
 
         # System devices (platform + app) - create before DeviceKeeper
@@ -240,15 +240,11 @@ class DGBservice:
 
     # phase 2 - 5
     def _run_config_apply_cycle(self, payload: dict) -> None:
-        cycle_id = self.dgb_context.begin_config_apply_cycle()
         # Phase 2: configure startup policy and confic checks
         # Idempotency check: skip if this exact payload was already applied.
         payload_hash = self.dgb_context.compute_payload_hash(payload)
         if self.dgb_context.payload_already_applied(payload_hash):
-            self.logger.info(
-                "Config cycle %s: payload already applied (idempotent skip)",
-                cycle_id,
-            )
+            self.logger.info("Payload already applied, skiping this one")
             return
         self.dgb_context.record_payload_hash(payload_hash)
 

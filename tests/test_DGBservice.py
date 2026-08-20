@@ -202,7 +202,7 @@ def test_on_message_stores_state_shadow_payload(make_service):
         service._on_message(None, None, msg)
         mock_enqueue.assert_not_called()
 
-    retained = service.dgb_context.get_retained_state("switch_one")
+    retained = service.dgb_context.get_object("switch_one").retained_state
     assert retained == {"set_state": {"args": [{"state_name": "state", "state": "on"}]}}
 
 

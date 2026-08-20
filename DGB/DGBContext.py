@@ -34,17 +34,23 @@ RuntimePhase = Literal["creation", "apply", "live", "blocked", "quarantine"]
 
 @dataclass(frozen=True)
 class BinderMessage:
+    """Command and payload queued for the binder."""
+
     cmd: BinderCmd
     payload: dict[str, Any]
 
 
 @dataclass(frozen=True)
 class ConfigMessage:
+    """Command and payload queued for configuration handling."""
+
     cmd: ConfigCmd
     payload: dict[str, Any]
 
 
 class DuplicatePolicy(Enum):
+    """Policy used when a duplicate registration is encountered."""
+
     SKIP = "skip"
     REPLACE = "replace"
 
@@ -56,6 +62,8 @@ _UNSET = object()
 
 @dataclass
 class DGBObject:
+    """Registered object and its runtime state metadata."""
+
     unique_id: str
     dgb_obj: Any | None = None
     obj_functions: FunctionMap = field(default_factory=dict)
@@ -66,15 +74,10 @@ class DGBObject:
 
 
 class DGBContext:
-    """
-    Shared runtime context for DGB, containing:
-    - device and GPIO pin registries (objects + callable functions)
-    - bindings between devices and rulesets
-    - message queue for binder/engine interaction
-    - (optional) engine lock used by the durable_rules engine
-    """
+    """Shared registries, queues, bindings, and lifecycle state for DGB."""
 
     def __init__(self) -> None:
+        """Initialize an empty context in the live runtime phase."""
         self._logger = logging.getLogger(f"{__name__}.DGBContext")
 
         # availability topic for node and service
@@ -113,7 +116,7 @@ class DGBContext:
     # ------------------------------------------------------------------
 
     def close(self) -> None:
-        """Explicitly close context resources and signal shutdown."""
+        """Close the context and enqueue shutdown commands."""
         if self._closed:
             return
         self._closed = True
@@ -122,10 +125,17 @@ class DGBContext:
         self._logger.info("DGBContext closed (shutdown enqueued).")
 
     def __exit__(self, exc_type, exc, tb) -> None:
+        """Close the context when leaving a context-manager block.
+
+        Args:
+            exc_type: Exception class, if the block raised an exception.
+            exc: Exception instance, if the block raised an exception.
+            tb: Traceback, if the block raised an exception.
+        """
         self.close()
 
     # ------------------------------------------------------------------
-    # object handling
+    # Generic object handling
     # ------------------------------------------------------------------
 
     def add_object(
@@ -134,6 +144,13 @@ class DGBContext:
         obj: Any,
         functions: dict[str, Callable[..., Any]] | None = None,
     ) -> None:
+        """Register or replace an object and its callable functions.
+
+        Args:
+            unique_id: Identifier used to register the object.
+            obj: Device or pin object to register.
+            functions: Callable operations exposed by the object.
+        """
         fn_map: FunctionMap = functions if functions else {}
         dgb_object = self.DGB_objects.get(unique_id)
         if dgb_object is None:
@@ -150,20 +167,48 @@ class DGBContext:
         )
 
     def _ensure_dgb_object(self, unique_id: str) -> DGBObject:
+        """Return an existing object or create one for the identifier.
+
+        Args:
+            unique_id: Identifier of the object.
+
+        Returns:
+            The existing or newly created object.
+        """
         dgb_object = self.DGB_objects.get(unique_id)
         if dgb_object is None:
             dgb_object = DGBObject(unique_id=unique_id)
             self.DGB_objects[unique_id] = dgb_object
         return dgb_object
 
-    def get_object(self, unique_id: str) -> Any:
-        dgb_object = self.DGB_objects.get(unique_id)
-        return dgb_object.dgb_obj if dgb_object is not None else None
+    def get_object(self, unique_id: str) -> DGBObject | None:
+        """Return the registered object, if present.
+
+        Args:
+            unique_id: Identifier of the registered object.
+
+        Returns:
+            The object, or ``None`` when it is not registered.
+        """
+        return self.DGB_objects.get(unique_id)
 
     def remove_object(self, unique_id: str) -> None:
+        """Remove a registered object and ignore unknown identifiers.
+
+        Args:
+            unique_id: Identifier of the object to remove.
+        """
         self.DGB_objects.pop(unique_id, None)
 
     def get_functions(self, unique_id: str) -> FunctionMap:
+        """Return a registered object's callable map or an empty map.
+
+        Args:
+            unique_id: Identifier of the registered object.
+
+        Returns:
+            The object's callable map, or an empty map when absent.
+        """
         dgb_object = self.DGB_objects.get(unique_id)
         if dgb_object is None:
             return {}
@@ -175,61 +220,85 @@ class DGBContext:
         call_name: str,
         args: dict[str, list],
     ) -> None:
-        """Register preset state value for a unique_id in one place."""
+        """Store a configured startup state for an object.
+
+        Args:
+            unique_id: Identifier of the target object.
+            call_name: State-setting call name.
+            args: Arguments for the state-setting call.
+        """
         with self._phase_lock:
             dgb_object = self._ensure_dgb_object(unique_id)
             dgb_object.preset_state[call_name] = args
 
-    def get_preset_state(self, unique_id: str) -> Any:
-        with self._phase_lock:
-            dgb_object = self.DGB_objects.get(unique_id)
-            if dgb_object is None:
-                return {}
-            return dict(dgb_object.preset_state)
+    # ------------------------------------------------------------------
+    # Phase 1 record preload mqtt retained values
+    # ------------------------------------------------------------------
 
-    # phase 1 preload mqtt retained values
     def record_retained_state(
         self,
         unique_id: str,
         call_name: str,
         args: Any,
     ) -> None:
+        """Store a state loaded from an MQTT retained message.
+
+        Args:
+            unique_id: Identifier of the target object.
+            call_name: State-setting call name.
+            args: Decoded arguments from the retained message.
+        """
         with self._phase_lock:
             dgb_object = self._ensure_dgb_object(unique_id)
             dgb_object.retained_state[call_name] = args
 
-    def get_retained_state(self, unique_id: str) -> dict[str, Any]:
-        with self._phase_lock:
-            dgb_object = self.DGB_objects.get(unique_id)
-            if dgb_object is None:
-                return {}
-            return dict(dgb_object.retained_state)
+    # ------------------------------------------------------------------
+    # Phase 2 record retain needs from config
+    # ------------------------------------------------------------------
 
-    # phase 2 load retain needs from config
     def record_retained_state_need(
         self,
         unique_id: str,
         states: list[str],
     ) -> None:
-        """Register retain/preset intent for a unique_id in one place."""
+        """Record which state calls require retained values.
+
+        Args:
+            unique_id: Identifier of the target object.
+            states: State-setting call names requiring retained values.
+        """
         with self._phase_lock:
             dgb_object = self._ensure_dgb_object(unique_id)
             for state_name in states:
                 dgb_object.retain_required.append(state_name)
 
+    # ------------------------------------------------------------------
+    # Phase 5 retain state on mqtt topic
+    # ------------------------------------------------------------------
+
     def is_retain_required(self, unique_id: str) -> bool:
+        """Return whether an object has retained-state requirements.
+
+        Args:
+            unique_id: Identifier of the object to inspect.
+
+        Returns:
+            ``True`` when at least one retained state is required.
+        """
         with self._phase_lock:
             dgb_object = self.DGB_objects.get(unique_id)
             return bool(dgb_object and dgb_object.retain_required)
 
-    def has_retained_state(self, unique_id: str) -> bool:
-        with self._phase_lock:
-            dgb_object = self.DGB_objects.get(unique_id)
-            return bool(dgb_object and dgb_object.retained_state)
-
     def publish_state_to_retain(
         self, unique_id: str, call_name: str, args: dict[str, list]
     ) -> None:
+        """Publish an object's state to its configured retained topic.
+
+        Args:
+            unique_id: Identifier of the target object.
+            call_name: State-setting call name used in the topic.
+            args: Arguments to serialize and publish.
+        """
         with self._phase_lock:
             prefix = self._retained_state_prefix
             publish_fn = self._retained_state_publish_fn
@@ -258,7 +327,14 @@ class DGBContext:
 
     @staticmethod
     def _normalize_ruleset_name(ruleset_name: str) -> str:
-        # strip suffix after '$'
+        """Remove the instance suffix from a ruleset name.
+
+        Args:
+            ruleset_name: Ruleset name, optionally followed by ``$`` and a suffix.
+
+        Returns:
+            The base ruleset name.
+        """
         return ruleset_name.split("$", 1)[0]
 
     def configure_retained_state_publishing(
@@ -266,6 +342,12 @@ class DGBContext:
         prefix: str,
         publish_fn: Callable[..., Any] | None,
     ) -> None:
+        """Configure the topic prefix and callback for retained publishing.
+
+        Args:
+            prefix: MQTT topic prefix for retained state messages.
+            publish_fn: MQTT publish callback, or ``None`` to disable publishing.
+        """
         with self._phase_lock:
             self._retained_state_prefix = prefix
             self._retained_state_publish_fn = publish_fn
@@ -275,6 +357,12 @@ class DGBContext:
     # ------------------------------------------------------------------
 
     def add_binding(self, device_id: str, ruleset_name: str) -> None:
+        """Add a normalized device-to-ruleset binding if it is new.
+
+        Args:
+            device_id: Identifier of the device to bind.
+            ruleset_name: Ruleset name, optionally including an instance suffix.
+        """
         normalized = self._normalize_ruleset_name(ruleset_name)
         rulesets = self._bindings.setdefault(device_id, set())
 
@@ -296,10 +384,23 @@ class DGBContext:
         )
 
     def get_bindings(self, device_id: str) -> set[str]:
-        # return a copy to prevent external mutation
+        """Return a copy of the rulesets bound to a device.
+
+        Args:
+            device_id: Identifier of the device to inspect.
+
+        Returns:
+            A set of normalized ruleset names.
+        """
         return set(self._bindings.get(device_id, set()))
 
     def put_to_binder_queue(self, cmd: BinderCmd, payload: dict[str, Any]) -> None:
+        """Queue a binder command unless the context is closed.
+
+        Args:
+            cmd: Binder command to enqueue.
+            payload: Command payload.
+        """
         if self._closed and cmd != "shutdown":
             raise RuntimeError("DGBContext is closed; no further commands allowed.")
         self.binder_queue.put(BinderMessage(cmd=cmd, payload=payload))
@@ -309,7 +410,11 @@ class DGBContext:
     # ------------------------------------------------------------------
 
     def begin_config_apply_cycle(self) -> int:
-        """Start a new config-apply cycle and move to creation phase."""
+        """Start a config cycle and move the runtime to creation phase.
+
+        Returns:
+            The newly started configuration cycle identifier.
+        """
         with self._phase_lock:
             self._config_apply_cycle_id += 1
             self._runtime_phase = "creation"
@@ -319,85 +424,108 @@ class DGBContext:
         return cycle_id
 
     def set_runtime_phase(self, phase: RuntimePhase) -> None:
+        """Set the current runtime phase.
+
+        Args:
+            phase: Runtime phase to enter.
+        """
         with self._phase_lock:
             self._runtime_phase = phase
             cycle_id = self._config_apply_cycle_id
         self._logger.info("Runtime phase set to %s (cycle=%s)", phase, cycle_id)
 
     def get_runtime_phase(self) -> RuntimePhase:
+        """Return the current runtime phase.
+
+        Returns:
+            The active runtime phase.
+        """
         with self._phase_lock:
             return self._runtime_phase
 
     def get_config_apply_cycle_id(self) -> int:
+        """Return the current configuration cycle identifier.
+
+        Returns:
+            The current configuration cycle identifier.
+        """
         with self._phase_lock:
             return self._config_apply_cycle_id
 
     def is_live_dispatch_enabled(self) -> bool:
+        """Return whether live event dispatch is enabled.
+
+        Returns:
+            ``True`` when the runtime is in the live phase.
+        """
         return self.get_runtime_phase() == "live"
 
     def is_binding_dispatch_allowed(self, ruleset_name: str) -> bool:
-        """Check if a binding (ruleset) is allowed to dispatch based on its cycle."""
+        """Return whether a ruleset's binding may dispatch in the live cycle.
+
+        Args:
+            ruleset_name: Ruleset name, optionally including an instance suffix.
+
+        Returns:
+            ``True`` when the binding's registration cycle is live.
+        """
         normalized = self._normalize_ruleset_name(ruleset_name)
         with self._phase_lock:
             binding_cycle = self._binding_cycle.get(normalized, 0)
             return binding_cycle <= self._last_live_cycle_id
 
     def complete_config_cycle(self, cycle_id: int) -> None:
-        """Mark a config cycle as complete and allow its bindings to dispatch."""
+        """Mark a configuration cycle as live for binding dispatch.
+
+        Args:
+            cycle_id: Configuration cycle identifier to complete.
+        """
         with self._phase_lock:
             if cycle_id > self._last_live_cycle_id:
                 self._last_live_cycle_id = cycle_id
                 self._logger.info("Config cycle %s completed and is now live", cycle_id)
 
     def put_to_config_queue(self, cmd: ConfigCmd, payload: dict[str, Any]) -> None:
+        """Queue a configuration command unless the context is closed.
+
+        Args:
+            cmd: Configuration command to enqueue.
+            payload: Command payload.
+        """
         if self._closed and cmd != "shutdown":
             raise RuntimeError("DGBContext is closed; no further commands allowed.")
         self.config_queue.put(ConfigMessage(cmd=cmd, payload=payload))
 
     def record_payload_hash(self, payload_hash: str) -> None:
-        """Record that a payload has been applied, for idempotency tracking."""
+        """Record a payload hash for idempotency checks.
+
+        Args:
+            payload_hash: Hash of a configuration payload.
+        """
         with self._phase_lock:
             self._applied_payload_hashes.add(payload_hash)
 
     def payload_already_applied(self, payload_hash: str) -> bool:
-        """Check if a payload has already been applied (idempotency guard)."""
+        """Return whether a payload hash has already been recorded.
+
+        Args:
+            payload_hash: Hash of a configuration payload.
+
+        Returns:
+            ``True`` when the hash was previously recorded.
+        """
         with self._phase_lock:
             return payload_hash in self._applied_payload_hashes
 
     @staticmethod
     def compute_payload_hash(payload: dict[str, Any]) -> str:
-        """Compute a deterministic hash of a payload for deduplication."""
+        """Return a deterministic SHA-256 hash for a payload.
+
+        Args:
+            payload: Configuration payload to hash.
+
+        Returns:
+            The hexadecimal SHA-256 digest.
+        """
         payload_json = json.dumps(payload, sort_keys=True, default=str)
         return hashlib.sha256(payload_json.encode()).hexdigest()
-
-    # def get_startup_state_snapshot(
-    #     self,
-    # ) -> list[tuple[str, dict[str, Any], bool, dict[str, Any]]]:
-    #     """Return startup-state metadata copied from context objects."""
-    #     with self._phase_lock:
-    #         return [
-    #             (
-    #                 unique_id,
-    #                 dict(dgb_object.preset_value),
-    #                 dgb_object.retain_required,
-    #                 dict(dgb_object.retained_state),
-    #             )
-    #             for unique_id, dgb_object in self.DGB_objects.items()
-    #         ]
-
-    # def record_preset_state(
-    #     self,
-    #     unique_id: str,
-    #     state_name: str,
-    #     value: Any,
-    # ) -> None:
-    #     with self._phase_lock:
-    #         dgb_object = self._ensure_dgb_object(unique_id)
-    #         dgb_object.preset_value[state_name] = value
-
-    # def iter_objects(self) -> list[tuple[str, Any]]:
-    #     return [
-    #         (unique_id, dgb_object.dgb_obj)
-    #         for unique_id, dgb_object in self.DGB_objects.items()
-    #         if dgb_object.dgb_obj is not None
-    #     ]

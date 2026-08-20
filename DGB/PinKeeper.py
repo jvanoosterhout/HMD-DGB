@@ -245,6 +245,6 @@ class PinKeeper:
             self.logger.error("Could not set pin update")
         self.logger.info(f"Add pin {P.config.pin} to PinList")
         self.PinList.append(P)
-        self.logger.info(self.dgb_context.get_object(str(P.config.pin)).config)
+        # self.logger.info(self.dgb_context.get_object(str(P.config.pin)).config)
         self.logger.info(f"Pin {P.config.pin} added to PinList.")
         return True

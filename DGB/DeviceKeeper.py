@@ -114,8 +114,9 @@ class DeviceKeeper:
             True  -> caller may proceed with adding the binding
             False -> caller must skip adding
         """
-
         if self.dgb_context.get_object(unique_id) is None:
+            return True
+        if self.dgb_context.get_object(unique_id).dgb_obj is None:
             return True
 
         if policy == DuplicatePolicy.SKIP:

@@ -1209,11 +1209,17 @@ Actions can be set by the "action" key. Its value is a dict containing:
   - state_name: str
   - value: Any|$m.payload
 
-The call functions and args (with param name as key and value as value) can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo).
+The call functions and args can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo). Within bindings the arg can be optional, meaning you could either use:
+
+```JSON
+{"action": {"unique_id": "y", "call": "z"}}
+```
+or:
 
 ```JSON
 {"action": {"unique_id": "y", "call": "z", "args": [{"state_name": "u", "value": "v"|"$m.payload"}]}}
 ```
+In practic this could look like the following where {"call": "on"} is equivalent to {"call": "set_state", "args": [{"state_name": "state", "value": "on"}]}:
 
 ```JSON
 {
@@ -1229,7 +1235,7 @@ The call functions and args (with param name as key and value as value) can be f
       "timeout": {
           "all": [{"m": {"timeout": "auto_off"}}],
           "run": [
-              {"action": {"unique_id": "p1", "call": "off"}},
+              {"action": {"unique_id": "p1", "call": "set_state", "args": [{"state_name": "state", "value": "off"}]}},
               {"log": {"msg": "p1 is set to off"}}
           ],
       },

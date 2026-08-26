@@ -26,12 +26,12 @@ import paho.mqtt.client as mqtt
 from ha_mqtt_discoverable import Settings
 from pydantic import ValidationError
 
-from DGB.ActionArguments import ArgumentBuilder
 from DGB.Binder import Binder
 from DGB.DeviceKeeper import DeviceKeeper
 from DGB.DGBContext import DGBContext
 from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import PinModel
+from DGB.SetStateResolver import SetStateResolver
 from DGB.StartupStateInitializer import StartupStateInitializer
 from DGB.SystemDevices import SystemDevices
 
@@ -55,7 +55,7 @@ class DGBservice:
         self.username = username
         self.password = password
         self.system_sensor_update_rate = system_sensor_update_rate
-        self.arg_builder = ArgumentBuilder()
+        self.state_resolver = SetStateResolver()
 
         self.client_id = f"dgb-{self.name}"
 
@@ -87,7 +87,7 @@ class DGBservice:
         self.startup_state = StartupStateInitializer(
             dgb_context=self.dgb_context,
             mqtt_client=self.client,
-            arg_builder=self.arg_builder,
+            state_resolver=self.state_resolver,
             state_retain_topic_prefix=self.state_retain_topic_prefix,
         )
 

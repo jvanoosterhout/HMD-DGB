@@ -31,8 +31,8 @@ from typing import Any
 from durable.engine import MessageNotHandledException, MessageObservedException
 from durable.lang import get_host, post
 
-from DGB.ActionArguments import ArgumentBuilder
 from DGB.DGBContext import BinderMessage, DGBContext, DuplicatePolicy
+from DGB.SetStateResolver import SetStateResolver
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -99,7 +99,7 @@ class Binder:
     def __init__(self, dgb_context: DGBContext):
         self.dgb_context = dgb_context
         self.timers = TimerRegistry()
-        self.arg_builder = ArgumentBuilder()
+        self.state_resolver = SetStateResolver()
         self.logger = logging.getLogger("Binder")
 
     # ------------------------------------------------------------------
@@ -173,24 +173,26 @@ class Binder:
             rule_name: Name of the rule
             unique_id: Device/pin unique_id
             call_name: Function name to call
-            args_config: Optional list of {param_name: value_or_"$c.path"} argument definitions
+            args_config: Optional list of {"state_name": "state", "state": "Any|$m.payload"} argument definitions
         """
-        resolved = self.arg_builder.resolve_callable_action(
-            action_payload={
-                "unique_id": unique_id,
-                "call": call_name,
-                "args": args_config,
-            },
-            function_resolver=lambda uid, call: self.dgb_context.get_functions(uid).get(
-                call
-            ),
-            source_label="action",
-            allow_context_refs=True,
+        if not isinstance(unique_id, str) or not unique_id:
+            raise ValueError(
+                f"action.unique_id must be non-empty str (rule '{rule_name}')"
+            )
+        if not isinstance(call_name, str) or not call_name:
+            raise ValueError(f"action.call must be non-empty str (rule '{rule_name}')")
+
+        action_fn = self.dgb_context.get_functions(unique_id).get(call_name)
+        if action_fn is None:
+            raise KeyError(
+                f"No action function '{call_name}' for device '{unique_id}' "
+                f"(rule '{rule_name}')"
+            )
+
+        # Parse and validate argument definitions
+        arg_defs = self.state_resolver.parse_argument_definitions(
+            args_config, action_fn
         )
-        unique_id = resolved.unique_id
-        call_name = resolved.call_name
-        action_fn = resolved.action_fn
-        arg_defs = resolved.arg_defs
 
         self.logger.info(
             "building action for %s.%s with %d args",
@@ -214,7 +216,7 @@ class Binder:
                 _dev,
             )
             # Build call arguments from context and coerce types
-            call_args = self.arg_builder.build_call_args(_arg_defs, c)
+            call_args = self.state_resolver.build_call_args(_arg_defs, c)
 
             self.logger.debug(f"Calling {_call} with args: {call_args}")
 

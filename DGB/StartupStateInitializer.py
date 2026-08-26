@@ -25,8 +25,8 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
-from DGB.ActionArguments import ArgumentBuilder
 from DGB.DGBContext import DGBContext
+from DGB.SetStateResolver import SetStateResolver
 
 
 class StartupStateInitializer:
@@ -34,7 +34,7 @@ class StartupStateInitializer:
         self,
         dgb_context: DGBContext,
         mqtt_client: mqtt.Client,
-        arg_builder: ArgumentBuilder,
+        state_resolver: SetStateResolver,
         state_retain_topic_prefix: str,
         preload_quiet_seconds: float = 0.5,
         preload_timeout_seconds: float = 1.0,
@@ -42,7 +42,7 @@ class StartupStateInitializer:
         self.dgb_context = dgb_context
         self.mqtt_client = mqtt_client
         self.logger = logging.getLogger("StartupStateInitializer")
-        self.arg_builder = arg_builder
+        self.state_resolver = state_resolver
         self.retained_state_topic_prefix = state_retain_topic_prefix
         self.preload_quiet_seconds = preload_quiet_seconds
         self.preload_timeout_seconds = preload_timeout_seconds
@@ -333,10 +333,10 @@ class StartupStateInitializer:
 
         for call_name, args in state_dict.items():
             function = functions.get(call_name)
-            arg_def = self.arg_builder.parse_argument_definitions(
+            arg_def = self.state_resolver.parse_argument_definitions(
                 args.get("args"), function
             )
-            call_args = self.arg_builder.build_call_args(arg_def, None)
+            call_args = self.state_resolver.build_call_args(arg_def, None)
             function(**call_args)
             self.logger.info(
                 "Applied configured default via action call for %s (%s)",

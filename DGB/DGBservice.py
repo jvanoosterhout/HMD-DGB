@@ -121,7 +121,7 @@ class DGBservice:
         self.logger.info("Starting runtime")
 
         # start phase 1: preload
-        self.startup_state.handle_subscription_to_retaind_state_topic()
+        self.startup_state.handle_subscription_to_retained_state_topic()
         self.binder.start_event_dispatcher()
         # state phase 2-5: config-create-apply-live
         self.config_thread.start()
@@ -210,7 +210,7 @@ class DGBservice:
         self.logger.info("Message received on %s", msg.topic)
 
         if self.startup_state.is_state_shadow_topic(msg.topic):
-            self.startup_state.handle_retaind_state_message(msg)
+            self.startup_state.handle_retained_state_message(msg)
             return
 
         if self.config_topic not in msg.topic:

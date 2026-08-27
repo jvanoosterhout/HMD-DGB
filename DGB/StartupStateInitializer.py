@@ -21,6 +21,7 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -30,6 +31,8 @@ from DGB.SetStateResolver import SetStateResolver
 
 
 class StartupStateInitializer:
+    """Collect and apply retained and preset startup states for DGB objects."""
+
     def __init__(
         self,
         dgb_context: DGBContext,
@@ -39,11 +42,21 @@ class StartupStateInitializer:
         preload_quiet_seconds: float = 0.5,
         preload_timeout_seconds: float = 1.0,
     ) -> None:
+        """Initialize the startup-state coordinator and its MQTT preload settings.
+
+        Args:
+            dgb_context: Context that stores registered objects and startup state data.
+            mqtt_client: MQTT client used to subscribe to retained state topics.
+            state_resolver: Resolver used to build callable arguments from startup state data.
+            state_retain_topic_prefix: Topic prefix used for retained state messages.
+            preload_quiet_seconds: Number of quiet seconds required before the preload window closes.
+            preload_timeout_seconds: Maximum number of seconds allowed for the preload window.
+        """
         self.dgb_context = dgb_context
         self.mqtt_client = mqtt_client
         self.logger = logging.getLogger("StartupStateInitializer")
         self.state_resolver = state_resolver
-        self.retained_state_topic_prefix = state_retain_topic_prefix
+        self.retained_state_topic_prefix = state_retain_topic_prefix.rstrip("/") + "/"
         self.preload_quiet_seconds = preload_quiet_seconds
         self.preload_timeout_seconds = preload_timeout_seconds
         self._preload_lock = threading.Lock()
@@ -55,23 +68,65 @@ class StartupStateInitializer:
     # ------------------------------------------------------------------
 
     def is_state_shadow_topic(self, topic: str) -> bool:
-        return topic.startswith(self.retained_state_topic_prefix)
+        """Return whether a topic belongs to the retained state namespace."""
+        return self._parse_retained_state_topic(topic) is not None
 
-    def _unique_id_from_retained_state_topic(self, topic: str) -> str | None:
+    def _parse_retained_state_topic(self, topic: str) -> tuple[str, str] | None:
+        """Parse a retained state topic into its object ID and call name.
+
+        Args:
+            topic: MQTT topic to inspect.
+
+        Returns:
+            A tuple containing the object unique ID and call name, or None for an invalid topic.
+        """
+        if not topic.startswith(self.retained_state_topic_prefix):
+            return None
         suffix = topic[len(self.retained_state_topic_prefix) :].strip("/")
         if not suffix:
             return None
-        unique_id, *_ = suffix.split("/", 1)
-        return unique_id if unique_id else None
+        unique_id, _, call_name = suffix.partition("/")
+        if not unique_id:
+            return None
+        return unique_id, call_name or "set_state"
+
+    def _unique_id_from_retained_state_topic(self, topic: str) -> str | None:
+        """Extract the object unique ID from a retained state topic.
+
+        Args:
+            topic: MQTT topic to inspect.
+
+        Returns:
+            The object unique ID or None when the topic is outside the configured namespace.
+        """
+        parsed_topic = self._parse_retained_state_topic(topic)
+        return parsed_topic[0] if parsed_topic else None
 
     def _call_name_from_retained_state_topic(self, topic: str) -> str:
-        suffix = topic[len(self.retained_state_topic_prefix) :].strip("/")
-        if "/" not in suffix:
-            return "set_state"
-        return suffix.split("/", 1)[1] or "set_state"
+        """Extract the state call name from a retained state topic.
+
+        Args:
+            topic: MQTT topic to inspect.
+
+        Returns:
+            The call name or an empty string when the topic is outside the configured namespace.
+        """
+        parsed_topic = self._parse_retained_state_topic(topic)
+        return parsed_topic[1] if parsed_topic else ""
 
     def _decode_retained_state_payload(self, payload: bytes) -> Any:
-        raw = payload.decode()
+        """Decode a retained state payload as JSON when possible and text otherwise.
+
+        Args:
+            payload: Raw MQTT payload bytes to decode.
+
+        Returns:
+            The decoded JSON value or the decoded text payload.
+        """
+        try:
+            raw = payload.decode()
+        except UnicodeDecodeError as exc:
+            raise ValueError("retained state payload is not valid UTF-8") from exc
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
@@ -81,18 +136,19 @@ class StartupStateInitializer:
     # 1.2)Preload Values from MQTT: message handling
     # ------------------------------------------------------------------
 
-    def handle_subscription_to_retaind_state_topic(self) -> None:
+    def handle_subscription_to_retained_state_topic(self) -> None:
+        """Subscribe to retained state topics until the preload window becomes quiet or expires."""
         wildcard_topic = f"{self.retained_state_topic_prefix}#"
         now = time.monotonic()
         with self._preload_lock:
             self._preload_active = True
             self._preload_last_activity = now
 
-        self.mqtt_client.subscribe(wildcard_topic, qos=1)
-        self.logger.info("Preloading retained state from %s", wildcard_topic)
-
-        deadline = now + self.preload_timeout_seconds
         try:
+            self.mqtt_client.subscribe(wildcard_topic, qos=1)
+            self.logger.info("Preloading retained state from %s", wildcard_topic)
+
+            deadline = now + self.preload_timeout_seconds
             while time.monotonic() < deadline:
                 with self._preload_lock:
                     elapsed = time.monotonic() - self._preload_last_activity
@@ -105,13 +161,11 @@ class StartupStateInitializer:
                 self._preload_active = False
             self.logger.info("Retained preload window closed for %s", wildcard_topic)
 
-    def handle_retaind_state_message(self, msg) -> None:
-        """
-        Handle the retained state message by saving it in DGBcontext.
+    def handle_retained_state_message(self, msg: mqtt.MQTTMessage) -> None:
+        """Validate and store a retained state message in the DGB context.
 
         Args:
-            msg: MQTT msg with json payload. Its topic should have the shape of retained_state_topic_prefix/unique_id/call_name. Its payload should be in the shape of {"args": [{"state_name": "state", "state": "Any"}]}
-
+            msg: MQTT message containing the retained state topic and payload.
         """
         unique_id = self._unique_id_from_retained_state_topic(msg.topic)
         if unique_id is None:
@@ -119,7 +173,16 @@ class StartupStateInitializer:
             return
 
         call_name = self._call_name_from_retained_state_topic(msg.topic)
-        decoded_payload = self._decode_retained_state_payload(msg.payload)
+        try:
+            decoded_payload = self._decode_retained_state_payload(msg.payload)
+        except ValueError as exc:
+            self.logger.warning(
+                "Ignoring retained state for %s on %s: %s",
+                unique_id,
+                msg.topic,
+                exc,
+            )
+            return
         if call_name == "set_state":
             try:
                 decoded_payload = self._validate_set_state_payload(decoded_payload)
@@ -154,6 +217,14 @@ class StartupStateInitializer:
 
     @staticmethod
     def _validate_set_state_args(args_list: Any) -> list[dict[str, Any]]:
+        """Validate and normalize the single state argument expected by set_state.
+
+        Args:
+            args_list: Candidate list containing one state name and value mapping.
+
+        Returns:
+            A normalized list containing the validated state argument.
+        """
         if not isinstance(args_list, list):
             raise TypeError("set_state args must be a list")
         if len(args_list) != 1:
@@ -177,6 +248,14 @@ class StartupStateInitializer:
         return [{"state_name": state_name, "state": state_arg["state"]}]
 
     def _validate_set_state_payload(self, payload: Any) -> Any:
+        """Validate a set_state payload in either wrapped or direct argument form.
+
+        Args:
+            payload: Decoded retained state payload to validate.
+
+        Returns:
+            A normalized set_state payload containing the validated argument list.
+        """
         if isinstance(payload, dict):
             args_list = payload.get("args")
             if args_list is None:
@@ -186,22 +265,41 @@ class StartupStateInitializer:
 
         return self._validate_set_state_args(payload)
 
-    def register_retained_state_need(self, raw_startup_policy: dict):
-        # raw_atartup_policy has
-        # "retain_state": [{"unique_id": "id", "call": ["call_name"]}]
+    def register_retained_state_need(self, raw_startup_policy: dict) -> None:
+        """Register the retained state calls requested by startup policy configuration.
+
+        Args:
+            raw_startup_policy: State initialization configuration containing retain_state entries.
+        """
         retain_devices = self.get_list(raw_startup_policy, "retain_state")
         for retain_device in retain_devices:
+            if not isinstance(retain_device, dict):
+                raise TypeError("retain_state entries must be dictionaries")
+            unique_id = retain_device.get("unique_id")
+            if not isinstance(unique_id, str) or not unique_id.strip():
+                raise ValueError("retain_state 'unique_id' must be a non-empty str")
             call_names = self.get_list(retain_device, "call")
-            self.dgb_context.record_retained_state_need(
-                retain_device.get("unique_id"), call_names
-            )
+            if not call_names or not all(
+                isinstance(call_name, str) and call_name.strip()
+                for call_name in call_names
+            ):
+                raise ValueError("retain_state 'call' must contain non-empty strings")
+            self.dgb_context.record_retained_state_need(unique_id, call_names)
 
     def get_list(
         self,
         raw_startup_policy: dict[str, list],
         key: str,
-    ) -> list:
-        """Parse a bucket."""
+    ) -> list[Any]:
+        """Return a configuration as a list, promoting one mapping to a single-item list.
+
+        Args:
+            raw_startup_policy: Configuration mapping containing the requested bucket.
+            key: Configuration key whose value should be returned.
+
+        Returns:
+            The value as a list.
+        """
         raw_list = raw_startup_policy.get(key, [])
         if isinstance(raw_list, dict):
             raw_list = [raw_list]
@@ -215,29 +313,33 @@ class StartupStateInitializer:
         self,
         raw_startup_policy: dict[str, dict],
         key: str,
-    ) -> dict:
-        """Parse a bucket."""
-        raw_list = raw_startup_policy.get(key, {})
-        if not isinstance(raw_list, dict):
+    ) -> dict[str, Any]:
+        """Return a configuration as a dict mapping.
+
+        Args:
+            raw_startup_policy: Configuration mapping containing the requested bucket.
+            key: Configuration key whose mapping value should be returned.
+
+        Returns:
+            The value as a dict mapping.
+        """
+        raw_dict = raw_startup_policy.get(key, {})
+        if not isinstance(raw_dict, dict):
             raise TypeError(
-                f"Key {key} in given dict does not contain a dict, got {type(raw_list).__name__!r}"
+                f"Key {key} in given dict does not contain a dict, got {type(raw_dict).__name__!r}"
             )
-        return raw_list
+        return raw_dict
 
     # ------------------------------------------------------------------
     # phase 4.2: record preset states
     # ------------------------------------------------------------------
 
     def register_preset_states(self, raw_sources: dict) -> None:
-        """
-        Parse preset state entries.
-        raw_sources should contain "preset_value" that has a list with dicts with structure like:
-        { "unique_id": "id", "call": "set_state", "args": [{"state_name": "state", "state": "Any"}]}
+        """Validate and register preset set_state values from startup configuration.
 
-        For this DGB stage, preset startup values are restricted to:
-        - call: "set_state"
-        - args: [{"state_name": ..., "state": ...}]
-
+        Args:
+            raw_sources: State initialization configuration containing preset_value key and entries structured like:
+             "unique_id": "id", "call": "set_state", "args": [{"state_name": "state", "state": "Any"}]}
         """
         raw_list = self.get_list(raw_sources, "preset_value")
 
@@ -247,6 +349,8 @@ class StartupStateInitializer:
                     f"Key preset_value in given dict does not contain a dict, got {type(raw_list).__name__!r}"
                 )
             unique_id = raw.get("unique_id")
+            if not isinstance(unique_id, str) or not unique_id.strip():
+                raise ValueError("preset_value 'unique_id' must be a non-empty str")
             call_name = raw.get("call")
             args_list = self.get_list(raw, "args")
             if call_name != "set_state":
@@ -258,70 +362,79 @@ class StartupStateInitializer:
                 unique_id, call_name, {"args": args_list}
             )
 
-    # def _parse_state_args(self, args: dict[str, Any]) -> tuple[str, Any]:
-    #     """Validate and normalize set_state startup args into (state_name, value)."""
-    #     state_name_arg = args.get("name")
-    #     value_arg = args.get("value")
-    #     if not isinstance(state_name_arg, str):
-    #         raise TypeError("preset_value arg 'name' must be str entries")
-    #     if state_name_arg is None or value_arg is None:
-    #         raise ValueError(
-    #             "preset_value 'name' or 'value' are not or incorrect defined"
-    #         )
-    #     return state_name_arg, value_arg
-
     # ------------------------------------------------------------------
     # Phase 5: apply preset and retained states
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _merge_startup_states(
+        preset_state: dict[str, Any],
+        retained_state: dict[str, Any],
+        retain_required: list[str],
+    ) -> dict[str, Any]:
+        """Merge retained states over preset states when their calls are required.
+
+        Args:
+            preset_state: Configured default state calls.
+            retained_state: State calls loaded from MQTT.
+            retain_required: Call names configured to use retained values.
+
+        Returns:
+            A new state mapping with applicable retained values overriding presets.
+        """
+        merged_state = dict(preset_state)
+        for call_name, args in retained_state.items():
+            if call_name in retain_required:
+                merged_state[call_name] = args
+        return merged_state
+
     def apply_startup_states(self) -> None:
+        """Apply preset states and matching retained states to every registered object."""
         for dgb_object in self.dgb_context.DGB_objects.values():
             unique_id = dgb_object.unique_id
-            # dict of preset states containing the {call_name: [args]}
-            state_dict = dict(dgb_object.preset_state)
+            state_dict = self._merge_startup_states(
+                dgb_object.preset_state,
+                dgb_object.retained_state,
+                dgb_object.retain_required,
+            )
             if state_dict:
                 self.logger.info(
-                    f"Found for unique_id: {unique_id} the preset_states: {state_dict}"
+                    "Found preset states for unique_id %s: %s",
+                    unique_id,
+                    state_dict,
                 )
-            # check if retained state must be applied, if so override / add the {call_name: [args]}
-            if dgb_object.retain_required and dgb_object.retained_state:
-                for call_name, args in dgb_object.retained_state.items():
-                    if call_name in dgb_object.retain_required:
-                        state_dict[call_name] = args
-                        self.logger.info(
-                            f"Found for unique_id: {unique_id} the retained_state: '{call_name}': {args} "
-                        )
-                        self.logger.info(state_dict)
+            for call_name in set(state_dict) & set(dgb_object.retain_required):
+                self.logger.info(
+                    "Found retained state for unique_id %s (%s): %s",
+                    unique_id,
+                    call_name,
+                    state_dict[call_name],
+                )
             if state_dict:
-                # state_dict = self._map_startup_states(preset_state)
                 self._apply_startup_state(
                     unique_id=unique_id, state_dict=dict(state_dict)
                 )
-
-    # def _map_startup_states(
-    #     self,
-    #     state_values: dict[str, Any],
-    # ) -> dict[str, Any]:
-    #     args = []
-    #     for state_name, value in state_values.items():
-    #         args.append({"name": state_name, "value": value})
-    #     state_dict = {
-    #         "call": "set_state",
-    #         "args": args,
-    #     }
-    #     return state_dict
 
     def _apply_startup_state(
         self,
         unique_id: str,
         state_dict: dict[str, Any],
-    ):
+    ) -> bool:
+        """Apply configured calls for one object using the registered function map.
+
+        Args:
+            unique_id: Unique ID of the object receiving the startup state.
+            state_dict: Mapping of call names to their argument payloads.
+
+        Returns:
+            True when at least one startup call was applied, otherwise False.
+        """
         if not isinstance(state_dict, dict):
             self.logger.warning(
                 "Configured default for %s ignored: action payload must be a dict",
                 unique_id,
             )
-            return
+            return False
 
         functions = self.dgb_context.get_functions(unique_id)
         if not functions:
@@ -329,18 +442,56 @@ class StartupStateInitializer:
                 "Configured default for %s ignored: no registered functions",
                 unique_id,
             )
-            return
+            return False
 
         for call_name, args in state_dict.items():
-            function = functions.get(call_name)
-            arg_def = self.state_resolver.parse_argument_definitions(
-                args.get("args"), function
-            )
-            call_args = self.state_resolver.build_call_args(arg_def, None)
-            function(**call_args)
-            self.logger.info(
-                "Applied configured default via action call for %s (%s)",
+            if self._apply_startup_call(
+                unique_id, call_name, args, functions.get(call_name)
+            ):
+                return True
+        return False
+
+    def _apply_startup_call(
+        self,
+        unique_id: str,
+        call_name: str,
+        args: Any,
+        function: Callable[..., Any] | None,
+    ) -> bool:
+        """Resolve and invoke one configured startup call.
+
+        Args:
+            unique_id: Unique ID of the object receiving the startup call.
+            call_name: Name of the configured call.
+            args: Argument payload for the configured call.
+            function: Registered callable for the configured call.
+
+        Returns:
+            True when the call was invoked, otherwise False when it was ignored.
+        """
+        if function is None:
+            self.logger.warning(
+                "Configured default for %s ignored: unknown function %s",
                 unique_id,
                 call_name,
             )
+            return False
+        if not isinstance(args, dict):
+            self.logger.warning(
+                "Configured default for %s ignored: arguments for %s must be a dict",
+                unique_id,
+                call_name,
+            )
+            return False
+
+        arg_def = self.state_resolver.parse_argument_definitions(
+            args.get("args"), function
+        )
+        call_args = self.state_resolver.build_call_args(arg_def, None)
+        function(**call_args)
+        self.logger.info(
+            "Applied configured default via action call for %s (%s)",
+            unique_id,
+            call_name,
+        )
         return True

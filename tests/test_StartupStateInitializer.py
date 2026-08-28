@@ -22,8 +22,8 @@ def startup_initializer():
 
 def test_startup_topic_parsing_and_prefix_normalization(startup_initializer):
     """Retained state topics expose the expected object and call names."""
-    assert startup_initializer.is_state_shadow_topic("state/test/device/state")
-    assert not startup_initializer.is_state_shadow_topic("state/testing/device/state")
+    assert startup_initializer.is_retained_state_topic("state/test/device/state")
+    assert not startup_initializer.is_retained_state_topic("state/testing/device/state")
     assert (
         startup_initializer._unique_id_from_retained_state_topic(
             "state/test/device/state"
@@ -44,7 +44,7 @@ def test_startup_topic_parsing_and_prefix_normalization(startup_initializer):
 
 def test_startup_topic_parsing_rejects_invalid_topics(startup_initializer):
     """Topics without an object ID or outside the namespace are rejected."""
-    assert not startup_initializer.is_state_shadow_topic("state/test/")
+    assert not startup_initializer.is_retained_state_topic("state/test/")
     assert (
         startup_initializer._unique_id_from_retained_state_topic("other/device") is None
     )
@@ -53,56 +53,18 @@ def test_startup_topic_parsing_rejects_invalid_topics(startup_initializer):
     )
 
 
-def test_startup_payload_decoding(startup_initializer):
-    """Retained JSON and plain text payloads are decoded appropriately."""
-    assert startup_initializer._decode_retained_state_payload(b'{"state": "on"}') == {
-        "state": "on"
-    }
-    assert startup_initializer._decode_retained_state_payload(b"on") == "on"
-    with pytest.raises(ValueError, match="UTF-8"):
-        startup_initializer._decode_retained_state_payload(b"\xff")
-
-
-def test_startup_subscription_opens_and_closes_window(startup_initializer):
-    """The preload subscription is removed after the preload window ends."""
-    startup_initializer.handle_subscription_to_retained_state_topic()
-    startup_initializer.mqtt_client.subscribe.assert_called_once_with(
-        "state/test/#", qos=1
-    )
-    startup_initializer.mqtt_client.unsubscribe.assert_called_once_with("state/test/#")
-    assert startup_initializer._preload_active is False
-
-
-def test_startup_subscription_cleans_up_after_subscribe_failure(startup_initializer):
-    """The preload flag is cleared when subscribing raises an exception."""
-    startup_initializer.mqtt_client.subscribe.side_effect = RuntimeError("offline")
-    with pytest.raises(RuntimeError, match="offline"):
-        startup_initializer.handle_subscription_to_retained_state_topic()
-    startup_initializer.mqtt_client.unsubscribe.assert_called_once_with("state/test/#")
-    assert startup_initializer._preload_active is False
-
-
-def test_startup_subscription_waits_for_quiet_window(startup_initializer):
-    """The preload loop continues until the quiet interval is reached."""
-    initializer = startup_initializer
-    initializer.preload_quiet_seconds = 1
-    initializer.preload_timeout_seconds = 3
-    clock = iter([0, 0.1, 0.5, 1.1, 1.1])
-    with (
-        patch("DGB.StartupStateInitializer.time.monotonic", side_effect=clock),
-        patch("DGB.StartupStateInitializer.time.sleep") as sleep,
-    ):
-        initializer.handle_subscription_to_retained_state_topic()
-    sleep.assert_called_once_with(0.01)
+def test_startup_payload_validation(startup_initializer):
+    """Retained set_state payloads are normalized before storage."""
+    payload = {"args": [{"state_name": "state", "state": "on"}]}
+    assert startup_initializer._validate_set_state_payload(payload) == payload
 
 
 def test_startup_message_stores_valid_state(startup_initializer):
     """A valid retained set_state message is recorded in the context."""
-    message = SimpleNamespace(
-        topic="state/test/device/set_state",
-        payload=b'{"args": [{"state_name": "state", "state": "on"}]}',
+    payload = {"args": [{"state_name": "state", "state": "on"}]}
+    startup_initializer.handle_retained_state_message(
+        payload, "state/test/device/set_state"
     )
-    startup_initializer.handle_retained_state_message(message)
     startup_initializer.dgb_context.record_retained_state.assert_called_once_with(
         unique_id="device",
         call_name="set_state",
@@ -112,24 +74,23 @@ def test_startup_message_stores_valid_state(startup_initializer):
 
 def test_startup_message_stores_non_set_state_call(startup_initializer):
     """A valid non-set_state retained message is stored without set_state validation."""
-    message = SimpleNamespace(topic="state/test/device/turn_on", payload=b"on")
-    startup_initializer.handle_retained_state_message(message)
+    startup_initializer.handle_retained_state_message("on", "state/test/device/turn_on")
     startup_initializer.dgb_context.record_retained_state.assert_called_once_with(
         unique_id="device", call_name="turn_on", args="on"
     )
 
 
 @pytest.mark.parametrize(
-    "message",
+    ("payload", "topic"),
     [
-        SimpleNamespace(topic="other/device/state", payload=b"on"),
-        SimpleNamespace(topic="state/test/device/state", payload=b"\xff"),
-        SimpleNamespace(topic="state/test/device/set_state", payload=b"{}"),
+        ("on", "other/device/state"),
+        ("on", "state/test/device/set_state"),
+        ({}, "state/test/device/set_state"),
     ],
 )
-def test_startup_message_ignores_invalid_state(message, startup_initializer):
+def test_startup_message_ignores_invalid_state(payload, topic, startup_initializer):
     """Invalid retained state messages are ignored without recording state."""
-    startup_initializer.handle_retained_state_message(message)
+    startup_initializer.handle_retained_state_message(payload, topic)
     startup_initializer.dgb_context.record_retained_state.assert_not_called()
 
 

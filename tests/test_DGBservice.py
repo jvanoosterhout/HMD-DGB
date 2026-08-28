@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from DGB.DGBservice import DGBservice
+from DGB.StartupPolicy import RuntimePhase
 
 # ---------------------------------------------------------------------------
 # Minimal helpers
@@ -29,6 +30,9 @@ def make_service():
             service = DGBservice(
                 name=kwargs.pop("name", "test"),
                 broker=kwargs.pop("broker", "localhost"),
+                username=kwargs.pop("username", "user"),
+                password=kwargs.pop("password", "password"),
+                location=kwargs.pop("location", "test-location"),
                 **kwargs,
             )
 
@@ -182,7 +186,41 @@ def test_on_message_triggers_config_apply_cycle(make_service):
 
     with patch.object(service.dgb_context, "put_to_config_queue") as mock_enqueue:
         service._on_message(None, None, msg)
-        mock_enqueue.assert_called_once_with("apply", {"Devices": []})
+        mock_enqueue.assert_called_once_with(
+            "apply", {"Devices": []}, source_topic="config/test/devices/test"
+        )
+
+
+def test_blocked_cycle_with_warn_policy_allows_next_config(make_service):
+    service, _ = make_service(name="test")
+    service.dgb_context.config_cycle.set_phase(RuntimePhase.ERROR)
+    service.dgb_context.config_cycle.set_startup_policy({"error_state_policy": "warn"})
+
+    assert service._should_dispatch_config() is True
+
+
+def test_blocked_cycle_with_block_policy_rejects_next_config(make_service):
+    service, _ = make_service(name="test")
+    service.dgb_context.config_cycle.set_phase(RuntimePhase.ERROR)
+    service.dgb_context.config_cycle.set_startup_policy({"error_state_policy": "block"})
+
+    assert service._should_dispatch_config() is False
+
+
+def test_clear_and_restart_policy_clears_failed_config_topic(make_service):
+    service, mock_client = make_service(name="test")
+    service.dgb_context.config_cycle.set_startup_policy(
+        {"error_state_policy": "clear_affected_config_and_restart"}
+    )
+    service._blocked_config_topic = "config/test/devices/bad-config"
+
+    with patch.object(service, "restart") as mock_restart:
+        service._handle_blocked_cycle()
+
+    mock_client.publish.assert_called_once_with(
+        "config/test/devices/bad-config", payload=None, qos=1, retain=True
+    )
+    mock_restart.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +231,7 @@ def test_on_message_triggers_config_apply_cycle(make_service):
 def test_on_message_stores_state_shadow_payload(make_service):
     service, _ = make_service(name="test")
     msg = MagicMock()
-    msg.topic = "state/test/switch_one"
+    msg.topic = "config/test/states/switch_one"
     msg.payload = json.dumps(
         {"args": [{"state_name": "state", "state": "on"}]}
     ).encode()
@@ -212,5 +250,5 @@ def test_publish_state_value_uses_configured_prefix(make_service):
     service.dgb_context.publish_state_to_retain("switch_1", "state", "on")
 
     mock_client.publish.assert_any_call(
-        "state/test/switch_1/state", payload='"on"', qos=1, retain=True
+        "config/test/states/switch_1/state", payload='"on"', qos=1, retain=True
     )

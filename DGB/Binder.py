@@ -351,7 +351,9 @@ class Binder:
 
         # Filter rulesets by their cycle status: only allow dispatch for live bindings
         allowed_rulesets = [
-            rs for rs in rulesets if self.dgb_context.is_binding_dispatch_allowed(rs)
+            rs
+            for rs in rulesets
+            if self.dgb_context.config_cycle.is_binding_dispatch_allowed(rs)
         ]
 
         if not allowed_rulesets:

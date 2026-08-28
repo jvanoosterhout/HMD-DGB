@@ -17,7 +17,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
 import time
@@ -67,7 +66,7 @@ class StartupStateInitializer:
     # 1.1) Preload Values from MQTT: helpers
     # ------------------------------------------------------------------
 
-    def is_state_shadow_topic(self, topic: str) -> bool:
+    def is_retained_state_topic(self, topic: str) -> bool:
         """Return whether a topic belongs to the retained state namespace."""
         return self._parse_retained_state_topic(topic) is not None
 
@@ -114,90 +113,38 @@ class StartupStateInitializer:
         parsed_topic = self._parse_retained_state_topic(topic)
         return parsed_topic[1] if parsed_topic else ""
 
-    def _decode_retained_state_payload(self, payload: bytes) -> Any:
-        """Decode a retained state payload as JSON when possible and text otherwise.
-
-        Args:
-            payload: Raw MQTT payload bytes to decode.
-
-        Returns:
-            The decoded JSON value or the decoded text payload.
-        """
-        try:
-            raw = payload.decode()
-        except UnicodeDecodeError as exc:
-            raise ValueError("retained state payload is not valid UTF-8") from exc
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return raw
-
     # ------------------------------------------------------------------
     # 1.2)Preload Values from MQTT: message handling
     # ------------------------------------------------------------------
 
-    def handle_subscription_to_retained_state_topic(self) -> None:
-        """Subscribe to retained state topics until the preload window becomes quiet or expires."""
-        wildcard_topic = f"{self.retained_state_topic_prefix}#"
-        now = time.monotonic()
-        with self._preload_lock:
-            self._preload_active = True
-            self._preload_last_activity = now
-
-        try:
-            self.mqtt_client.subscribe(wildcard_topic, qos=1)
-            self.logger.info("Preloading retained state from %s", wildcard_topic)
-
-            deadline = now + self.preload_timeout_seconds
-            while time.monotonic() < deadline:
-                with self._preload_lock:
-                    elapsed = time.monotonic() - self._preload_last_activity
-                if elapsed >= self.preload_quiet_seconds:
-                    break
-                time.sleep(0.01)
-        finally:
-            self.mqtt_client.unsubscribe(wildcard_topic)
-            with self._preload_lock:
-                self._preload_active = False
-            self.logger.info("Retained preload window closed for %s", wildcard_topic)
-
-    def handle_retained_state_message(self, msg: mqtt.MQTTMessage) -> None:
+    def handle_retained_state_message(self, payload: Any, topic: str) -> None:
         """Validate and store a retained state message in the DGB context.
 
         Args:
             msg: MQTT message containing the retained state topic and payload.
         """
-        unique_id = self._unique_id_from_retained_state_topic(msg.topic)
+        unique_id = self._unique_id_from_retained_state_topic(topic)
         if unique_id is None:
-            self.logger.warning("Ignoring invalid state shadow topic: %s", msg.topic)
+            self.logger.warning("Ignoring invalid state shadow topic: %s", topic)
             return
 
-        call_name = self._call_name_from_retained_state_topic(msg.topic)
-        try:
-            decoded_payload = self._decode_retained_state_payload(msg.payload)
-        except ValueError as exc:
-            self.logger.warning(
-                "Ignoring retained state for %s on %s: %s",
-                unique_id,
-                msg.topic,
-                exc,
-            )
-            return
+        call_name = self._call_name_from_retained_state_topic(topic)
+
         if call_name == "set_state":
             try:
-                decoded_payload = self._validate_set_state_payload(decoded_payload)
+                payload = self._validate_set_state_payload(payload)
             except (TypeError, ValueError) as exc:
                 self.logger.warning(
                     "Ignoring retained set_state for %s on %s: %s",
                     unique_id,
-                    msg.topic,
+                    topic,
                     exc,
                 )
                 return
         self.dgb_context.record_retained_state(
             unique_id=unique_id,
             call_name=call_name,
-            args=decoded_payload,
+            args=payload,
         )
 
         with self._preload_lock:
@@ -206,9 +153,9 @@ class StartupStateInitializer:
         self.logger.info(
             "Stored retained state value for %s from %s (%s: %s)",
             unique_id,
-            msg.topic,
+            topic,
             call_name,
-            decoded_payload,
+            payload,
         )
 
     # ------------------------------------------------------------------

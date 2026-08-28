@@ -17,7 +17,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import queue
@@ -27,9 +26,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Literal
 
+from DGB.StartupPolicy import ConfigCycleState
+
 BinderCmd = Literal["post", "ruleset", "shutdown"]
 ConfigCmd = Literal["apply", "shutdown"]
-RuntimePhase = Literal["creation", "apply", "live", "blocked", "quarantine"]
 
 
 @dataclass(frozen=True)
@@ -46,6 +46,7 @@ class ConfigMessage:
 
     cmd: ConfigCmd
     payload: dict[str, Any]
+    source_topic: str | None = None
 
 
 class DuplicatePolicy(Enum):
@@ -97,14 +98,7 @@ class DGBContext:
         self.engine_lock: threading.Lock = threading.Lock()
 
         self._phase_lock = threading.Lock()
-        # Runtime starts in live mode to preserve existing behavior until a
-        # config-apply cycle explicitly transitions phases.
-        self._runtime_phase: RuntimePhase = "live"
-        self._config_apply_cycle_id = 0
-        self._applied_payload_hashes: set[str] = set()
-        # Track which cycle each binding was registered in, and last completed cycle
-        self._binding_cycle: dict[str, int] = {}
-        self._last_live_cycle_id = 0
+        self.config_cycle = ConfigCycleState()
         self._retained_state_prefix = ""
         self._retained_state_publish_fn: Callable[..., Any] | None = None
 
@@ -373,14 +367,12 @@ class DGBContext:
             return
 
         rulesets.add(normalized)
-        # Record which cycle this binding was registered in
-        with self._phase_lock:
-            self._binding_cycle[normalized] = self._config_apply_cycle_id
+        cycle_id = self.config_cycle.record_binding_cycle(normalized)
         self._logger.info(
             "Added binding for device %s to ruleset %s (cycle %s)",
             device_id,
             normalized,
-            self._config_apply_cycle_id,
+            cycle_id,
         )
 
     def get_bindings(self, device_id: str) -> set[str]:
@@ -405,127 +397,21 @@ class DGBContext:
             raise RuntimeError("DGBContext is closed; no further commands allowed.")
         self.binder_queue.put(BinderMessage(cmd=cmd, payload=payload))
 
-    # ------------------------------------------------------------------
-    # config cycle
-    # ------------------------------------------------------------------
-
-    def begin_config_apply_cycle(self) -> int:
-        """Start a config cycle and move the runtime to creation phase.
-
-        Returns:
-            The newly started configuration cycle identifier.
-        """
-        with self._phase_lock:
-            self._config_apply_cycle_id += 1
-            self._runtime_phase = "creation"
-            cycle_id = self._config_apply_cycle_id
-
-        self._logger.info("Config cycle %s started", cycle_id)
-        return cycle_id
-
-    def set_runtime_phase(self, phase: RuntimePhase) -> None:
-        """Set the current runtime phase.
-
-        Args:
-            phase: Runtime phase to enter.
-        """
-        with self._phase_lock:
-            self._runtime_phase = phase
-            cycle_id = self._config_apply_cycle_id
-        self._logger.info("Runtime phase set to %s (cycle=%s)", phase, cycle_id)
-
-    def get_runtime_phase(self) -> RuntimePhase:
-        """Return the current runtime phase.
-
-        Returns:
-            The active runtime phase.
-        """
-        with self._phase_lock:
-            return self._runtime_phase
-
-    def get_config_apply_cycle_id(self) -> int:
-        """Return the current configuration cycle identifier.
-
-        Returns:
-            The current configuration cycle identifier.
-        """
-        with self._phase_lock:
-            return self._config_apply_cycle_id
-
-    def is_live_dispatch_enabled(self) -> bool:
-        """Return whether live event dispatch is enabled.
-
-        Returns:
-            ``True`` when the runtime is in the live phase.
-        """
-        return self.get_runtime_phase() == "live"
-
-    def is_binding_dispatch_allowed(self, ruleset_name: str) -> bool:
-        """Return whether a ruleset's binding may dispatch in the live cycle.
-
-        Args:
-            ruleset_name: Ruleset name, optionally including an instance suffix.
-
-        Returns:
-            ``True`` when the binding's registration cycle is live.
-        """
-        normalized = self._normalize_ruleset_name(ruleset_name)
-        with self._phase_lock:
-            binding_cycle = self._binding_cycle.get(normalized, 0)
-            return binding_cycle <= self._last_live_cycle_id
-
-    def complete_config_cycle(self, cycle_id: int) -> None:
-        """Mark a configuration cycle as live for binding dispatch.
-
-        Args:
-            cycle_id: Configuration cycle identifier to complete.
-        """
-        with self._phase_lock:
-            if cycle_id > self._last_live_cycle_id:
-                self._last_live_cycle_id = cycle_id
-                self._logger.info("Config cycle %s completed and is now live", cycle_id)
-
-    def put_to_config_queue(self, cmd: ConfigCmd, payload: dict[str, Any]) -> None:
+    def put_to_config_queue(
+        self,
+        cmd: ConfigCmd,
+        payload: dict[str, Any],
+        source_topic: str | None = None,
+    ) -> None:
         """Queue a configuration command unless the context is closed.
 
         Args:
             cmd: Configuration command to enqueue.
             payload: Command payload.
+            source_topic: MQTT topic from which the configuration was received.
         """
         if self._closed and cmd != "shutdown":
             raise RuntimeError("DGBContext is closed; no further commands allowed.")
-        self.config_queue.put(ConfigMessage(cmd=cmd, payload=payload))
-
-    def record_payload_hash(self, payload_hash: str) -> None:
-        """Record a payload hash for idempotency checks.
-
-        Args:
-            payload_hash: Hash of a configuration payload.
-        """
-        with self._phase_lock:
-            self._applied_payload_hashes.add(payload_hash)
-
-    def payload_already_applied(self, payload_hash: str) -> bool:
-        """Return whether a payload hash has already been recorded.
-
-        Args:
-            payload_hash: Hash of a configuration payload.
-
-        Returns:
-            ``True`` when the hash was previously recorded.
-        """
-        with self._phase_lock:
-            return payload_hash in self._applied_payload_hashes
-
-    @staticmethod
-    def compute_payload_hash(payload: dict[str, Any]) -> str:
-        """Return a deterministic SHA-256 hash for a payload.
-
-        Args:
-            payload: Configuration payload to hash.
-
-        Returns:
-            The hexadecimal SHA-256 digest.
-        """
-        payload_json = json.dumps(payload, sort_keys=True, default=str)
-        return hashlib.sha256(payload_json.encode()).hexdigest()
+        self.config_queue.put(
+            ConfigMessage(cmd=cmd, payload=payload, source_topic=source_topic)
+        )

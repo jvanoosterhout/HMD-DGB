@@ -32,6 +32,7 @@ def main():
         broker="192.168.70.100",
         username="mqtt_broker",
         password="mqtt_broker",
+        location="area-42",
         port=1882,
     )
     # dgb = Pin_mqtt(name = "rpi", broker="ip-adres",username="mqtt_user", password="mqtt_pw", port=1882)

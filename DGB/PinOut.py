@@ -116,7 +116,7 @@ class Pin_out(Pin):
                     "pin %s blink state rejected: %r", self.config.pin, state
                 )
                 return False
-            result = self.blink(blink=state, is_PinNWayOut=self.is_PinNWayOut)
+            return self.blink(blink=state, is_PinNWayOut=self.is_PinNWayOut)
         elif state_name != "state":
             self.logger.warning(
                 "pin %s unsupported state name %r", self.config.pin, state_name

@@ -7,8 +7,6 @@ timer → GPIO output → GPIO input → Sensor
 import json
 import threading
 
-import pkg_resources
-
 from DGB.DGBservice import DGBservice
 
 
@@ -18,6 +16,7 @@ def main():
         broker="192.168.70.100",
         username="mqtt_broker",
         password="mqtt_broker",
+        location="area-42",
         port=1882,
     )
     # dgb = Pin_mqtt(name = "rpi", broker="ip-adres",username="mqtt_user", password="mqtt_pw", port=1882)
@@ -26,9 +25,7 @@ def main():
         "name": "HMD-DGB-duration-test-device",
         "model": "Raspberry Pi zero 2w",
         "manufacturer": "Raspberry Pi Holdings",
-        "sw_version": pkg_resources.get_distribution(
-            "ha-mqtt-discoverable-device-gpio-binder"
-        ).version,  # """Firmware version of the device"""
+        "sw_version": "none",  # """Firmware version of the device"""
         "hw_version": "RPizero",  # """Hardware version of the device"""
         "identifiers": "rpi0_duration_test",  # """A list of IDs that uniquely identify the device. For example a serial number."""
     }
@@ -82,8 +79,8 @@ def main():
                         {
                             "action": {
                                 "unique_id": "20",
-                                "call": "blink",
-                                "args": [{"blink": 60}],
+                                "call": "set_state",
+                                "args": [{"state_name": "blink", "state": 60}],
                             }
                         },
                     ],
@@ -102,7 +99,7 @@ def main():
                     "action": {
                         "unique_id": "rpi0-sensor-duration-test",
                         "call": "set_state",
-                        "args": [{"state": "$m.payload"}],
+                        "args": [{"state_name": "state", "state": "$m.payload"}],
                     }
                 },
             },

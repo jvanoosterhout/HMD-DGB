@@ -97,14 +97,14 @@ pw1 = dummy_device("pw1")
 pw2 = dummy_device("pw2")
 
 # add instances with theire calable functions (if any) to the dgb_context
-binder.dgb_context.add_device("p1", p1, {"on": p1.on, "off": p1.off, "log": p1.log})
-binder.dgb_context.add_device("s1", s1)
-binder.dgb_context.add_device("s2", s2)
-binder.dgb_context.add_device("s3", s3)
-binder.dgb_context.add_device("s4", s4)
-binder.dgb_context.add_device("s5", s5)
-binder.dgb_context.add_device("pw1", pw1)
-binder.dgb_context.add_device("pw2", pw2)
+binder.dgb_context.add_object("p1", p1, {"on": p1.on, "off": p1.off, "log": p1.log})
+binder.dgb_context.add_object("s1", s1)
+binder.dgb_context.add_object("s2", s2)
+binder.dgb_context.add_object("s3", s3)
+binder.dgb_context.add_object("s4", s4)
+binder.dgb_context.add_object("s5", s5)
+binder.dgb_context.add_object("pw1", pw1)
+binder.dgb_context.add_object("pw2", pw2)
 
 # define durable rules in json format
 # this is a standart rule, all conditions must match at the same time

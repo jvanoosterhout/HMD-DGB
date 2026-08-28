@@ -1,5 +1,8 @@
 # HMD-DGB: Home Assistant MQTT-Discoverable Device GPIO Binder
 
+[![License](https://img.shields.io/github/license/jvanoosterhout/HMD-DGB.svg)](https://opensource.org/license/mit/)
+[![GitHub last commit (branch)](https://img.shields.io/github/last-commit/jvanoosterhout/HMD-DGB/main.svg)](https://github.com/jvanoosterhout/HMD-DGB)
+
 Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverable devices. Bridge your hardware to smart home automation through declarative device bindings via durable rules.
 
 The power and uniqueness of HMD-DGB is twofold:
@@ -22,6 +25,8 @@ The power and uniqueness of HMD-DGB is twofold:
   - [Operational caveats](#operational-caveats)
 - [Reference documentation](#reference-documentation)
   - [Node & system health & control](#node--system-health--control)
+  - [Startup policy](#startup-policy)
+  - [Startup states](#startup-states)
   - [Basic configuration](#basic-configuration)
   - [Devices with EntityInfo](#devices-with-entityinfo)
     - [Device](#device)
@@ -165,11 +170,92 @@ DGB node for service-name:
 
 DGB service for service-name:
 - Current software version installed
-- Latest software version available
 - Soft restart (set all entities to unavailable, restart service, leave other MQTT messages untouched)
-- Hard restart (clear all MQTT messages related to this service including its config topic and restart service)
+- Hard restart (clear the service configuration topic and restart service)
 
 In DGB, your own devices can only be configured inside an entity JSON with the "device" key. DGB alters this device JSON slightly: it overrides/creates the "via_device" key with the unique ID of the DGB service device.
+
+[top](#table-of-contents)
+
+### Startup policy
+
+Startup policy is a separate configuration message. Publish it as a retained MQTT message to `config/{name}/startup-policy` before starting the DGB service. At startup, DGB temporarily subscribes to this topic and closes the preload window after 0.5 seconds without activity (or after 1 second total). A policy published after that window is not loaded until the next service start.
+
+The payload contains a `startup_policy` object. Both fields are optional:
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `loading_mode` | Configuration lifecycle mode. Accepted values are `gated` and `unsupervised`. | str | `gated` |
+| `error_state_policy` | Action after a configuration cycle fails. | str | `block` |
+
+Note that loading_mode is not yet impleemnted. Whatever is configured, DGB uses the gated approach.
+
+`error_state_policy` may be one of:
+
+- `block`: do not dispatch further configuration after a failed cycle.
+- `warn`: allow the next configuration message after a failed cycle. The bindings in the failed cycle will be blocked, devices and pins may or may not work. Behaviour may become unpredictable.
+- `clear_affected_config_and_restart`: clear the failed (retained) configuration message and restart the service. The will result in continued operationes on a live system with  existing configs when a new faulty config is loaded for testing.
+- `remove_affected_device_and_binding`: reserved for removing affected objects; this behavior is not implemented yet.
+
+```json
+{
+  "startup_policy": {
+    "loading_mode": "gated",
+    "error_state_policy": "block"
+  }
+}
+```
+
+[top](#table-of-contents)
+
+### Startup states
+
+Startup states restore or set object state after devices and pins have been created, but before bindings become live. State initialization is an option in the regular configuration payload on `config/{name}/devices/`. It has two optional lists: `preset_value` defines a configured default, while `retain_state` selects state updates to publish and restore through a retained MQTT topic `config/{name}/states/{unique_id}/{call_name}`.
+
+When the DGB service starts, it checks for the `config/{name}/states/#` topic. Obviously states can, and will, only be restored if a message exists. A retained state only overrides a preset when its call is listed in `retain_state` for that `unique_id`. Meaning that if you change the config by removing a retained stated, the service will load the state from the MQTT topic, but it will not be applied to the device.
+
+Currently, configured preset values support only the `set_state` call. Its arguments must contain exactly one `state_name` and `state` pair. Retained messages for other calls are stored and can be selected with `retain_state`, provided that the target object exposes that call.
+
+Examples for an HMD switch and a GPIO pin_20 count:
+```json
+{
+  "Devices": [],
+  "Pins": [],
+  "Bindings": [],
+  "state_initialization": {
+    "preset_value": [
+      {
+        "unique_id": "switch_one",
+        "call": "set_state",
+        "args": [{"state_name": "state", "state": "off"}]
+      },
+      {
+        "unique_id": "20",
+        "call": "set_state",
+        "args": [{"state_name": "total_count", "state": 42}]
+      }
+    ],
+    "retain_state": [
+      {
+        "unique_id": "switch_one",
+        "call": ["set_state"]
+      },
+      {
+        "unique_id": "20",
+        "call": ["set_state"]
+      }
+    ]
+  }
+}
+```
+
+For example, publish the retained message below to `config/{name}/states/switch_one/set_state` to restore `switch_one` and as 'on' instead of using the preset value 'off':
+
+```json
+{
+  "args": [{"state_name": "state", "state": "on"}]
+}
+```
 
 [top](#table-of-contents)
 
@@ -304,8 +390,9 @@ DGB binder run.action.call and (optional) run.action.args:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
-| off   | Set binary sensor to off.                                                      |   |  |   |
-| on   | Set binary sensor to off.                                                     |   |  |   |
+| off | Set binary sensor to off. | | | |
+| on | Set binary sensor to on. | | | |
+| set_state | Set the binary sensor state. | `state_name`, `state` | `str`, `bool \| int \| str` | `state_name` must be `state`; accepted values are `on`/`off`, `true`/`false`, or `1`/`0`. |
 
 [top](#table-of-contents)
 
@@ -401,7 +488,7 @@ DGB parameters:
 
 | Parameter         | Description                                                                 | Type | Default |
 |------------------|-----------------------------------------------------------------------------|------|---------|
-| time_based_state        | Cover position is calculated based on the active time | bool  | `False` |
+| time_based_state        | Reserved for time-based cover position calculation. Currently accepted but ignored. | bool  | `False` |
 | direct_state_transition  | If True, cover states will change directly based on paload commands, otherwise states must be managed via the binder with run.action.call | bool | `True` |
 
 DGB binder run.action.call and (optional) run.action.args:
@@ -413,6 +500,7 @@ DGB binder run.action.call and (optional) run.action.args:
 | closing     | Set cover state to closing                                                      |          |      |             |
 | opening     | Set cover state to opening                                                      |          |      |             |
 | stopped     | Set cover state to stopped                                                      |          |      |             |
+| set_state | Set the cover state from a command payload. | `state_name`, `state` | `str`, `str` | `state_name` must be `state`; `state` must equal `payload_open`, `payload_close`, or `payload_stop`. |
 
 [top](#table-of-contents)
 
@@ -601,6 +689,7 @@ DGB binder run.action.call and (optional) run.action.args:
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_value   |   Update the numeric value                            | value  | float |  Value of the number configured for this entity |
+| set_state | Update the numeric value. | `state_name`, `state` | `str`, `float` | `state_name` must be `state`. |
 
 [top](#table-of-contents)
 
@@ -629,6 +718,7 @@ DGB binder run.action.call and (optional) run.action.args:
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | select_option   |   Update the selected option.                           | option  | str |  The option to be selected. |
+| set_state | Update the selected option. | `state_name`, `state` | `str`, `str` | `state_name` must be `state`. |
 
 [top](#table-of-contents)
 
@@ -660,7 +750,7 @@ DGB binder run.action.call and (optional) run.action.args:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
-| set_state   |  Update the sensor state                           | state  | bytes, str, int or float |  What state to set the sensor to |
+| set_state | Update the sensor state. | `state_name`, `state` | `str`, `bytes \| str \| float` | `state_name` must be `state`. |
 
 [top](#table-of-contents)
 
@@ -692,8 +782,9 @@ DGB binder run.action.call and (optional) run.action.args:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
-| off   | Set switch to off.                                                      |   |  |   |
-| on   | Set switch to off.                                                     |   |  |  |
+| off | Set switch to off. | | | |
+| on | Set switch to on. | | | |
+| set_state | Set the switch state from a command payload. | `state_name`, `state` | `str`, `str` | `state_name` must be `state`; `state` must equal `payload_on` or `payload_off`. |
 
 [top](#table-of-contents)
 
@@ -726,6 +817,7 @@ DGB binder run.action.call and (optional) run.action.args:
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_text   | Update the text displayed by this sensor.                                 | text  | str  |  Value of the text configured for this entity |
+| set_state | Update the text value. | `state_name`, `state` | `str`, `str` | `state_name` must be `state`. |
 
 [top](#table-of-contents)
 
@@ -771,7 +863,7 @@ DGB parameters:
 
 | Parameter         | Description                                                                 | Type | Default |
 |------------------|-----------------------------------------------------------------------------|------|---------|
-| time_based_state        | Valve position is calculated based on the active time | bool  | `False` |
+| time_based_state        | Reserved for time-based valve position calculation. Currently accepted but ignored. | bool  | `False` |
 | direct_state_transition  | If True, valve states will change directly based on paload commands, otherwise states must be managed via the binder with run.action.call | bool | `True` |
 
 DGB binder run.action.call and (optional) run.action.args:
@@ -783,6 +875,7 @@ DGB binder run.action.call and (optional) run.action.args:
 | closing     | Set valve state to closing                                                      |          |      |             |   |      |             |
 | opening     | Set valve state to opening                                                      |          |      |             |   |      |             |
 | position     | Set the valve to a desired position between 0 and 100.                         |   position       | int     | position of the valve     |   state (optional)      | str     | state of the valve (as defined in state_open, state_opening, state_closed or state_closing)     |
+| set_state | Set the valve state or position from a command payload. | `state_name`, `state` | `str`, `str \| int` | `state_name` is `state` or `position`; command payloads must equal `payload_open`, `payload_close`, or `payload_stop`, otherwise `state` is converted to an integer position. |
 
 [top](#table-of-contents)
 
@@ -851,6 +944,7 @@ DGB binder run.action.call and (optional) run.action.args:
 | on        | Set pin state to on                                                      |          |      |             |
 | off      | Set pin state to off                                                      |          |      |             |
 | blink      | Set pin state to on for a certain time                                     |    blink      |  int    |      The blink time of the output once for this number of seconds.       |
+| set_state | Set the pin state or blink duration. | `state_name`, `state` | `str`, `int \| str \| bool` | `state_name` is `state` (`on`/`off`, `1`/`0`) or `blink` (seconds). |
 
 [top](#table-of-contents)
 
@@ -882,7 +976,11 @@ DGB parameters:
 }
 ```
 
-PinCount has no binder run.action.call and (optional) run.action.args.
+DGB binder run.action.call and (optional) run.action.args:
+
+| Call name | Description | Argument | Type | Description |
+|---|---|---|---|---|
+| set_state | Restore the counter total. | `state_name`, `state` | `str`, `float` | `state_name` is `count_total` (raw count) or `scaled_total` (count multiplied by `scaling_factor`). |
 
 [top](#table-of-contents)
 
@@ -920,6 +1018,7 @@ DGB binder run.action.call and (optional) run.action.args:
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | on        | Set pin state to on                                                      |    active_pin      |  int    |     The GPIO pin id to turn on        |
 | off      | Set pin state to off                                                      |          |      |             |
+| set_state | Select the active pin or deactivate all pins. | `state_name`, `state` | `str`, `int \| str \| null` | `state_name` must be `active_pin`; use `null` to deactivate all pins. |
 <!-- | blink      | Set pin state to on for a certain time                                     |          |      |             |   |      |             | -->
 
 [top](#table-of-contents)
@@ -1207,7 +1306,7 @@ Actions can be set by the "action" key. Its value is a dict containing:
 - call:
 - args:
   - state_name: str
-  - value: Any|$m.payload
+  - state: Any|$m.payload
 
 The call functions and args can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo). Within bindings the arg can be optional, meaning you could either use:
 
@@ -1217,9 +1316,9 @@ The call functions and args can be found in [Devices with EntityInfo](README.md#
 or:
 
 ```JSON
-{"action": {"unique_id": "y", "call": "z", "args": [{"state_name": "u", "value": "v"|"$m.payload"}]}}
+{"action": {"unique_id": "y", "call": "z", "args": [{"state_name": "u", "state": "v"|"$m.payload"}]}}
 ```
-In practic this could look like the following where {"call": "on"} is equivalent to {"call": "set_state", "args": [{"state_name": "state", "value": "on"}]}:
+In practic this could look like the following where {"call": "on"} is equivalent to {"call": "set_state", "args": [{"state_name": "state", "state": "on"}]}:
 
 ```JSON
 {
@@ -1235,7 +1334,7 @@ In practic this could look like the following where {"call": "on"} is equivalent
       "timeout": {
           "all": [{"m": {"timeout": "auto_off"}}],
           "run": [
-              {"action": {"unique_id": "p1", "call": "set_state", "args": [{"state_name": "state", "value": "off"}]}},
+              {"action": {"unique_id": "p1", "call": "set_state", "args": [{"state_name": "state", "state": "off"}]}},
               {"log": {"msg": "p1 is set to off"}}
           ],
       },

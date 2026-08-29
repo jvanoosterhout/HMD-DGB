@@ -66,23 +66,20 @@ class dummy_device:
         print(f"{self.id} is off")
         return True
 
-    def log(
-        self,
-        integer: int | None = None,
-        string: str | None = None,
-        boolean: bool | None = None,
-        floatingpoint: float | None = None,
-    ):
-        if integer:
-            print(f"recieved integer: {integer}. with type {type(integer)}")
-        if string:
-            print(f"recieved string: {string}. with type {type(string)}")
-        if boolean:
-            print(f"recieved boolean: {boolean}. with type {type(boolean)}")
-        if floatingpoint:
-            print(
-                f"recieved floatingpoint: {floatingpoint}. with type {type(floatingpoint)}"
-            )
+    def set_int(self, state_name: str, state: int) -> bool:
+        print(f"received {state_name}: {state}. with type {type(state)}")
+        return True
+
+    def set_str(self, state_name: str, state: str) -> bool:
+        print(f"received {state_name}: {state}. with type {type(state)}")
+        return True
+
+    def set_bool(self, state_name: str, state: bool) -> bool:
+        print(f"received {state_name}: {state}. with type {type(state)}")
+        return True
+
+    def set_float(self, state_name: str, state: float) -> bool:
+        print(f"received {state_name}: {state}. with type {type(state)}")
         return True
 
 
@@ -97,7 +94,18 @@ pw1 = dummy_device("pw1")
 pw2 = dummy_device("pw2")
 
 # add instances with theire calable functions (if any) to the dgb_context
-binder.dgb_context.add_object("p1", p1, {"on": p1.on, "off": p1.off, "log": p1.log})
+binder.dgb_context.add_object(
+    "p1",
+    p1,
+    {
+        "on": p1.on,
+        "off": p1.off,
+        "set_int": p1.set_int,
+        "set_str": p1.set_str,
+        "set_bool": p1.set_bool,
+        "set_float": p1.set_float,
+    },
+)
 binder.dgb_context.add_object("s1", s1)
 binder.dgb_context.add_object("s2", s2)
 binder.dgb_context.add_object("s3", s3)
@@ -228,12 +236,30 @@ binding_with_args = {
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "log",
+                        "call": "set_int",
+                        "args": [{"state_name": "integer", "state": "$m.payload"}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_str",
+                        "args": [{"state_name": "string", "state": "$m.payload"}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_bool",
+                        "args": [{"state_name": "boolean", "state": "$m.payload"}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_float",
                         "args": [
-                            {"integer": "$m.payload"},
-                            {"string": "$m.payload"},
-                            {"boolean": "$m.payload"},
-                            {"floatingpoint": "$m.payload"},
+                            {"state_name": "floatingpoint", "state": "$m.payload"}
                         ],
                     }
                 },
@@ -241,26 +267,58 @@ binding_with_args = {
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "log",
-                        "args": [
-                            {"integer": 1},
-                            {"string": "1"},
-                            {"boolean": True},
-                            {"floatingpoint": 1.0},
-                        ],
+                        "call": "set_int",
+                        "args": [{"state_name": "integer", "state": 42}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_str",
+                        "args": [{"state_name": "string", "state": "string"}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_bool",
+                        "args": [{"state_name": "boolean", "state": True}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_float",
+                        "args": [{"state_name": "floatingpoint", "state": 42.42}],
                     }
                 },
                 {"log": {"msg": "use incorrect values as arguments"}},
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "log",
-                        "args": [
-                            {"integer": "1"},
-                            {"string": 1},
-                            {"boolean": "No"},
-                            {"floatingpoint": "1"},
-                        ],
+                        "call": "set_int",
+                        "args": [{"state_name": "integer", "state": "42"}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_str",
+                        "args": [{"state_name": "string", "state": 42}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_bool",
+                        "args": [{"state_name": "boolean", "state": 1}],
+                    }
+                },
+                {
+                    "action": {
+                        "unique_id": "p1",
+                        "call": "set_float",
+                        "args": [{"state_name": "floatingpoint", "state": "42"}],
                     }
                 },
             ],
@@ -293,7 +351,7 @@ binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s4", "payload": "o
 
 time.sleep(1)
 binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "1"})
-binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "no"})
+# binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "on"})
 
 time.sleep(10)
 # shutdown the main binder thread

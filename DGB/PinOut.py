@@ -17,8 +17,6 @@
 
 from __future__ import annotations
 
-from inspect import currentframe
-
 from gpiozero import DigitalOutputDevice
 
 from DGB.DGBContext import DGBContext
@@ -97,6 +95,7 @@ class Pin_out(Pin):
         if self.is_PinNWayOut == is_PinNWayOut:
             self.pin_device.on()
             self.logger.info(f"pin {self.config.pin} is on")
+            self.retain_state({"args": [{"state_name": "state", "state": "on"}]})
             return True
         return False
 
@@ -104,6 +103,7 @@ class Pin_out(Pin):
         if self.is_PinNWayOut == is_PinNWayOut:
             self.pin_device.off()
             self.logger.info(f"pin {self.config.pin} is off")
+            self.retain_state({"args": [{"state_name": "state", "state": "off"}]})
             return True
         return False
 
@@ -137,16 +137,13 @@ class Pin_out(Pin):
                 "pin %s unsupported state value %r", self.config.pin, state
             )
             return False
-
-        if result and self.dgb_context.is_retain_required(str(self.config.pin)):
-            frame = currentframe()
-            call_name = frame.f_code.co_name if frame else "unknown"
-            self.dgb_context.publish_state_to_retain(
-                str(self.config.pin),
-                call_name,
-                {"args": [{"state_name": state_name, "state": state}]},
-            )
         return result
+
+    def retain_state(self, args):
+        if self.dgb_context.is_retain_required(str(self.config.pin)):
+            self.dgb_context.publish_state_to_retain(
+                str(self.config.pin), "set_state", args
+            )
 
     def ProcessPinUpdate(self, config: PinModel, is_PinNWayOut: bool = False) -> bool:
         """

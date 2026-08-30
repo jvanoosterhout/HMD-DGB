@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0b1] - 2026-08-30
+
+### Added
+
+- Added prerelease and release helper scripts.
+- Added GitHub Actions verification that installs the uploaded wheel and source distribution for published releases and prereleases.
+
+### Changed
+
+- Simplified legacy and dead code across pin, device, binding, and startup-state handling.
+- Updated the Binder example and related documentation.
+
+### Fixed
+
+- Fixed retained-state handling for `PinOut`.
+- Fixed hard restart behavior for system devices.
+- Fixed startup-policy handling issues and related typos.
+
+### Removed
+
+- Removed obsolete `Tools` and `PinCount` modules and their tests.
+
 ## [1.0.0a3] - 2026-08-28
 
 ### Added

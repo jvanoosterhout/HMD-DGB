@@ -6,6 +6,8 @@ on:
     branches: [main]
     tags:
       - "v*"
+  release:
+    types: [published]
 
 jobs:
   test:
@@ -63,3 +65,35 @@ jobs:
       - name: Build sdist and wheel
         run: |
           python -m build
+
+  verify-release-assets:
+    name: Verify published release assets
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir release-assets
+          gh release download "$TAG" --dir release-assets --pattern '*.whl' --pattern '*.tar.gz'
+          test "$(find release-assets -maxdepth 1 -name '*.whl' -type f | wc -l)" -eq 1
+          test "$(find release-assets -maxdepth 1 -name '*.tar.gz' -type f | wc -l)" -eq 1
+
+      - name: Install uploaded wheel
+        run: |
+          python -m venv wheel-venv
+          wheel-venv/bin/python -m pip install --upgrade pip
+          wheel-venv/bin/python -m pip install release-assets/*.whl
+          wheel-venv/bin/python -c "import DGB; print(DGB.__file__)"
+
+      - name: Install uploaded source distribution
+        run: |
+          python -m venv sdist-venv
+          sdist-venv/bin/python -m pip install --upgrade pip
+          sdist-venv/bin/python -m pip install release-assets/*.tar.gz
+          sdist-venv/bin/python -c "import DGB; print(DGB.__file__)"

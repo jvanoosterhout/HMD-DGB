@@ -32,11 +32,12 @@ if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; the
 fi
 
 python -m pytest
+git tag "$tag"
+
 rm -rf build dist
 python -m build
 twine check dist/*
 
-git tag "$tag"
 git push origin "$tag"
 
 gh release create "$tag" dist/*.whl dist/*.tar.gz --title "$tag"

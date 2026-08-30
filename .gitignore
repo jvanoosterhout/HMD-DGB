@@ -4,6 +4,7 @@ docs/*
 
 *.egg-info/
 .eggs/*
+DGB/_version.py
 .vscode/*
 */__pycache__/*
 venv

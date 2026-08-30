@@ -74,8 +74,10 @@ jobs:
       contents: read
 
     steps:
-      - name: Download release assets
+      - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Download release assets
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
@@ -90,11 +92,13 @@ jobs:
           python -m venv wheel-venv
           wheel-venv/bin/python -m pip install --upgrade pip
           wheel-venv/bin/python -m pip install release-assets/*.whl
-          wheel-venv/bin/python -c "import DGB; print(DGB.__file__)"
+          cd /tmp
+          "$GITHUB_WORKSPACE"/wheel-venv/bin/python -c "import DGB; print(DGB.__file__)"
 
       - name: Install uploaded source distribution
         run: |
           python -m venv sdist-venv
           sdist-venv/bin/python -m pip install --upgrade pip
           sdist-venv/bin/python -m pip install release-assets/*.tar.gz
-          sdist-venv/bin/python -c "import DGB; print(DGB.__file__)"
+          cd /tmp
+          "$GITHUB_WORKSPACE"/sdist-venv/bin/python -c "import DGB; print(DGB.__file__)"

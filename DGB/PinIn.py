@@ -76,9 +76,6 @@ class Pin_in(Pin):
         - In case a webhook was provided, send a POST call to the Home Assistant API with the current pin value.
         """
         value = self.pin_device.value
-        # if not self.config.active_state:
-        #     value = int(not value == 1)
-        # self.value = value
 
         self.logger.info(f"Pin {self.config.pin} is: {value}")
         self.dgb_context.put_to_binder_queue(

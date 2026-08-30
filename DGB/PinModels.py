@@ -20,22 +20,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, RootModel, model_validator
 
-from DGB.Tools import IOT_tools
-
 
 class PinType(str, Enum):
     pinin = "in"
     pinout = "out"
     pincount = "count"
     pinnwayout = "nwayout"
-
-
-def is_pin_type(ptype):
-    try:
-        PinType(ptype)
-    except ValueError:
-        return False
-    return True
 
 
 class PinIn(BaseModel):
@@ -159,7 +149,6 @@ class PinNWayOut(BaseModel):
         default=None,
         description="An optional safety layer to prevent unwanted activation of a pin, only checked for the first pin in the list but applies to all pins. ATTENTION! Do not use your daily passwords for (online) accounts as this api has no https and no encription.",
     )
-    # blink: int | None = Field(default= None, description='The blink time of the output once for this number of seconds. Note it uses the initial set value to start from.')
 
     @model_validator(mode="after")
     def validate_atts(self):
@@ -217,12 +206,12 @@ class PinNWayOut(BaseModel):
             )
 
         if self.active_pin is not None and self.active_pin not in self.pin_names:
-            if IOT_tools.is_int(self.active_pin):
+            try:
                 self.active_pin = int(self.active_pin)
-            else:
+            except (TypeError, ValueError) as exc:
                 raise ValueError(
                     f"Active_pin {self.active_pin} is neither in the pin list nor an int."
-                )
+                ) from exc
             if self.active_pin not in self.pin_list:
                 raise ValueError(
                     f"Active_pin {self.active_pin} is neither in the pin list nor in the pin_names list."

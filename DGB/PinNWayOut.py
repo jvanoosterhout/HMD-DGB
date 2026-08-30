@@ -81,39 +81,6 @@ class Pin_N_way_out(Pin):
         )  # ,
         #  pin_factory = LGPIOFactory(chip=0))
 
-    def GetPinValue(self) -> dict:
-        """
-        Get the current value of a pin.
-
-        Returns:
-        dict: The current value of the pin.
-        """
-
-        res = bool(self.pin_device.value)
-        for p in self.Pins:
-            res = res or bool(p.pin_device.value)
-        # res = False
-        # if isinstance(self.value, int):
-        #     res = bool(self.value)
-        # elif isinstance(self.value, bool):
-        #     res = self.value
-        # else:
-        #     res = IOT_tools.strtobool(self.value)
-
-        if self.config.active_pin is None:
-            active_pin = None
-            active_pin_name = "off"
-        else:
-            n = self.GetPinIndex(self.config.active_pin)
-            active_pin = self.config.pin_list[n]
-            active_pin_name = self.config.pin_names[n]
-
-        return {
-            "is_active": res,
-            "active_pin": active_pin,
-            "active_pin_name": active_pin_name,
-        }
-
     def GetPinIndex(self, active_pin: int | str) -> int:
         n = -1
         if isinstance(active_pin, str) and active_pin in self.config.pin_names:

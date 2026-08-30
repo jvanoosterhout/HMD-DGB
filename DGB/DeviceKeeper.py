@@ -23,8 +23,6 @@ from paho.mqtt.client import Client, MQTTMessage
 
 from DGB.DGBContext import DGBContext, DuplicatePolicy
 
-# from DGB.Binder import post_event
-
 logging.basicConfig(level="INFO")
 
 

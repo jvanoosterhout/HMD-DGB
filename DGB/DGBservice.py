@@ -58,8 +58,6 @@ class DGBservice:
         self.password = password
         self.system_sensor_update_rate = system_sensor_update_rate
         self.state_resolver = SetStateResolver()
-        # self._blocked_error_state_policy: ErrorStatePolicy | None = None
-        # self._blocked_config_topic: str | None = None
 
         self._temp_subscription_lock = threading.Lock()
         self._temp_subscription_active = False
@@ -95,7 +93,6 @@ class DGBservice:
         )
         self.startup_state = StartupStateInitializer(
             dgb_context=self.dgb_context,
-            mqtt_client=self.client,
             state_resolver=self.state_resolver,
             state_retain_topic_prefix=self.state_retain_topic_prefix,
         )
@@ -135,7 +132,9 @@ class DGBservice:
         self.handle_temp_subscription(self.startup_policy_topic)
         while self._temp_subscription_active:
             time.sleep(0.5)
-        self.handle_temp_subscription(f"{self.state_retain_topic_prefix}#")
+        self.handle_temp_subscription(
+            f"{self.state_retain_topic_prefix}#", quiet_seconds=1
+        )
         while self._temp_subscription_active:
             time.sleep(0.5)
         # state phase 2-5: config-create-apply-live
@@ -213,7 +212,7 @@ class DGBservice:
     def handle_startup_policy(self, payload) -> None:
 
         with self._temp_subscription_lock:
-            self._temp_subscription_activity = time.monotonic()
+            self._temp_subscription_last_activity = time.monotonic()
 
         # Validate startup policy and extract startup state values.
         raw_startup_policy = self.startup_state.get_dict(payload, "startup_policy")
@@ -449,13 +448,13 @@ class DGBservice:
         self._set_unavailable()
         if hard_restart:
             self.logger.info("Full reinitialization and cleanup")
-            for unique_id, dgb_obj in self.DGB_objects.items():
+            for unique_id, obj in self.dgb_context.DGB_objects.items():
                 try:
-                    if not hasattr(dgb_obj, "config_topic"):
+                    if not hasattr(obj.dgb_obj, "config_topic"):
                         continue
-                    self.client.publish(dgb_obj.config_topic, payload=None)
+                    self.client.publish(obj.dgb_obj.config_topic, payload=None)
                     self.logger.info("Cleared device %s from registry", unique_id)
-                    self.dgb_context.remove_object(unique_id)
+                    # self.dgb_context.remove_object(unique_id)
                 except (AttributeError, OSError, RuntimeError, ValueError) as e:
                     self.logger.warning("Error unpublishing devices: %s", e)
             self.client.publish(self.config_topic, payload=None)

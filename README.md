@@ -2,6 +2,9 @@
 
 [![License](https://img.shields.io/github/license/jvanoosterhout/HMD-DGB.svg)](https://opensource.org/license/mit/)
 [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/jvanoosterhout/HMD-DGB/main.svg)](https://github.com/jvanoosterhout/HMD-DGB)
+[![Tests](https://img.shields.io/github/actions/workflow/status/jvanoosterhout/HMD-DGB/CI-python-package.yml?branch=main&label=tests)](https://github.com/jvanoosterhout/HMD-DGB/actions/workflows/CI-python-package.yml)
+[![Releases](https://img.shields.io/github/v/release/jvanoosterhout/HMD-DGB.svg?include_prereleases)](https://github.com/jvanoosterhout/HMD-DGB/releases)
+[![Downloads](https://img.shields.io/github/downloads/jvanoosterhout/HMD-DGB/total.svg)](https://github.com/jvanoosterhout/HMD-DGB/releases)
 
 Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverable devices. Bridge your hardware to smart home automation through declarative device bindings via durable rules.
 
@@ -256,6 +259,8 @@ For example, publish the retained message below to `config/{name}/states/switch_
   "args": [{"state_name": "state", "state": "on"}]
 }
 ```
+
+Note that the blink state of PinOut cannot be retained in an MQTT topic. Blink is a temporary state. Meaning that it is only valid at execution, in case of a restart of the system, the condition may longer be valid.
 
 [top](#table-of-contents)
 

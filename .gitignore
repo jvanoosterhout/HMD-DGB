@@ -7,6 +7,9 @@ docs/*
 .vscode/*
 */__pycache__/*
 venv
+.venv/
+.venv-*/
+venv/
 
 # Coverage reports
 .coverage

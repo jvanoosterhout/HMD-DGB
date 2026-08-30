@@ -443,23 +443,3 @@ class Binder:
             f"Binding '{rule_name}' already exists -- unknown policy '{policy}', skipping"
         )
         return False
-
-    # def _remove_ruleset_from_host(self, host, rule_name: str) -> None:
-    #     """
-    #     Remove a ruleset from durable host internals.
-
-    #     Important:
-    #     - remove from _ruleset_directory
-    #     - remove the actual ruleset object from _ruleset_list
-    #     """
-    #     ruleset = host._ruleset_directory.pop(rule_name, None)
-    #     if ruleset is None:
-    #         return
-
-    #     try:
-    #         host._ruleset_list.remove(ruleset)
-    #     except ValueError:
-    #         self.logger.warning(
-    #             f"Ruleset '{rule_name}' was removed from _ruleset_directory "
-    #             f"but not found in _ruleset_list"
-    #         )

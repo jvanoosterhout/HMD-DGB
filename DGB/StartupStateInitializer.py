@@ -18,12 +18,8 @@
 from __future__ import annotations
 
 import logging
-import threading
-import time
 from collections.abc import Callable
 from typing import Any
-
-import paho.mqtt.client as mqtt
 
 from DGB.DGBContext import DGBContext
 from DGB.SetStateResolver import SetStateResolver
@@ -35,32 +31,20 @@ class StartupStateInitializer:
     def __init__(
         self,
         dgb_context: DGBContext,
-        mqtt_client: mqtt.Client,
         state_resolver: SetStateResolver,
         state_retain_topic_prefix: str,
-        preload_quiet_seconds: float = 0.5,
-        preload_timeout_seconds: float = 1.0,
     ) -> None:
-        """Initialize the startup-state coordinator and its MQTT preload settings.
+        """Initialize the startup-state coordinator.
 
         Args:
             dgb_context: Context that stores registered objects and startup state data.
-            mqtt_client: MQTT client used to subscribe to retained state topics.
             state_resolver: Resolver used to build callable arguments from startup state data.
             state_retain_topic_prefix: Topic prefix used for retained state messages.
-            preload_quiet_seconds: Number of quiet seconds required before the preload window closes.
-            preload_timeout_seconds: Maximum number of seconds allowed for the preload window.
         """
         self.dgb_context = dgb_context
-        self.mqtt_client = mqtt_client
         self.logger = logging.getLogger("StartupStateInitializer")
         self.state_resolver = state_resolver
         self.retained_state_topic_prefix = state_retain_topic_prefix.rstrip("/") + "/"
-        self.preload_quiet_seconds = preload_quiet_seconds
-        self.preload_timeout_seconds = preload_timeout_seconds
-        self._preload_lock = threading.Lock()
-        self._preload_active = False
-        self._preload_last_activity = time.monotonic()
 
     # ------------------------------------------------------------------
     # 1.1) Preload Values from MQTT: helpers
@@ -146,9 +130,6 @@ class StartupStateInitializer:
             call_name=call_name,
             args=payload,
         )
-
-        with self._preload_lock:
-            self._preload_last_activity = time.monotonic()
 
         self.logger.info(
             "Stored retained state value for %s from %s (%s: %s)",

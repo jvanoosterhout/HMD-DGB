@@ -36,16 +36,6 @@ class ArgDefinition:
     accepts_none: bool = False  # True if type is Optional or Union with None
 
 
-@dataclass
-class ResolvedAction:
-    """Resolved action with callable and argument definitions ready for execution."""
-
-    unique_id: str
-    call_name: str
-    action_fn: Callable
-    arg_defs: list[ArgDefinition]
-
-
 class SetStateResolver:
     """Parses, resolves, and coerces arguments for function calls from config and durable.lang context paths."""
 

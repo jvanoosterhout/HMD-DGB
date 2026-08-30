@@ -34,7 +34,6 @@ class Pin:
         """
         self.config: PinModel = config
         self.pin_device = None
-        # self.value = 0
 
         self.rate = 0
         self.last_changed = time.monotonic()
@@ -83,17 +82,6 @@ class Pin:
         bool: True if update succesful, otherwise False.
         """
         return False
-
-    def GetPinValue(self) -> dict:
-        """
-        Get the current value of a pin.
-
-        Returns:
-        dict: The current value of the pin.
-        """
-
-        res = bool(self.pin_device.value)
-        return {"is_active": res}
 
     def calback(self):
         """

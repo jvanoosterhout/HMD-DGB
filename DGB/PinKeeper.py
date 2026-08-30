@@ -50,31 +50,6 @@ class PinKeeper:
             pin.pin_device.close()
         self.logger.info("PinKeeper cleaned up all pins")
 
-    def GetPin(self, config: PinModel):
-        """
-        Get pin value, if it exists, otherewise try to make it.
-
-        Parameters:
-        config (Pin): Configuration of the pin.
-
-        Returns:
-        float/bool/None: Value of the pin or False or None.
-        """
-        pin_id = self.DoIExist(config)
-        if isinstance(pin_id, bool):  # is pin config, but does not exist jet
-            self.logger.info(f"Is config for pin{config.pin}, but does not exist jet.")
-            if self.SetPin(config):
-                pin_id = self.DoIExist(config)
-                return self.PinList[pin_id].GetPinValue()
-        else:  # is pin config, and it exists --> ask its value
-            self.logger.info(
-                f"Is config for pin {config.pin}, and it exists, therefore requesting its value."
-            )
-            return self.PinList[pin_id].GetPinValue()
-
-        self.logger.info("Got an unrecognized configuration.")
-        return False
-
     def SetPin(
         self, config: PinModel, policy: DuplicatePolicy = DuplicatePolicy.SKIP
     ) -> bool:

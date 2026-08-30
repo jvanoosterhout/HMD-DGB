@@ -12,11 +12,8 @@ def startup_initializer():
     """Create an initializer with isolated context and MQTT dependencies."""
     return StartupStateInitializer(
         dgb_context=MagicMock(),
-        mqtt_client=MagicMock(),
         state_resolver=SetStateResolver(),
         state_retain_topic_prefix="state/test/",
-        preload_quiet_seconds=0,
-        preload_timeout_seconds=0,
     )
 
 

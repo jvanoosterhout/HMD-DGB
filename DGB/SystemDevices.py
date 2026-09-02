@@ -34,6 +34,7 @@ from __future__ import annotations
 import logging
 import platform
 import socket
+import time
 from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError, version
 
@@ -95,6 +96,8 @@ class SystemDevices:
         self.cpu_usage: sensors.Sensor | None = None
         self.mem_usage: sensors.Sensor | None = None
         self.uptime: sensors.Sensor | None = None
+        self.uptime_service: sensors.Sensor | None = None
+        self.service_start_time: float = time.monotonic()
 
         # Button objects (for state management if needed)
         self.restart_button: sensors.Button | None = None
@@ -158,9 +161,6 @@ class SystemDevices:
         )
         self.cpu_temp.availability_topic = self.dgb_context.availability_topic_ns
         self.dgb_context.add_object(str(self.cpu_temp._entity.unique_id), self.cpu_temp)
-        # self.cpu_temp._update_state(
-        #     state="online", topic=self.cpu_temp.availability_topic, retain=True
-        # )
 
         # CPU Usage Sensor
         self.cpu_usage = sensors.Sensor(
@@ -178,9 +178,6 @@ class SystemDevices:
         self.dgb_context.add_object(
             str(self.cpu_usage._entity.unique_id), self.cpu_usage
         )
-        # self.cpu_usage._update_state(
-        #     state="online", topic=self.cpu_usage.availability_topic, retain=True
-        # )
 
         # Memory Usage Sensor
         self.mem_usage = sensors.Sensor(
@@ -198,9 +195,6 @@ class SystemDevices:
         self.dgb_context.add_object(
             str(self.mem_usage._entity.unique_id), self.mem_usage
         )
-        # self.mem_usage._update_state(
-        #     state="online", topic=self.mem_usage.availability_topic, retain=True
-        # )
 
         # Uptime Sensor
         self.uptime = sensors.Sensor(
@@ -208,7 +202,7 @@ class SystemDevices:
                 mqtt=self.mqtt_settings,
                 entity=sensors.SensorInfo(
                     name="Uptime",
-                    unit_of_measurement="h",
+                    unit_of_measurement="s",
                     device_class="duration",
                     unique_id=f"{self.device_name}_uptime",
                     device=device_info,
@@ -216,9 +210,6 @@ class SystemDevices:
             )
         )
         self.uptime.availability_topic = self.dgb_context.availability_topic_ns
-        # self.uptime._update_state(
-        #     state="online", topic=self.uptime.availability_topic, retain=True
-        # )
         self.dgb_context.add_object(str(self.uptime._entity.unique_id), self.uptime)
 
         self.logger.info("Node device created with 4 sensors")
@@ -269,9 +260,6 @@ class SystemDevices:
         )
         self.version_sensor.availability_topic = self.dgb_context.availability_topic_ns
         self.version_sensor.set_state(service_version)
-        # self.version_sensor._update_state(
-        #     state="online", topic=self.version_sensor.availability_topic, retain=True
-        # )
         self.dgb_context.add_object(
             str(self.version_sensor._entity.unique_id), self.version_sensor
         )
@@ -299,9 +287,6 @@ class SystemDevices:
         )
         self.restart_button.availability_topic = self.dgb_context.availability_topic_ns
         self.restart_button.write_config()
-        # self.restart_button._update_state(
-        #     state="online", topic=self.restart_button.availability_topic, retain=True
-        # )
         self.dgb_context.add_object(
             str(self.restart_button._entity.unique_id), self.restart_button
         )
@@ -329,12 +314,25 @@ class SystemDevices:
         )
         self.restart_button.availability_topic = self.dgb_context.availability_topic_ns
         self.restart_button.write_config()
-        # self.restart_button._update_state(
-        #     state="online", topic=self.restart_button.availability_topic, retain=True
-        # )
         self.dgb_context.add_object(
             str(self.restart_button._entity.unique_id), self.restart_button
         )
+
+        # Uptime Sensor
+        self.uptime_service = sensors.Sensor(
+            Settings(
+                mqtt=self.mqtt_settings,
+                entity=sensors.SensorInfo(
+                    name="Uptime service",
+                    unit_of_measurement="s",
+                    device_class="duration",
+                    unique_id=f"{self.device_name}_uptime_service",
+                    device=device_info,
+                ),
+            )
+        )
+        self.uptime.availability_topic = self.dgb_context.availability_topic_ns
+        self.dgb_context.add_object(str(self.uptime._entity.unique_id), self.uptime)
 
         self.logger.info(
             "DGB service device created with version sensor and restart buttons"
@@ -347,6 +345,7 @@ class SystemDevices:
             or not self.cpu_usage
             or not self.mem_usage
             or not self.uptime
+            or not self.uptime_service
         ):
             self.logger.warning("Sensor objects not initialized")
             return
@@ -367,9 +366,9 @@ class SystemDevices:
             self.logger.warning("Could not read memory usage: %s", e)
 
         try:
-            import time
-
-            self.uptime.set_state(round(time.monotonic() / 3600, 1))
+            now: float = time.monotonic()
+            self.uptime.set_state(now)
+            self.uptime_service.set_state(now - self.service_start_time)
         except (RuntimeError, OSError, ValueError) as e:
             self.logger.warning("Could not read uptime: %s", e)
 

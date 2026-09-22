@@ -28,6 +28,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git gcc build-essential swig liblgpio-dev
+
       - name: Upgrade pip
         run: |
           python -m pip install --upgrade pip setuptools wheel

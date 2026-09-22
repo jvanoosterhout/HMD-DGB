@@ -106,9 +106,9 @@ The table below reflects current implementation status in this repository.
 ### Hardware & OS
 
 - **Raspberry Pi**: Pi 4 or Pi Zero 2 W (or compatible board)
-  - Some dependencies, including Durable Rules and psutil, may need to build native extensions locally.
+  - Some dependencies, including Durable Rules, psutil, and lgpio, may need to build native extensions locally.
   ```bash
-  sudo apt install -y git gcc build-essential python3-dev python3-venv
+  sudo apt install -y git gcc build-essential swig liblgpio-dev python3-dev python3-venv
   ```
 - **Operating System**: Bookworm or newer recommended
   - Bullseye may work with GPIOZERO fallback to RPI.GPIO

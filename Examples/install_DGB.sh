@@ -18,7 +18,7 @@ rate=300
 cd ~/Myservices/Service42
 
 ## script
-sudo apt install -y gcc python3-dev build-essential
+sudo apt install -y git gcc python3-dev build-essential swig liblgpio-dev
 sudo apt -y install python3-venv
 python3 -m venv venv
 . venv/bin/activate

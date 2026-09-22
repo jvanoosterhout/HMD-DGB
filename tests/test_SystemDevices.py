@@ -290,3 +290,54 @@ def test_create_service_device_version_unknown_on_error(
 
         # Version sensor should exist and have been set
         assert system_devices.version_sensor is not None
+
+
+@patch("DGB.SystemDevices.GhApi")
+def test_get_latest_release_tag_supports_async_ghapi_response(
+    mock_ghapi_class, mock_mqtt_settings, dgb_context
+):
+    """Test latest release lookup supports ghapi versions returning coroutines."""
+
+    async def list_releases():
+        return [MagicMock(tag_name="v1.0.0")]
+
+    mock_api = MagicMock()
+    mock_api.repos.list_releases.return_value = list_releases()
+    mock_ghapi_class.return_value = mock_api
+
+    with patch("DGB.SystemDevices.sensors"):
+        system_devices = SystemDevices(
+            mqtt_settings=mock_mqtt_settings,
+            dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
+            device_name="test",
+        )
+
+        latest_release = system_devices._get_latest_release_tag(force=True)
+
+        assert latest_release == "v1.0.0"
+
+
+@patch("DGB.SystemDevices.GhApi")
+def test_get_latest_release_tag_uses_cached_value_between_checks(
+    mock_ghapi_class, mock_mqtt_settings, dgb_context
+):
+    """Test latest release lookup does not call GitHub on every update cycle."""
+    mock_api = MagicMock()
+    mock_api.repos.list_releases.return_value = [MagicMock(tag_name="v1.0.0")]
+    mock_ghapi_class.return_value = mock_api
+
+    with patch("DGB.SystemDevices.sensors"):
+        system_devices = SystemDevices(
+            mqtt_settings=mock_mqtt_settings,
+            dgb_context=dgb_context,
+            dgb_restart=dgb_restart,
+            device_name="test",
+        )
+
+        first_release = system_devices._get_latest_release_tag(force=True)
+        second_release = system_devices._get_latest_release_tag()
+
+        assert first_release == "v1.0.0"
+        assert second_release == "v1.0.0"
+        assert mock_api.repos.list_releases.call_count == 1

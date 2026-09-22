@@ -31,6 +31,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
 import platform
 import socket
@@ -98,6 +100,9 @@ class SystemDevices:
         self.uptime: sensors.Sensor | None = None
         self.uptime_service: sensors.Sensor | None = None
         self.service_start_time: float = time.monotonic()
+        self.latest_release: str = "unknown"
+        self._latest_release_checked_at: float | None = None
+        self._latest_release_check_interval: float = 3600
 
         # Button objects (for state management if needed)
         self.restart_button: sensors.Button | None = None
@@ -226,13 +231,7 @@ class SystemDevices:
             service_version = "unknown"
 
         # Get release from GitHub
-        try:
-            api = GhApi(owner="jvanoosterhout", repo="HMD-DGB")
-            releases = api.repos.list_releases(per_page=5)
-            latest_release = releases[0].tag_name if releases else "unknown"
-        except (ConnectionError, OSError, RuntimeError, TimeoutError, IndexError) as e:
-            self.logger.warning("Could not fetch release versions from GitHub: %s", e)
-            latest_release = "unknown"
+        latest_release = self._get_latest_release_tag()
         self.logger.info(f"latest_release: {latest_release}")
 
         device_info = DeviceInfo(
@@ -397,6 +396,49 @@ class SystemDevices:
         if self.location:
             return f"{self.device_name} ({self.location})"
         return self.device_name
+
+    def _get_latest_release_tag(self, force: bool = False) -> str:
+        now = time.monotonic()
+        if (
+            not force
+            and self._latest_release_checked_at is not None
+            and now - self._latest_release_checked_at
+            < self._latest_release_check_interval
+        ):
+            return self.latest_release
+
+        self._latest_release_checked_at = now
+        try:
+            api = GhApi(owner="jvanoosterhout", repo="HMD-DGB")
+            releases = api.repos.list_releases(per_page=5)
+            if inspect.isawaitable(releases):
+                releases = self._run_release_request(releases)
+            self.latest_release = releases[0].tag_name if releases else "unknown"
+            return self.latest_release
+        except (
+            AttributeError,
+            ConnectionError,
+            IndexError,
+            OSError,
+            RuntimeError,
+            TimeoutError,
+            TypeError,
+        ) as e:
+            self.logger.warning("Could not fetch release versions from GitHub: %s", e)
+            return "unknown"
+
+    @staticmethod
+    def _run_release_request(releases):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(releases)
+
+        if inspect.iscoroutine(releases):
+            releases.close()
+        raise RuntimeError(
+            "Cannot resolve async GitHub release request in a running event loop"
+        )
 
     @staticmethod
     def _get_ip() -> str:

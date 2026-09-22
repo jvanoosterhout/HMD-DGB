@@ -106,9 +106,9 @@ The table below reflects current implementation status in this repository.
 ### Hardware & OS
 
 - **Raspberry Pi**: Pi 4 or Pi Zero 2 W (or compatible board)
-  - Pi Zero may require building some packages like psutil
+  - Some dependencies, including Durable Rules and psutil, may need to build native extensions locally.
   ```bash
-  sudo apt install -y gcc python3-dev build-essential
+  sudo apt install -y git gcc build-essential python3-dev python3-venv
   ```
 - **Operating System**: Bookworm or newer recommended
   - Bullseye may work with GPIOZERO fallback to RPI.GPIO
@@ -116,7 +116,7 @@ The table below reflects current implementation status in this repository.
 
 ### Software
 
-- **Python**: 3.10-3.12
+- **Python**: 3.10-3.14
 - **MQTT Broker**: Mosquitto or compatible
 - **Home Assistant**: 2023.1 or later
 
@@ -1415,7 +1415,7 @@ Currently the count-type pin implementation is incomplete. Water flow meters and
 
 **Status:** unknown
 
-Durable Rules has limited maintenance/updates and no reponces on issues lately. It is unclear how well or how long this package will be able to keep up with updates of other packages.
+HMD-DGB currently pins Durable Rules to a fixed upstream git commit instead of the PyPI sdist. This keeps the package metadata at `2.0.28` while including the Python 3.13 compatibility fix for the native extension. Durable Rules still has limited maintenance/updates and no responses on issues lately, so a project-owned fork/tag may be preferable for long-term stability.
 
 [top](#table-of-contents)
 

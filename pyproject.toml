@@ -14,7 +14,7 @@ dependencies = [
     "psutil==6.1.1",
     "gpiozero==2.0.1",
     "ha-mqtt-discoverable==0.25.2",
-    "durable-rules==2.0.28",
+    "durable-rules @ git+https://github.com/jruizgit/rules.git@0ab9be6adef922c573cecdf0878ab05bd40431f6",
     "ghapi>=1.0.3",
     "lgpio==0.2.2.0"
 ]

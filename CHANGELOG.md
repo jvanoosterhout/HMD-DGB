@@ -5,15 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0b5] - Pending
+## [1.0.0b5] - 2026-09-22
 
 ### Added
 
 - Added a service-uptime sensor to the DGB service device.
+- Added CI coverage for Python 3.13 and 3.14.
+- Added a CI smoke test for the Durable Rules native extension.
 
 ### Changed
 
 - Report node uptime in seconds using the Home Assistant duration device class.
+- Install Durable Rules from a fixed upstream git commit that includes the Python 3.13 C-API compatibility fix while retaining package metadata version `2.0.28`.
+- Document native build prerequisites for dependencies that need local compilation.
+
+### Fixed
+
+- Fixed CI installation on newer Python versions by installing native `lgpio` build dependencies before running `pip install`.
 
 ## [1.0.0b4] - 2026-08-30
 

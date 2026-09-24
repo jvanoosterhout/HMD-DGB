@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed latest-release lookup for newer `ghapi` versions that return coroutine results, and cached the lookup so update cycles do not call GitHub every time.
+- Fixed `direct_state_transition` being baked into `set_state`, which caused binder-driven state changes to also honor the `dst` flag and never take effect when it was `False`. `False` was only meant to suppress direct changes triggered by incoming MQTT messages, not by binder actions.
 
 ## [1.0.0b5] - 2026-09-22
 

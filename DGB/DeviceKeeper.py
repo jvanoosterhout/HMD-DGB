@@ -332,9 +332,10 @@ class DeviceKeeper:
         cover_info = sensors.CoverInfo(**payload["EntityInfo"])
 
         settings = Settings(mqtt=self.mqtt_settings, entity=cover_info)
-        callback = build_callback(cover_info, self.dgb_context, dst)
+        callback = build_callback(cover_info, self.dgb_context)
         device = sensors.Cover(settings, callback)
-        set_state = partial(self._set_cover_state, device, dst)
+        set_state = partial(self._set_cover_state, device, True)
+        set_state_dst = partial(self._set_cover_state, device, dst)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -346,6 +347,7 @@ class DeviceKeeper:
                 "opening": device.opening,
                 "closing": device.closing,
                 "set_state": set_state,
+                "set_state_dst": set_state_dst,
             },
         )
         self.finalize_device(device)
@@ -359,9 +361,10 @@ class DeviceKeeper:
 
         valve_info = sensors.ValveInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=valve_info)
-        callback = build_callback(valve_info, self.dgb_context, dst)
+        callback = build_callback(valve_info, self.dgb_context)
         device = sensors.Valve(settings, callback)
-        set_state = partial(self._set_valve_state, device, dst)
+        set_state = partial(self._set_valve_state, device, True)
+        set_state_dst = partial(self._set_valve_state, device, dst)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -373,6 +376,7 @@ class DeviceKeeper:
                 "closing": device.closing,
                 "position": device.position,
                 "set_state": set_state,
+                "set_state_dst": set_state_dst,
             },
         )
         self.finalize_device(device)
@@ -382,7 +386,7 @@ class DeviceKeeper:
         sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=sensor_info)
         device = sensors.Sensor(settings)
-        set_state = partial(self._set_sensor_state, device, dst)
+        set_state = partial(self._set_sensor_state, device, True)
         self.dgb_context.add_object(
             str(device._entity.unique_id), device, {"set_state": set_state}
         )
@@ -391,13 +395,19 @@ class DeviceKeeper:
     def configure_switch(self, payload, dst: bool):
         switch_info = sensors.SwitchInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=switch_info)
-        callback = build_callback(switch_info, self.dgb_context, dst)
+        callback = build_callback(switch_info, self.dgb_context)
         device = sensors.Switch(settings, callback)
-        set_state = partial(self._set_switch_state, device, dst)
+        set_state = partial(self._set_switch_state, device, True)
+        set_state_dst = partial(self._set_switch_state, device, dst)
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
-            {"on": device.on, "off": device.off, "set_state": set_state},
+            {
+                "on": device.on,
+                "off": device.off,
+                "set_state": set_state,
+                "set_state_dst": set_state_dst,
+            },
         )
         self.finalize_device(device)
 
@@ -410,55 +420,73 @@ class DeviceKeeper:
     def configure_text(self, payload, dst: bool):
         text_info = sensors.TextInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=text_info)
-        callback = build_callback(text_info, self.dgb_context, dst)
+        callback = build_callback(text_info, self.dgb_context)
         device = sensors.Text(settings, callback)
-        set_state = partial(self._set_text_state, device, dst)
+        set_state = partial(self._set_text_state, device, True)
+        set_state_dst = partial(self._set_text_state, device, dst)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
-            {"set_text": device.set_text, "set_state": set_state},
+            {
+                "set_text": device.set_text,
+                "set_state": set_state,
+                "set_state_dst": set_state_dst,
+            },
         )
         self.finalize_device(device)
 
     def configure_number(self, payload, dst: bool):
         number_info = sensors.NumberInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=number_info)
-        callback = build_callback(number_info, self.dgb_context, dst)
+        callback = build_callback(number_info, self.dgb_context)
         device = sensors.Number(settings, callback)
-        set_state = partial(self._set_number_state, device, dst)
+        set_state = partial(self._set_number_state, device, True)
+        set_state_dst = partial(self._set_number_state, device, dst)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
-            {"set_value": device.set_value, "set_state": set_state},
+            {
+                "set_value": device.set_value,
+                "set_state": set_state,
+                "set_state_dst": set_state_dst,
+            },
         )
         self.finalize_device(device)
 
     def configure_select(self, payload, dst: bool):
         select_info = sensors.SelectInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=select_info)
-        callback = build_callback(select_info, self.dgb_context, dst)
+        callback = build_callback(select_info, self.dgb_context)
         device = sensors.Select(settings, callback)
-        set_state = partial(self._set_select_state, device, dst)
+        set_state = partial(self._set_select_state, device, True)
+        set_state_dst = partial(self._set_select_state, device, dst)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
-            {"select_option": device.select_option, "set_state": set_state},
+            {
+                "select_option": device.select_option,
+                "set_state": set_state,
+                "set_state_dst": set_state_dst,
+            },
         )
         self.finalize_device(device)
 
     def configure_binary_sensor(self, payload, dst: bool):
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
-        callback = build_callback(binarysensor_info, self.dgb_context, dst)
-        device = sensors.BinarySensor(settings, callback)
-        set_state = partial(self._set_binary_sensor_state, device, dst)
+        device = sensors.BinarySensor(settings)
+        set_state = partial(self._set_binary_sensor_state, device, True)
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
-            {"on": device.on, "off": device.off, "set_state": set_state},
+            {
+                "on": device.on,
+                "off": device.off,
+                "set_state": set_state,
+            },
         )
         self.finalize_device(device)
 
@@ -476,7 +504,6 @@ class DeviceKeeper:
 def build_callback(
     entity: EntityType,
     dgb_context: DGBContext,
-    dst: bool,
 ):
     logger = logging.getLogger("DeviceKeeper")
 
@@ -489,7 +516,7 @@ def build_callback(
             "post", {"unique_id": entity.unique_id, "payload": payload}
         )
         state_transition = dgb_context.get_functions(str(entity.unique_id)).get(
-            "set_state"
+            "set_state_dst"
         )
         if callable(state_transition):
             state_transition(

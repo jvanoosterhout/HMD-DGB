@@ -330,8 +330,10 @@ class SystemDevices:
                 ),
             )
         )
-        self.uptime.availability_topic = self.dgb_context.availability_topic_ns
-        self.dgb_context.add_object(str(self.uptime._entity.unique_id), self.uptime)
+        self.uptime_service.availability_topic = self.dgb_context.availability_topic_ns
+        self.dgb_context.add_object(
+            str(self.uptime_service._entity.unique_id), self.uptime_service
+        )
 
         self.logger.info(
             "DGB service device created with version sensor and restart buttons"

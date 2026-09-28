@@ -95,7 +95,13 @@ class Pin_out(Pin):
         if self.is_PinNWayOut == is_PinNWayOut:
             self.pin_device.on()
             self.logger.info(f"pin {self.config.pin} is on")
-            self.retain_state({"args": [{"state_name": "state", "state": "on"}]})
+            self.retain_state(
+                {
+                    "args": [
+                        {"name": "state", "value": "on"},
+                    ]
+                }
+            )
             return True
         return False
 
@@ -103,11 +109,23 @@ class Pin_out(Pin):
         if self.is_PinNWayOut == is_PinNWayOut:
             self.pin_device.off()
             self.logger.info(f"pin {self.config.pin} is off")
-            self.retain_state({"args": [{"state_name": "state", "state": "off"}]})
+            self.retain_state(
+                {
+                    "args": [
+                        {"name": "state", "value": "off"},
+                    ]
+                }
+            )
             return True
         return False
 
-    def set_state(self, state_name: str, state: int | str | bool) -> bool:
+    def set_state(self, **states: int | str | bool) -> bool:
+        return all(
+            self._set_state_value(state_name, state)
+            for state_name, state in states.items()
+        )
+
+    def _set_state_value(self, state_name: str, state: int | str | bool) -> bool:
         if state_name == "blink":
             try:
                 state = int(state)
@@ -140,10 +158,8 @@ class Pin_out(Pin):
         return result
 
     def retain_state(self, args):
-        if self.dgb_context.is_retain_required(str(self.config.pin)):
-            self.dgb_context.publish_state_to_retain(
-                str(self.config.pin), "set_state", args
-            )
+        if self.dgb_context.is_call_persisted(str(self.config.pin)):
+            self.dgb_context.persist_call(str(self.config.pin), "set_state", args)
 
     def ProcessPinUpdate(self, config: PinModel, is_PinNWayOut: bool = False) -> bool:
         """

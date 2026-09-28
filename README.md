@@ -213,11 +213,11 @@ Note that loading_mode is not yet impleemnted. Whatever is configured, DGB uses 
 
 ### Startup states
 
-Startup states restore or set object state after devices and pins have been created, but before bindings become live. State initialization is an option in the regular configuration payload on `config/{name}/devices/`. It has two optional lists: `preset_value` defines a configured default, while `retain_state` selects state updates to publish and restore through a retained MQTT topic `config/{name}/states/{unique_id}/{call_name}`.
+Startup states restore or set object state after devices and pins have been created, but before bindings become live. State initialization is an option in the regular configuration payload on `config/{name}/devices/`. It has two optional lists: `preset_value` defines a configured default, while `retain_state` selects calls to publish and restore through the retained MQTT namespace `config/{name}/retained-calls/{unique_id}/{call_name}`.
 
-When the DGB service starts, it checks for the `config/{name}/states/#` topic. Obviously states can, and will, only be restored if a message exists. A retained state only overrides a preset when its call is listed in `retain_state` for that `unique_id`. Meaning that if you change the config by removing a retained stated, the service will load the state from the MQTT topic, but it will not be applied to the device.
+When the DGB service starts, it checks for the `config/{name}/retained-calls/#` topic. Calls can only be restored when a retained message exists. A retained call only overrides a preset when its call is listed in `retain_state` for that `unique_id`. If you remove a call from `retain_state`, the service may still load the retained message, but it will not apply it to the device.
 
-Currently, configured preset values support only the `set_state` call. Its arguments must contain exactly one `state_name` and `state` pair. Retained messages for other calls are stored and can be selected with `retain_state`, provided that the target object exposes that call.
+Configured preset values use the `set_state` call with one named state value per argument object. Each argument uses the `{ "name": "...", "value": ... }` form. Multiple named states may be supplied in one call. Retained messages for other calls are stored and can be selected with `retain_state`, provided that the target object exposes that call.
 
 Examples for an HMD switch and a GPIO pin_20 count:
 ```json
@@ -230,12 +230,12 @@ Examples for an HMD switch and a GPIO pin_20 count:
       {
         "unique_id": "switch_one",
         "call": "set_state",
-        "args": [{"state_name": "state", "state": "off"}]
+        "args": [{"name": "state", "value": "off"}]
       },
       {
         "unique_id": "20",
         "call": "set_state",
-        "args": [{"state_name": "total_count", "state": 42}]
+        "args": [{"name": "total_count", "value": 42}]
       }
     ],
     "retain_state": [
@@ -252,11 +252,11 @@ Examples for an HMD switch and a GPIO pin_20 count:
 }
 ```
 
-For example, publish the retained message below to `config/{name}/states/switch_one/set_state` to restore `switch_one` and as 'on' instead of using the preset value 'off':
+For example, publish the retained message below to `config/{name}/retained-calls/switch_one/set_state` to restore `switch_one` as 'on' instead of using the preset value 'off':
 
 ```json
 {
-  "args": [{"state_name": "state", "state": "on"}]
+  "args": [{"name": "state", "value": "on"}]
 }
 ```
 
@@ -1076,20 +1076,20 @@ A simple example of a plain ruleset:
   "my_plain_ruleset": {
     "r_0": {
       "all": [
-        { "m": [{"unique_id": "x"}, {"payload": "y"}] }
+        { "m": [{"unique_id": "x"}, {"value": "y"}] }
       ],
       "run": {...}
     }
     "r_1": {
       "all": [
-        {"first": {"unique_id": "x", "payload": "y"}},
-        {"second": {"unique_id": "u", "payload": "v"}},
+        {"first": {"unique_id": "x", "value": "y"}},
+        {"second": {"unique_id": "u", "value": "v"}},
       ],
       "run": {...}
     }
     "r_2": {
       "any": [
-        { "m": [{"unique_id": "x"}, {"$lt": {"payload": 1}}] },
+        { "m": [{"unique_id": "x"}, {"$lt": {"value": 1}}] },
         { "m": {"timeout": "z"} }
       ],
       "run": {...}
@@ -1216,7 +1216,7 @@ A simple example of a flowchart:
 }
 ```
 
-As shown in the first example in this section, the matching constructs inside the rule are in JSON format. Each key-value pair presents a match pattern, e.g. `{"unique_id": "x"}`, `{"payload": "y"}` means `unique_id = "x"` and `payload = "y"`. Many matching constructs are possible. A few of them are:
+As shown in the first example in this section, the matching constructs inside the rule are in JSON format. Each key-value pair presents a match pattern, e.g. `{"unique_id": "x"}`, `{"value": "y"}` means `unique_id = "x"` and `value = "y"`. Many matching constructs are possible. A few of them are:
 - Logical operators like negative/absence pattern (`$not`), or (`$or`), and (`$and`), exists (`$ex`), not exists (`$nex`)
 - Relational operators like less than (`$lt`), greater than (`$gt`), less than or equal (`$lte`), greater than or equal (`$gte`), not equal (`$neq`)
 - Patterns like match pattern (`$mt`) and case-insensitive match pattern (`$imt`)
@@ -1225,8 +1225,9 @@ As shown in the first example in this section, the matching constructs inside th
 HMD-DGB currently only supports posting one entity/pin/timer message in the shape of an event, meaning events are ephemeral: they are evaluated and then gone. Posts have the shape:
 
 ```JSON
-{"unique_id": "...", "payload": "..."}
-{"timeout": "..."}
+{"unique_id": "...", "kind": "command", "name": "value", "value": "...", "origin": "device"}
+{"unique_id": "...", "kind": "state", "name": "value", "value": "...", "origin": "pin"}
+{"timeout": "...", "origin": "timer"}
 ```
 
 [top](#table-of-contents)
@@ -1310,8 +1311,8 @@ Actions can be set by the "action" key. Its value is a dict containing:
 - unique_id:
 - call:
 - args:
-  - state_name: str
-  - state: Any|$m.payload
+  - name: str
+  - value: Any|{"$ref": "m.value"}
 
 The call functions and args can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo). Within bindings the arg can be optional, meaning you could either use:
 
@@ -1321,15 +1322,15 @@ The call functions and args can be found in [Devices with EntityInfo](README.md#
 or:
 
 ```JSON
-{"action": {"unique_id": "y", "call": "z", "args": [{"state_name": "u", "state": "v"|"$m.payload"}]}}
+{"action": {"unique_id": "y", "call": "z", "args": [{"name": "u", "value": "v"}, {"name": "state", "value": {"$ref": "m.value"}}]}}
 ```
-In practic this could look like the following where {"call": "on"} is equivalent to {"call": "set_state", "args": [{"state_name": "state", "state": "on"}]}:
+In practic this could look like the following where {"call": "on"} is equivalent to {"call": "set_state", "args": [{"name": "state", "value": "on"}]}:
 
 ```JSON
 {
   "delayed_action": {
       "p_on": {
-          "all": [{"m": {"$and": [{"unique_id": "s4"}, {"payload": "on"}]}}],
+          "all": [{"m": {"$and": [{"unique_id": "s4"}, {"value": "on"}]}}],
           "run": [
               {"timer": {"name": "auto_off", "action": "start", "seconds": 3}},
               {"action": {"unique_id": "p1", "call": "on"}},
@@ -1339,7 +1340,7 @@ In practic this could look like the following where {"call": "on"} is equivalent
       "timeout": {
           "all": [{"m": {"timeout": "auto_off"}}],
           "run": [
-              {"action": {"unique_id": "p1", "call": "set_state", "args": [{"state_name": "state", "state": "off"}]}},
+              {"action": {"unique_id": "p1", "call": "set_state", "args": [{"name": "state", "value": "off"}]}},
               {"log": {"msg": "p1 is set to off"}}
           ],
       },
@@ -1391,7 +1392,7 @@ Also see the [Issues](https://github.com/jvanoosterhout/HMD-DGB/issues) labeled 
 
 **Status:** Needs Testing
 
-For run.action.args the value of "$m.payload" currently only works if the rule has one payload of one device's unique_id.
+For run.action.args the value of "$m.value" currently only works if the rule has one value event of one device's unique_id.
 
 ### restart of the system
 

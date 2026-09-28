@@ -20,7 +20,7 @@ class DummyDGBContext:
         self.bindings = {}
         self.config_cycle = ConfigCycleState()
 
-    def get_functions(self, device_id):
+    def get_calls(self, device_id):
         return self._functions.get(device_id, {})
 
     def get_object(self, unique_id):
@@ -464,7 +464,7 @@ def test_device_action_with_arguments(binder, dgb_context):
             "action": {
                 "unique_id": "dev1",
                 "call": "do",
-                "args": [{"value": 42}],
+                "args": [{"name": "value", "value": 42}],
             }
         },
     )
@@ -539,52 +539,52 @@ def test_timer_cancel_action_execution(binder, dgb_context):
 # ---------------------------------------------------------------------------
 
 
-def test_handle_post_with_unique_id(binder, dgb_context):
-    """Test _handle_post processes payload with unique_id"""
+def test_handle_event_with_unique_id(binder, dgb_context):
+    """Test _handle_event processes payload with unique_id"""
     dgb_context.add_binding("dev1", "ruleset1")
 
     with patch("DGB.Binder.post") as mock_post:
-        binder._handle_post({"unique_id": "dev1", "data": "test"})
+        binder._handle_event({"unique_id": "dev1", "data": "test"})
         mock_post.assert_called_once()
 
 
-def test_handle_post_with_rulesetname(binder):
-    """Test _handle_post processes payload with rulesetname"""
+def test_handle_event_with_rulesetname(binder):
+    """Test _handle_event processes payload with rulesetname"""
     with patch("DGB.Binder.post") as mock_post:
-        binder._handle_post({"rulesetname": "ruleset1", "data": "test"})
+        binder._handle_event({"rulesetname": "ruleset1", "data": "test"})
         mock_post.assert_called_once()
 
 
-def test_handle_post_missing_both_raises_error(binder):
-    """Test _handle_post raises error when both unique_id and rulesetname missing"""
-    with pytest.raises(ValueError, match="post payload requires"):
-        binder._handle_post({"data": "test"})
+def test_handle_event_missing_both_raises_error(binder):
+    """Test _handle_event raises error when both unique_id and rulesetname missing"""
+    with pytest.raises(ValueError, match="event payload requires"):
+        binder._handle_event({"data": "test"})
 
 
-def test_handle_post_with_missing_device_logs_warning(binder, dgb_context):
-    """Test _handle_post logs warning for unregistered device"""
+def test_handle_event_with_missing_device_logs_warning(binder, dgb_context):
+    """Test _handle_event logs warning for unregistered device"""
     with (
         patch("DGB.Binder.post"),
         patch.object(binder.logger, "warning") as mock_warning,
     ):
-        binder._handle_post({"unique_id": "unknown_dev", "data": "test"})
+        binder._handle_event({"unique_id": "unknown_dev", "data": "test"})
         mock_warning.assert_called_once()
 
 
-def test_handle_post_suppressed_when_not_live(binder, dgb_context):
-    """_handle_post should not dispatch if binding cycle is not yet live (per Option B)."""
+def test_handle_event_suppressed_when_not_live(binder, dgb_context):
+    """_handle_event should not dispatch if binding cycle is not yet live (per Option B)."""
     # Simulate: binding added in cycle 1, but only cycle 0 is live
     dgb_context.config_cycle.begin_cycle()
     dgb_context.bindings["dev1"] = {"ruleset1"}
     dgb_context.config_cycle.record_binding_cycle("ruleset1")
 
     with patch("DGB.Binder.post") as mock_post:
-        binder._handle_post({"unique_id": "dev1", "data": "test"})
+        binder._handle_event({"unique_id": "dev1", "data": "test"})
         mock_post.assert_not_called()
 
 
-def test_handle_post_allowed_when_live(binder, dgb_context):
-    """_handle_post should dispatch when binding cycle is live (per Option B)."""
+def test_handle_event_allowed_when_live(binder, dgb_context):
+    """_handle_event should dispatch when binding cycle is live (per Option B)."""
     # Binding in cycle 1, cycle 1 is now live
     cycle_id = dgb_context.config_cycle.begin_cycle()
     dgb_context.bindings["dev1"] = {"ruleset1"}
@@ -592,7 +592,7 @@ def test_handle_post_allowed_when_live(binder, dgb_context):
     dgb_context.config_cycle.complete_cycle(cycle_id)
 
     with patch("DGB.Binder.post") as mock_post:
-        binder._handle_post({"unique_id": "dev1", "data": "test"})
+        binder._handle_event({"unique_id": "dev1", "data": "test"})
         mock_post.assert_called_once()
 
 

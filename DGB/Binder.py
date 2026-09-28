@@ -32,7 +32,7 @@ from durable.engine import MessageNotHandledException, MessageObservedException
 from durable.lang import get_host, post
 
 from DGB.DGBContext import BinderMessage, DGBContext, DuplicatePolicy
-from DGB.SetStateResolver import SetStateResolver
+from DGB.SetStateResolver import CallArgumentResolver
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -99,7 +99,7 @@ class Binder:
     def __init__(self, dgb_context: DGBContext):
         self.dgb_context = dgb_context
         self.timers = TimerRegistry()
-        self.state_resolver = SetStateResolver()
+        self.state_resolver = CallArgumentResolver()
         self.logger = logging.getLogger("Binder")
 
     # ------------------------------------------------------------------
@@ -173,7 +173,7 @@ class Binder:
             rule_name: Name of the rule
             unique_id: Device/pin unique_id
             call_name: Function name to call
-            args_config: Optional list of {"state_name": "state", "state": "Any|$m.payload"} argument definitions
+            args_config: Optional list of {"name": "parameter", "value": "Any"} argument definitions
         """
         if not isinstance(unique_id, str) or not unique_id:
             raise ValueError(
@@ -182,14 +182,13 @@ class Binder:
         if not isinstance(call_name, str) or not call_name:
             raise ValueError(f"action.call must be non-empty str (rule '{rule_name}')")
 
-        action_fn = self.dgb_context.get_functions(unique_id).get(call_name)
+        action_fn = self.dgb_context.get_calls(unique_id).get(call_name)
         if action_fn is None:
             raise KeyError(
                 f"No action function '{call_name}' for device '{unique_id}' "
                 f"(rule '{rule_name}')"
             )
 
-        # Parse and validate argument definitions
         arg_defs = self.state_resolver.parse_argument_definitions(
             args_config, action_fn
         )
@@ -215,12 +214,8 @@ class Binder:
                 _call,
                 _dev,
             )
-            # Build call arguments from context and coerce types
             call_args = self.state_resolver.build_call_args(_arg_defs, c)
-
             self.logger.debug(f"Calling {_call} with args: {call_args}")
-
-            # Call with resolved arguments
             result = _fn(**call_args)
             c.s.return_value = {"value": True if result is None else bool(result)}
 
@@ -256,8 +251,12 @@ class Binder:
             def callback():
                 base_ruleset = _ruleset.split("$", 1)[0]
                 self.dgb_context.put_to_binder_queue(
-                    "post",
-                    {"timeout": _name, "rulesetname": base_ruleset},
+                    "event",
+                    {
+                        "timeout": _name,
+                        "rulesetname": base_ruleset,
+                        "origin": "timer",
+                    },
                 )
 
             self.timers.start(_name, _delay, callback)
@@ -328,17 +327,17 @@ class Binder:
                 self.logger.info("Dispatcher shutdown requested")
                 break
 
-            if msg.cmd == "post":
-                self._handle_post(msg.payload)
+            if msg.cmd == "event":
+                self._handle_event(msg.payload)
                 self.dgb_context.binder_queue.task_done()
 
             if msg.cmd == "ruleset":
                 self.logger.info("Adding new binding ruleset")
                 self.new_binding(msg.payload)
 
-    def _handle_post(self, payload: dict):
+    def _handle_event(self, payload: dict):
         if "unique_id" not in payload and "rulesetname" not in payload:
-            raise ValueError("post payload requires unique_id or rulesetname")
+            raise ValueError("event payload requires unique_id or rulesetname")
 
         if "unique_id" in payload:
             rulesets = self.dgb_context.get_bindings(payload["unique_id"])

@@ -79,7 +79,14 @@ class Pin_in(Pin):
 
         self.logger.info(f"Pin {self.config.pin} is: {value}")
         self.dgb_context.put_to_binder_queue(
-            "post", {"unique_id": str(self.config.pin), "payload": value}
+            "event",
+            {
+                "unique_id": str(self.config.pin),
+                "kind": "state",
+                "name": "value",
+                "value": value,
+                "origin": "pin",
+            },
         )
 
         self.logger.info(f"pin {self.config.pin} has signal {value}")

@@ -59,12 +59,12 @@ SWITCH_CONFIG = {
             {
                 "unique_id": "rpi4-switch-test",
                 "call": "set_state",
-                "args": [{"state_name": "state", "state": "ON"}],
+                "args": [{"name": "state", "value": "ON"}],
             },
             {
                 "unique_id": "20",
                 "call": "set_state",
-                "args": [{"state_name": "state", "state": "on"}],
+                "args": [{"name": "state", "value": "on"}],
             },
         ]
     },
@@ -78,7 +78,7 @@ SWITCH_CONFIG = {
                                 "m": {
                                     "$and": [
                                         {"unique_id": "rpi4-switch-test"},
-                                        {"payload": "ON"},
+                                        {"value": "ON"},
                                     ]
                                 }
                             }
@@ -91,7 +91,7 @@ SWITCH_CONFIG = {
                                 "m": {
                                     "$and": [
                                         {"unique_id": "rpi4-switch-test"},
-                                        {"payload": "OFF"},
+                                        {"value": "OFF"},
                                     ]
                                 }
                             }
@@ -141,7 +141,7 @@ SENSOR_CONFIG = {
             {
                 "unique_id": "21",
                 "call": "set_state",
-                "args": [{"state_name": "count_total", "state": 42}],
+                "args": [{"name": "count_total", "value": 42}],
             }
         ],
     },
@@ -155,7 +155,7 @@ SENSOR_CONFIG = {
                                 "m": {
                                     "$and": [
                                         {"unique_id": "21"},
-                                        {"$ex": {"payload": 1}},
+                                        {"$ex": {"value": 1}},
                                     ]
                                 }
                             }
@@ -165,10 +165,7 @@ SENSOR_CONFIG = {
                                 "unique_id": "rpi4-sensor-test",
                                 "call": "set_state",
                                 "args": [
-                                    {
-                                        "state_name": "state",
-                                        "state": "$m.payload",
-                                    }
+                                    {"name": "state", "value": {"$ref": "m.value"}}
                                 ],
                             }
                         },

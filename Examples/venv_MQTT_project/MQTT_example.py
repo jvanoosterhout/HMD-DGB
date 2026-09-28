@@ -89,7 +89,7 @@ def main():
                         "m": {
                             "$and": [
                                 {"unique_id": "rpi4-switch-test"},
-                                {"payload": "ON"},
+                                {"value": "ON"},
                             ]
                         }
                     }
@@ -102,7 +102,7 @@ def main():
                         "m": {
                             "$and": [
                                 {"unique_id": "rpi4-switch-test"},
-                                {"payload": "OFF"},
+                                {"value": "OFF"},
                             ]
                         }
                     }
@@ -114,11 +114,11 @@ def main():
     binding_to_sensor = {
         "pin_20_to_sensor_test": {
             "p_on": {
-                "all": [{"m": {"$and": [{"unique_id": "21"}, {"payload": 1}]}}],
+                "all": [{"m": {"$and": [{"unique_id": "21"}, {"value": 1}]}}],
                 "run": {"action": {"unique_id": "rpi4-sensor-test", "call": "on"}},
             },
             "p_off": {
-                "all": [{"m": {"$and": [{"unique_id": "21"}, {"payload": 0}]}}],
+                "all": [{"m": {"$and": [{"unique_id": "21"}, {"value": 0}]}}],
                 "run": {"action": {"unique_id": "rpi4-sensor-test", "call": "off"}},
             },
         }

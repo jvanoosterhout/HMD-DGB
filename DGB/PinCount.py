@@ -111,13 +111,24 @@ class Pin_count(Pin):
         scaled_total = self.count_total / self.config.scaling_factor
 
         self.dgb_context.put_to_binder_queue(
-            "post", {"unique_id": str(self.config.pin), "payload": scaled_total}
+            "event",
+            {
+                "unique_id": str(self.config.pin),
+                "kind": "state",
+                "name": "scaled_total",
+                "value": scaled_total,
+                "origin": "pin",
+            },
         )
-        if self.dgb_context.is_retain_required(str(self.config.pin)):
-            self.dgb_context.publish_state_to_retain(
+        if self.dgb_context.is_call_persisted(str(self.config.pin)):
+            self.dgb_context.persist_call(
                 str(self.config.pin),
                 "set_state",
-                {"args": [{"state_name": "count_total", "state": self.count_total}]},
+                {
+                    "args": [
+                        {"name": "count_total", "value": self.count_total},
+                    ]
+                },
             )
 
     def ProcessPinUpdate(self, config: PinModel) -> bool:
@@ -137,7 +148,13 @@ class Pin_count(Pin):
         )
         return True
 
-    def set_state(self, state_name: str, state: float) -> bool:
+    def set_state(self, **states: float) -> bool:
+        return all(
+            self._set_state_value(state_name, state)
+            for state_name, state in states.items()
+        )
+
+    def _set_state_value(self, state_name: str, state: float) -> bool:
         if state_name not in {"scaled_total", "count_total"}:
             self.logger.warning(
                 "pin %s unsupported state name %r", self.config.pin, state_name

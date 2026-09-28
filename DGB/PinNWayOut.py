@@ -146,7 +146,13 @@ class Pin_N_way_out(Pin):
 
         self.config.active_pin = active_pin
 
-        self.retain_state({"args": [{"state_name": "active_pin", "state": active_pin}]})
+        self.retain_state(
+            {
+                "args": [
+                    {"name": "active_pin", "value": active_pin},
+                ]
+            }
+        )
 
         return True
 
@@ -155,11 +161,23 @@ class Pin_N_way_out(Pin):
             p.off(is_PinNWayOut=True)
         self.pin_device.off()
         self.config.value = 0
-        self.retain_state({"args": [{"state_name": "active_pin", "state": None}]})
+        self.retain_state(
+            {
+                "args": [
+                    {"name": "active_pin", "value": None},
+                ]
+            }
+        )
         self.logger.info("All N Way Out pins turned off")
         return True
 
-    def set_state(self, state_name: str, state: int | str | None) -> bool:
+    def set_state(self, **states: int | str | None) -> bool:
+        return all(
+            self._set_state_value(state_name, state)
+            for state_name, state in states.items()
+        )
+
+    def _set_state_value(self, state_name: str, state: int | str | None) -> bool:
         if state_name not in {"active_pin"}:
             self.logger.warning(
                 "pin %s unsupported state name %r", self.config.pin, state_name
@@ -169,10 +187,8 @@ class Pin_N_way_out(Pin):
         return self.off() if state is None else self.on(active_pin=state)
 
     def retain_state(self, args):
-        if self.dgb_context.is_retain_required(str(self.config.pin)):
-            self.dgb_context.publish_state_to_retain(
-                str(self.config.pin), "set_state", args
-            )
+        if self.dgb_context.is_call_persisted(str(self.config.pin)):
+            self.dgb_context.persist_call(str(self.config.pin), "set_state", args)
 
     def ProcessPinUpdate(self, config: PinModel) -> bool:
         """

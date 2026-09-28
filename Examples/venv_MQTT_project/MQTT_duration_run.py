@@ -80,7 +80,7 @@ def main():
                             "action": {
                                 "unique_id": "20",
                                 "call": "set_state",
-                                "args": [{"state_name": "blink", "state": 60}],
+                                "args": [{"name": "blink", "value": 60}],
                             }
                         },
                     ],
@@ -92,14 +92,12 @@ def main():
     binding_to_sensor = {
         "pin_20_to_sensor_test": {
             "p_on": {
-                "all": [
-                    {"m": {"$and": [{"unique_id": "21"}, {"$ex": {"payload": 1}}]}}
-                ],
+                "all": [{"m": {"$and": [{"unique_id": "21"}, {"$ex": {"value": 1}}]}}],
                 "run": {
                     "action": {
                         "unique_id": "rpi0-sensor-duration-test",
                         "call": "set_state",
-                        "args": [{"state_name": "state", "state": "$m.payload"}],
+                        "args": [{"name": "state", "value": {"$ref": "m.value"}}],
                     }
                 },
             },
@@ -121,7 +119,7 @@ def main():
             }
         ),
     )
-    cmd = "post"
+    cmd = "event"
     payload = {"rulesetname": "auto_increase", "timeout": "timeout1"}
     threading.Timer(3, dgb.dgb_context.put_to_binder_queue, args=(cmd, payload)).start()
 

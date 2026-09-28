@@ -119,11 +119,11 @@ binder.dgb_context.add_object("pw2", pw2)
 binding_to_pin = {
     "s1_to_p2": {
         "p_on": {
-            "all": [{"m": {"$and": [{"unique_id": "s1"}, {"payload": "on"}]}}],
+            "all": [{"m": {"$and": [{"unique_id": "s1"}, {"value": "on"}]}}],
             "run": {"action": {"unique_id": "p1", "call": "on"}},
         },
         "p_off": {
-            "all": [{"m": {"$and": [{"unique_id": "s1"}, {"payload": "off"}]}}],
+            "all": [{"m": {"$and": [{"unique_id": "s1"}, {"value": "off"}]}}],
             "run": {"action": {"unique_id": "p1", "call": "off"}},
         },
     }
@@ -134,15 +134,15 @@ binding_to_pin_with_pw = {
     "s2_to_p1": {
         "p_on": {
             "all": [
-                {"first": {"unique_id": "s2", "payload": "on"}},
-                {"second": {"unique_id": "pw1", "payload": "secret"}},
+                {"first": {"unique_id": "s2", "value": "on"}},
+                {"second": {"unique_id": "pw1", "value": "secret"}},
             ],
             "run": {"action": {"unique_id": "p1", "call": "on"}},
         },
         "p_off": {
             "all": [
-                {"third": {"unique_id": "s2", "payload": "off"}},
-                {"second": {"unique_id": "pw1", "payload": "secret"}},
+                {"third": {"unique_id": "s2", "value": "off"}},
+                {"second": {"unique_id": "pw1", "value": "secret"}},
             ],
             "run": {"action": {"unique_id": "p1", "call": "off"}},
         },
@@ -155,7 +155,7 @@ binding_to_pin_with_pw = {
 binding_auto_off = {
     "delayed_action": {
         "p_on": {
-            "all": [{"m": {"$and": [{"unique_id": "s4"}, {"payload": "on"}]}}],
+            "all": [{"m": {"$and": [{"unique_id": "s4"}, {"value": "on"}]}}],
             "run": [
                 {"timer": {"name": "auto_off", "action": "start", "seconds": 3}},
                 {"action": {"unique_id": "p1", "call": "on"}},
@@ -178,14 +178,14 @@ binding_to_pin_with_pw_with_timeout = {
         "start": {"t_0": {"to": "waiting"}},
         "waiting": {
             "t_s3_on": {
-                "all": [{"m": {"$and": [{"unique_id": "s3"}, {"payload": "on"}]}}],
+                "all": [{"m": {"$and": [{"unique_id": "s3"}, {"value": "on"}]}}],
                 "to": "got_s3_on",
                 "run": {
                     "timer": {"name": "PairTimeout", "action": "start", "seconds": 1}
                 },
             },
             "t_pw_secret": {
-                "all": [{"m": {"$and": [{"unique_id": "pw2"}, {"payload": "secret"}]}}],
+                "all": [{"m": {"$and": [{"unique_id": "pw2"}, {"value": "secret"}]}}],
                 "to": "got_secret",
                 "run": {
                     "timer": {"name": "PairTimeout", "action": "start", "seconds": 1}
@@ -194,7 +194,7 @@ binding_to_pin_with_pw_with_timeout = {
         },
         "got_s3_on": {
             "t_pw_secret": {
-                "all": [{"m": {"$and": [{"unique_id": "pw2"}, {"payload": "secret"}]}}],
+                "all": [{"m": {"$and": [{"unique_id": "pw2"}, {"value": "secret"}]}}],
                 "to": "waiting",
                 "run": [
                     {"timer": {"name": "PairTimeout", "action": "cancel"}},
@@ -209,7 +209,7 @@ binding_to_pin_with_pw_with_timeout = {
         },
         "got_secret": {
             "t_s3_on": {
-                "all": [{"m": {"$and": [{"unique_id": "s3"}, {"payload": "on"}]}}],
+                "all": [{"m": {"$and": [{"unique_id": "s3"}, {"value": "on"}]}}],
                 "to": "waiting",
                 "run": [
                     {"timer": {"name": "PairTimeout", "action": "cancel"}},
@@ -230,28 +230,28 @@ binding_to_pin_with_pw_with_timeout = {
 binding_with_args = {
     "number_to_output": {
         "rule_1": {
-            "all": [{"m": {"$and": [{"unique_id": "s5"}, {"$ex": {"payload": 1}}]}}],
+            "all": [{"m": {"$and": [{"unique_id": "s5"}, {"$ex": {"value": 1}}]}}],
             "run": [
                 {"log": {"msg": "use payload as arguments"}},
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_int",
-                        "args": [{"state_name": "integer", "state": "$m.payload"}],
+                        "args": [{"name": "integer", "value": {"$ref": "m.value"}}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_str",
-                        "args": [{"state_name": "string", "state": "$m.payload"}],
+                        "args": [{"name": "string", "value": {"$ref": "m.value"}}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_bool",
-                        "args": [{"state_name": "boolean", "state": "$m.payload"}],
+                        "args": [{"name": "boolean", "value": {"$ref": "m.value"}}],
                     }
                 },
                 {
@@ -259,7 +259,7 @@ binding_with_args = {
                         "unique_id": "p1",
                         "call": "set_float",
                         "args": [
-                            {"state_name": "floatingpoint", "state": "$m.payload"}
+                            {"name": "floatingpoint", "value": {"$ref": "m.value"}}
                         ],
                     }
                 },
@@ -268,28 +268,28 @@ binding_with_args = {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_int",
-                        "args": [{"state_name": "integer", "state": 42}],
+                        "args": [{"name": "integer", "value": 42}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_str",
-                        "args": [{"state_name": "string", "state": "string"}],
+                        "args": [{"name": "string", "value": "string"}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_bool",
-                        "args": [{"state_name": "boolean", "state": True}],
+                        "args": [{"name": "boolean", "value": True}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_float",
-                        "args": [{"state_name": "floatingpoint", "state": 42.42}],
+                        "args": [{"name": "floatingpoint", "value": 42.42}],
                     }
                 },
                 {"log": {"msg": "use incorrect values as arguments"}},
@@ -297,28 +297,28 @@ binding_with_args = {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_int",
-                        "args": [{"state_name": "integer", "state": "42"}],
+                        "args": [{"name": "integer", "value": "42"}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_str",
-                        "args": [{"state_name": "string", "state": 42}],
+                        "args": [{"name": "string", "value": 42}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_bool",
-                        "args": [{"state_name": "boolean", "state": 1}],
+                        "args": [{"name": "boolean", "value": 1}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
                         "call": "set_float",
-                        "args": [{"state_name": "floatingpoint", "state": "42"}],
+                        "args": [{"name": "floatingpoint", "value": "42"}],
                     }
                 },
             ],
@@ -338,20 +338,79 @@ binder.dgb_context.put_to_binder_queue("ruleset", binding_to_pin_with_pw_with_ti
 binder.dgb_context.put_to_binder_queue("ruleset", binding_with_args)
 
 # post the events
-binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s1", "payload": "on"})
-binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s2", "payload": "on"})
 binder.dgb_context.put_to_binder_queue(
-    "post", {"unique_id": "pw1", "payload": "secret"}
+    "event",
+    {
+        "unique_id": "s1",
+        "kind": "command",
+        "name": "value",
+        "value": "on",
+        "origin": "device",
+    },
 )
-binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s3", "payload": "on"})
 binder.dgb_context.put_to_binder_queue(
-    "post", {"unique_id": "pw2", "payload": "secret"}
+    "event",
+    {
+        "unique_id": "s2",
+        "kind": "command",
+        "name": "value",
+        "value": "on",
+        "origin": "device",
+    },
 )
-binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s4", "payload": "on"})
+binder.dgb_context.put_to_binder_queue(
+    "event",
+    {
+        "unique_id": "pw1",
+        "kind": "command",
+        "name": "value",
+        "value": "secret",
+        "origin": "device",
+    },
+)
+binder.dgb_context.put_to_binder_queue(
+    "event",
+    {
+        "unique_id": "s3",
+        "kind": "command",
+        "name": "value",
+        "value": "on",
+        "origin": "device",
+    },
+)
+binder.dgb_context.put_to_binder_queue(
+    "event",
+    {
+        "unique_id": "pw2",
+        "kind": "command",
+        "name": "value",
+        "value": "secret",
+        "origin": "device",
+    },
+)
+binder.dgb_context.put_to_binder_queue(
+    "event",
+    {
+        "unique_id": "s4",
+        "kind": "command",
+        "name": "value",
+        "value": "on",
+        "origin": "device",
+    },
+)
 
 time.sleep(1)
-binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "1"})
-# binder.dgb_context.put_to_binder_queue("post", {"unique_id": "s5", "payload": "on"})
+binder.dgb_context.put_to_binder_queue(
+    "event",
+    {
+        "unique_id": "s5",
+        "kind": "state",
+        "name": "value",
+        "value": "1",
+        "origin": "pin",
+    },
+)
+# binder.dgb_context.put_to_binder_queue("event", {"unique_id": "s5", "kind": "command", "name": "value", "value": "on", "origin": "device"})
 
 time.sleep(10)
 # shutdown the main binder thread

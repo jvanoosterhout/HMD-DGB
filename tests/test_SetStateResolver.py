@@ -1,6 +1,6 @@
 import pytest
 
-from DGB.SetStateResolver import ArgDefinition, SetStateResolver
+from DGB.SetStateResolver import ArgSpec, CallArgumentResolver
 
 # ---------------------------------------------------------------------------
 # Minimal helpers
@@ -41,7 +41,7 @@ def func_with_union(value: int | str | None) -> None:
 
 @pytest.fixture
 def builder():
-    return SetStateResolver()
+    return CallArgumentResolver()
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ def builder():
 
 def test_parse_literal_argument(builder):
     """Test parsing literal arguments"""
-    args_config = [{"count": 5}]
+    args_config = [{"name": "count", "value": 5}]
     defs = builder.parse_argument_definitions(args_config, func_with_types)
 
     assert len(defs) == 1
@@ -62,7 +62,7 @@ def test_parse_literal_argument(builder):
 
 def test_parse_context_reference_argument(builder):
     """Test parsing context reference arguments"""
-    args_config = [{"payload": "$m.payload"}]
+    args_config = [{"name": "payload", "value": {"$ref": "m.payload"}}]
     defs = builder.parse_argument_definitions(args_config, func_with_types)
 
     assert len(defs) == 1
@@ -259,7 +259,7 @@ def test_parse_argument_definitions_stores_all_union_target_types(builder):
     def func(value: bytes | str | float) -> None:
         pass
 
-    defs = builder.parse_argument_definitions([{"value": 5}], func)
+    defs = builder.parse_argument_definitions([{"name": "value", "value": 5}], func)
 
     assert defs[0].target_types == (bytes, str, float)
 
@@ -267,13 +267,13 @@ def test_parse_argument_definitions_stores_all_union_target_types(builder):
 def test_build_call_args_with_literals(builder):
     """Test building call args with literal values"""
     arg_defs = [
-        ArgDefinition(
+        ArgSpec(
             name="value",
             value=42,
             is_context_ref=False,
             target_types=(int,),
         ),
-        ArgDefinition(
+        ArgSpec(
             name="flag",
             value="true",
             is_context_ref=False,
@@ -291,9 +291,9 @@ def test_build_call_args_with_literals(builder):
 def test_build_call_args_with_context_refs(builder):
     """Test building call args with context references"""
     arg_defs = [
-        ArgDefinition(
+        ArgSpec(
             name="payload",
-            value="$m.payload",
+            value={"$ref": "m.payload"},
             is_context_ref=True,
             context_path="m.payload",
             target_types=(str,),
@@ -313,7 +313,10 @@ def test_build_call_args_with_context_refs(builder):
 
 def test_parse_argument_multiple_keys_parses_all_entries(builder):
     """A single dict may define multiple arguments."""
-    args_config = [{"a": 1, "b": 2}]
+    args_config = [
+        {"name": "a", "value": 1},
+        {"name": "b", "value": 2},
+    ]
     defs = builder.parse_argument_definitions(args_config, func_with_types)
     assert [d.name for d in defs] == ["a", "b"]
     assert [d.value for d in defs] == [1, 2]
@@ -322,7 +325,7 @@ def test_parse_argument_multiple_keys_parses_all_entries(builder):
 def test_parse_argument_empty_dict_raises_value_error(builder):
     """Test parsing an empty arg dict raises ValueError"""
     args_config = [{}]
-    with pytest.raises(ValueError, match="at least one"):
+    with pytest.raises(ValueError, match="exactly 'name' and 'value'"):
         builder.parse_argument_definitions(args_config, func_with_types)
 
 
@@ -334,8 +337,8 @@ def test_parse_argument_non_dict_config_raises_type_error(builder):
 
 def test_parse_argument_empty_name_raises_value_error(builder):
     """Test parsing argument with empty key raises ValueError"""
-    args_config = [{"": 5}]
-    with pytest.raises(ValueError, match="empty key"):
+    args_config = [{"name": "", "value": 5}]
+    with pytest.raises(ValueError, match="non-empty"):
         builder.parse_argument_definitions(args_config, func_with_types)
 
 

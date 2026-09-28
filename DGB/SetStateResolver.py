@@ -25,7 +25,7 @@ from typing import Any, Union, get_args, get_origin, get_type_hints
 
 
 @dataclass
-class ArgDefinition:
+class ArgSpec:
     """Single function argument with optional context reference and type coercion info."""
 
     name: str
@@ -36,10 +36,8 @@ class ArgDefinition:
     accepts_none: bool = False  # True if type is Optional or Union with None
 
 
-class SetStateResolver:
-    """Parses, resolves, and coerces arguments for function calls from config and durable.lang context paths."""
-
-    CONTEXT_REF_PREFIX = "$"
+class CallArgumentResolver:
+    """Parse, resolve, and coerce arguments for registered calls."""
 
     def __init__(self) -> None:
         """Initialize resolver with logger."""
@@ -77,19 +75,21 @@ class SetStateResolver:
 
     def parse_argument_definitions(
         self,
-        args_config: list[dict[str, Any]] | None,
+        args_config: list[dict[str, Any]] | dict[str, Any] | None,
         function: Callable,
-    ) -> list[ArgDefinition] | None:
+    ) -> list[ArgSpec]:
         """Parse argument configs and match to function signature via type hints.
 
         Args:
-            args_config: List of {param_name: value_or_context_ref} dicts.
+            args_config: List of {"name": name, "value": value} argument objects,
+                or one such object without the surrounding list.
             function: Target function for type hint extraction.
 
         Returns:
-            List of ArgDefinition objects.
+            List of ArgSpec objects.
         """
-        if not args_config:
+        normalized_args = self.normalize_argument_definitions(args_config)
+        if not normalized_args:
             return []
 
         # Get function signature type hints
@@ -100,47 +100,67 @@ class SetStateResolver:
             hints = {}
 
         arg_defs = []
+        for arg_config in normalized_args:
+            name = arg_config["name"]
+            value = arg_config["value"]
+            is_context_ref = isinstance(value, dict) and "$ref" in value
+            context_path = value["$ref"] if is_context_ref else None
+
+            # Get target type from function hints
+            annotation = hints.get(name)
+            target_types, accepts_none = self._extract_non_none_types(annotation)
+
+            arg_spec = ArgSpec(
+                name=name,
+                value=value,
+                is_context_ref=is_context_ref,
+                context_path=context_path,
+                target_types=target_types,
+                accepts_none=accepts_none,
+            )
+            arg_defs.append(arg_spec)
+
+            self.logger.debug(
+                f"Parsed arg '{name}': context_ref={is_context_ref}, "
+                f"path={context_path}, target_types={target_types}"
+            )
+
+        return arg_defs
+
+    def normalize_argument_definitions(
+        self,
+        args_config: list[dict[str, Any]] | dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        """Normalize one or more call arguments to the canonical list shape."""
+        if args_config is None:
+            return []
+        if isinstance(args_config, dict):
+            self.logger.debug("Normalizing one call argument to a list")
+            args_config = [args_config]
+        if not isinstance(args_config, list):
+            raise TypeError("args must be a list or one argument dict")
+
+        normalized: list[dict[str, Any]] = []
         for arg_config in args_config:
             if not isinstance(arg_config, dict):
                 raise TypeError(f"Argument config must be a dict: {arg_config!r}")
-            if not arg_config:
+            if set(arg_config) != {"name", "value"}:
                 raise ValueError(
-                    f"Argument config must contain at least one key-value pair: {arg_config}"
+                    "Each argument must contain exactly 'name' and 'value'"
                 )
-
-            for name, value in arg_config.items():
-                if not name:
-                    raise ValueError(f"Argument has empty key: {arg_config}")
-
-                # Check if this is a context reference
-                is_context_ref = isinstance(value, str) and value.startswith(
-                    self.CONTEXT_REF_PREFIX
-                )
-                context_path = None
-
-                if is_context_ref:
-                    context_path = value[len(self.CONTEXT_REF_PREFIX) :]
-
-                # Get target type from function hints
-                annotation = hints.get(name)
-                target_types, accepts_none = self._extract_non_none_types(annotation)
-
-                arg_def = ArgDefinition(
-                    name=name,
-                    value=value,
-                    is_context_ref=is_context_ref,
-                    context_path=context_path,
-                    target_types=target_types,
-                    accepts_none=accepts_none,
-                )
-                arg_defs.append(arg_def)
-
-                self.logger.debug(
-                    f"Parsed arg '{name}': context_ref={is_context_ref}, "
-                    f"path={context_path}, target_types={target_types}"
-                )
-
-        return arg_defs
+            name = arg_config["name"]
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("Argument name must be a non-empty string")
+            value = arg_config["value"]
+            if isinstance(value, dict) and "$ref" in value:
+                if set(value) != {"$ref"} or not isinstance(value["$ref"], str):
+                    raise ValueError(
+                        "Argument $ref must contain one non-empty string path"
+                    )
+                if not value["$ref"].strip():
+                    raise ValueError("Argument $ref path must be non-empty")
+            normalized.append({"name": name, "value": value})
+        return normalized
 
     def coerce_value(
         self,
@@ -244,7 +264,7 @@ class SetStateResolver:
         """Resolve value from confg or durable.lang context using dot notation path.
 
         Args:
-            context_path: Dot-separated path (e.g., "m.payload").
+            context_path: Dot-separated path (e.g., "m.value").
             c: Durable.lang context object.
 
         Returns:
@@ -306,7 +326,7 @@ class SetStateResolver:
 
     def build_call_args(
         self,
-        arg_defs: list[ArgDefinition],
+        arg_defs: list[ArgSpec],
         c: Any,
     ) -> dict[str, Any] | None:
         """Resolve config/context references and coerce all arguments for function call.

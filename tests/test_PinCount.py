@@ -78,7 +78,14 @@ def test_pincount_callback_posts_scaled_total():
     pin.calback()
 
     dgb_context.put_to_binder_queue.assert_called_once_with(
-        "post", {"unique_id": "5", "payload": 0.1}
+        "event",
+        {
+            "unique_id": "5",
+            "kind": "state",
+            "name": "scaled_total",
+            "value": 0.1,
+            "origin": "pin",
+        },
     )
 
 
@@ -96,5 +103,5 @@ def test_pincount_set_state_restores_scaled_total():
 
     pin = Pin_count(config=config, dgb_context=dgb_context)
 
-    assert pin.set_state("scaled_total", 1.5) is True
+    assert pin.set_state(scaled_total=1.5) is True
     assert pin.count_total == 15

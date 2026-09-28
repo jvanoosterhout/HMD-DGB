@@ -136,8 +136,19 @@ class DeviceKeeper:
         return False
 
     def _record_state_if_required(self, unique_id: str, args: dict[str, list]) -> None:
-        if self.dgb_context.is_retain_required(unique_id):
-            self.dgb_context.publish_state_to_retain(unique_id, "set_state", args)
+        if self.dgb_context.is_call_persisted(unique_id):
+            self.dgb_context.persist_call(unique_id, "set_state", args)
+
+    def _build_named_state_call(self, setter, dst: bool):
+        def set_state(**states):
+            if not states:
+                return False
+            return all(
+                setter(state_name, state, dst=dst)
+                for state_name, state in states.items()
+            )
+
+        return set_state
 
     def _set_cover_state(
         self, device: Discoverable, state_name: str, state: str, dst: bool = True
@@ -163,7 +174,7 @@ class DeviceKeeper:
             )
             return False
 
-        args = {"args": [{"state_name": state_name, "state": state}]}
+        args = {"args": [{"name": state_name, "value": state}]}
         self._record_state_if_required(unique_id, args)
         return True
 
@@ -202,7 +213,7 @@ class DeviceKeeper:
             if dst:
                 device.position(state)
 
-        args = {"args": [{"state_name": state_name, "state": state}]}
+        args = {"args": [{"name": state_name, "value": state}]}
         self._record_state_if_required(unique_id, args)
         return True
 
@@ -227,7 +238,7 @@ class DeviceKeeper:
             )
             return False
 
-        args = {"args": [{"state_name": state_name, "state": state}]}
+        args = {"args": [{"name": state_name, "value": state}]}
         self._record_state_if_required(unique_id, args)
         return True
 
@@ -243,7 +254,7 @@ class DeviceKeeper:
         if dst:
             device.set_text(state)
 
-        args = {"args": [{"state_name": state_name, "state": state}]}
+        args = {"args": [{"name": state_name, "value": state}]}
         self._record_state_if_required(unique_id, args)
         return True
 
@@ -259,7 +270,7 @@ class DeviceKeeper:
         if dst:
             device.set_value(state)
 
-        args = {"args": [{"state_name": state_name, "state": state}]}
+        args = {"args": [{"name": state_name, "value": state}]}
         self._record_state_if_required(unique_id, args)
         return True
 
@@ -275,7 +286,7 @@ class DeviceKeeper:
         if dst:
             device.select_option(state)
 
-        args = {"args": [{"state_name": state_name, "state": state}]}
+        args = {"args": [{"name": state_name, "value": state}]}
         self._record_state_if_required(unique_id, args)
         return True
 
@@ -284,6 +295,7 @@ class DeviceKeeper:
         device: Discoverable,
         state_name: str,
         state: bytes | str | float,
+        dst: bool = True,
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -293,7 +305,7 @@ class DeviceKeeper:
             return False
         device.set_state(state)
 
-        args = {"args": [{"state_name": state_name, "state": state}]}
+        args = {"args": [{"name": state_name, "value": state}]}
         self._record_state_if_required(unique_id, args)
         return True
 
@@ -302,6 +314,7 @@ class DeviceKeeper:
         device: Discoverable,
         state_name: str,
         state: bool | int | str,
+        dst: bool = True,
     ) -> bool:
         unique_id = str(device._entity.unique_id)
         if state_name != "state":
@@ -320,7 +333,7 @@ class DeviceKeeper:
             )
             return False
 
-        args = {"args": [{"state_name": state_name, "state": state}]}
+        args = {"args": [{"name": state_name, "value": state}]}
         self._record_state_if_required(unique_id, args)
         return True
 
@@ -336,7 +349,9 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=cover_info)
         callback = build_callback(cover_info, self.dgb_context, dst)
         device = sensors.Cover(settings, callback)
-        set_state = partial(self._set_cover_state, device)
+        set_state = self._build_named_state_call(
+            partial(self._set_cover_state, device), dst
+        )
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -363,7 +378,9 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=valve_info)
         callback = build_callback(valve_info, self.dgb_context, dst)
         device = sensors.Valve(settings, callback)
-        set_state = partial(self._set_valve_state, device)
+        set_state = self._build_named_state_call(
+            partial(self._set_valve_state, device), dst
+        )
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -384,7 +401,9 @@ class DeviceKeeper:
         sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=sensor_info)
         device = sensors.Sensor(settings)
-        set_state = partial(self._set_sensor_state, device)
+        set_state = self._build_named_state_call(
+            partial(self._set_sensor_state, device), True
+        )
         self.dgb_context.add_object(
             str(device._entity.unique_id), device, {"set_state": set_state}
         )
@@ -395,7 +414,9 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=switch_info)
         callback = build_callback(switch_info, self.dgb_context, dst)
         device = sensors.Switch(settings, callback)
-        set_state = partial(self._set_switch_state, device)
+        set_state = self._build_named_state_call(
+            partial(self._set_switch_state, device), dst
+        )
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
@@ -418,7 +439,9 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=text_info)
         callback = build_callback(text_info, self.dgb_context, dst)
         device = sensors.Text(settings, callback)
-        set_state = partial(self._set_text_state, device)
+        set_state = self._build_named_state_call(
+            partial(self._set_text_state, device), dst
+        )
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -435,7 +458,9 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=number_info)
         callback = build_callback(number_info, self.dgb_context, dst)
         device = sensors.Number(settings, callback)
-        set_state = partial(self._set_number_state, device)
+        set_state = self._build_named_state_call(
+            partial(self._set_number_state, device), dst
+        )
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -452,7 +477,9 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=select_info)
         callback = build_callback(select_info, self.dgb_context, dst)
         device = sensors.Select(settings, callback)
-        set_state = partial(self._set_select_state, device)
+        set_state = self._build_named_state_call(
+            partial(self._set_select_state, device), dst
+        )
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -468,7 +495,9 @@ class DeviceKeeper:
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
         device = sensors.BinarySensor(settings)
-        set_state = partial(self._set_binary_sensor_state, device)
+        set_state = self._build_named_state_call(
+            partial(self._set_binary_sensor_state, device), True
+        )
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
@@ -499,19 +528,22 @@ def build_callback(
     logger = logging.getLogger("DeviceKeeper")
 
     def callback(client: Client, user_data, message: MQTTMessage):
-        payload = message.payload.decode()
+        value = message.payload.decode()
         logger.info(
-            f"Device of type '{entity.component}' with unique_id '{entity.unique_id}' commanded: {payload}"
+            f"Device of type '{entity.component}' with unique_id '{entity.unique_id}' commanded: {value}"
         )
         dgb_context.put_to_binder_queue(
-            "post", {"unique_id": entity.unique_id, "payload": payload}
+            "event",
+            {
+                "unique_id": entity.unique_id,
+                "kind": "command",
+                "name": "value",
+                "value": value,
+                "origin": "device",
+            },
         )
-        state_transition = dgb_context.get_functions(str(entity.unique_id)).get(
-            "set_state"
-        )
+        state_transition = dgb_context.get_calls(str(entity.unique_id)).get("set_state")
         if callable(state_transition):
-            state_transition(
-                "state", payload, dst=dst
-            )  # works for now, though hacky for valve with positions.
+            state_transition(state=value, dst=dst)
 
     return callback

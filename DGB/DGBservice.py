@@ -32,7 +32,7 @@ from DGB.DeviceKeeper import DeviceKeeper
 from DGB.DGBContext import DGBContext
 from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import PinModel
-from DGB.SetStateResolver import SetStateResolver
+from DGB.SetStateResolver import CallArgumentResolver
 from DGB.StartupPolicy import ErrorStatePolicy, RuntimePhase
 from DGB.StartupStateCoordinator import StartupStateCoordinator
 from DGB.SystemDevices import SystemDevices
@@ -57,7 +57,7 @@ class DGBservice:
         self.username = username
         self.password = password
         self.system_sensor_update_rate = system_sensor_update_rate
-        self.state_resolver = SetStateResolver()
+        self.state_resolver = CallArgumentResolver()
 
         self._temp_subscription_lock = threading.Lock()
         self._temp_subscription_active = False
@@ -77,12 +77,12 @@ class DGBservice:
         # MQTT
         self.config_topic = topic or f"config/{self.name}/devices/"
         self.startup_policy_topic = topic or f"config/{self.name}/startup-policy"
-        self.state_retain_topic_prefix = f"config/{self.name}/states/"
+        self.retained_calls_topic_prefix = f"config/{self.name}/retained-calls/"
         self.client: mqtt.Client = self._create_mqtt_client()
         self.mqtt_settings = Settings.MQTT(client=self.client)
 
-        self.dgb_context.configure_retained_state_publishing(
-            prefix=self.state_retain_topic_prefix,
+        self.dgb_context.configure_retained_calls_publishing(
+            prefix=self.retained_calls_topic_prefix,
             publish_fn=self.client.publish,
         )
         # Core context
@@ -94,7 +94,7 @@ class DGBservice:
         self.startup_state = StartupStateCoordinator(
             dgb_context=self.dgb_context,
             state_resolver=self.state_resolver,
-            state_retain_topic_prefix=self.state_retain_topic_prefix,
+            retained_calls_topic_prefix=self.retained_calls_topic_prefix,
         )
 
         # System devices (platform + app) - create before DeviceKeeper
@@ -131,7 +131,7 @@ class DGBservice:
         while self._temp_subscription_active:
             time.sleep(0.5)
         self.handle_temp_subscription(
-            f"{self.state_retain_topic_prefix}#", quiet_seconds=1
+            f"{self.retained_calls_topic_prefix}#", quiet_seconds=1
         )
         while self._temp_subscription_active:
             time.sleep(0.5)
@@ -269,8 +269,8 @@ class DGBservice:
             self.logger.error(f"Line: {e.lineno}, column: {e.colno}, char: {e.pos}")
             return
 
-        if self.startup_state.is_retained_state_topic(msg.topic):
-            self.startup_state.handle_retained_state_message(payload, msg.topic)
+        if self.startup_state.is_retained_calls_topic(msg.topic):
+            self.startup_state.handle_retained_call_message(payload, msg.topic)
             return
 
         if self.startup_policy_topic in msg.topic:

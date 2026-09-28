@@ -226,7 +226,7 @@ class DGBContext:
             dgb_object.preset_state[call_name] = args
 
     # ------------------------------------------------------------------
-    # Phase 1 record preload mqtt retained values
+    # StartupPhase.COLLECT: Preload retained calls from MQTT
     # ------------------------------------------------------------------
 
     def record_retained_state(
@@ -247,7 +247,7 @@ class DGBContext:
             dgb_object.retained_state[call_name] = args
 
     # ------------------------------------------------------------------
-    # Phase 2 record retain needs from config
+    # StartupPhase.DECLARE: Record persisted call requirements from config
     # ------------------------------------------------------------------
 
     def record_retained_state_need(
@@ -267,7 +267,7 @@ class DGBContext:
                 dgb_object.retain_required.append(state_name)
 
     # ------------------------------------------------------------------
-    # Phase 5 retain state on mqtt topic
+    # StartupPhase.RESOLVE_AND_SEED: Persist resolved calls to MQTT
     # ------------------------------------------------------------------
 
     def is_retain_required(self, unique_id: str) -> bool:

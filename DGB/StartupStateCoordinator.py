@@ -13,7 +13,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-#    Startup-state initialization helpers for DGBservice.
+#    Startup-state coordination and initialization for DGBservice.
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from DGB.DGBContext import DGBContext
 from DGB.SetStateResolver import SetStateResolver
 
 
-class StartupStateInitializer:
+class StartupStateCoordinator:
     """Collect and apply retained and preset startup states for DGB objects."""
 
     def __init__(
@@ -42,12 +42,12 @@ class StartupStateInitializer:
             state_retain_topic_prefix: Topic prefix used for retained state messages.
         """
         self.dgb_context = dgb_context
-        self.logger = logging.getLogger("StartupStateInitializer")
+        self.logger = logging.getLogger("StartupStateCoordinator")
         self.state_resolver = state_resolver
         self.retained_state_topic_prefix = state_retain_topic_prefix.rstrip("/") + "/"
 
     # ------------------------------------------------------------------
-    # 1.1) Preload Values from MQTT: helpers
+    # StartupPhase.COLLECT: Preload retained calls from MQTT (helpers)
     # ------------------------------------------------------------------
 
     def is_retained_state_topic(self, topic: str) -> bool:
@@ -98,7 +98,7 @@ class StartupStateInitializer:
         return parsed_topic[1] if parsed_topic else ""
 
     # ------------------------------------------------------------------
-    # 1.2)Preload Values from MQTT: message handling
+    # StartupPhase.COLLECT: Preload retained calls from MQTT (message handling)
     # ------------------------------------------------------------------
 
     def handle_retained_state_message(self, payload: Any, topic: str) -> None:
@@ -140,7 +140,7 @@ class StartupStateInitializer:
         )
 
     # ------------------------------------------------------------------
-    # phase 4.1: record retained state needs
+    # StartupPhase.DECLARE: Register persisted calls from config
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -193,8 +193,8 @@ class StartupStateInitializer:
 
         return self._validate_set_state_args(payload)
 
-    def register_retained_state_need(self, raw_startup_policy: dict) -> None:
-        """Register the retained state calls requested by startup policy configuration.
+    def declare_persisted_calls(self, raw_startup_policy: dict) -> None:
+        """Register persisted call names from startup policy configuration.
 
         Args:
             raw_startup_policy: State initialization configuration containing retain_state entries.
@@ -259,14 +259,14 @@ class StartupStateInitializer:
         return raw_dict
 
     # ------------------------------------------------------------------
-    # phase 4.2: record preset states
+    # StartupPhase.DECLARE: Register preset calls from config
     # ------------------------------------------------------------------
 
-    def register_preset_states(self, raw_sources: dict) -> None:
-        """Validate and register preset set_state values from startup configuration.
+    def register_preset_calls(self, raw_sources: dict) -> None:
+        """Validate and register preset calls from startup configuration.
 
         Args:
-            raw_sources: State initialization configuration containing preset_value key and entries structured like:
+            raw_sources: State initialization configuration containing preset_value key and entries. structured like:
              "unique_id": "id", "call": "set_state", "args": [{"state_name": "state", "state": "Any"}]}
         """
         raw_list = self.get_list(raw_sources, "preset_value")
@@ -291,7 +291,7 @@ class StartupStateInitializer:
             )
 
     # ------------------------------------------------------------------
-    # Phase 5: apply preset and retained states
+    # StartupPhase.RESOLVE_AND_SEED: Merge and seed calls to objects
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -316,8 +316,8 @@ class StartupStateInitializer:
                 merged_state[call_name] = args
         return merged_state
 
-    def apply_startup_states(self) -> None:
-        """Apply preset states and matching retained states to every registered object."""
+    def resolve_and_seed_startup_calls(self) -> None:
+        """Merge preset and retained calls, then apply to every registered object."""
         for dgb_object in self.dgb_context.DGB_objects.values():
             unique_id = dgb_object.unique_id
             state_dict = self._merge_startup_states(
@@ -339,11 +339,9 @@ class StartupStateInitializer:
                     state_dict[call_name],
                 )
             if state_dict:
-                self._apply_startup_state(
-                    unique_id=unique_id, state_dict=dict(state_dict)
-                )
+                self._seed_call(unique_id=unique_id, state_dict=dict(state_dict))
 
-    def _apply_startup_state(
+    def _seed_call(
         self,
         unique_id: str,
         state_dict: dict[str, Any],
@@ -373,13 +371,13 @@ class StartupStateInitializer:
             return False
 
         for call_name, args in state_dict.items():
-            if self._apply_startup_call(
+            if self._seed_single_call(
                 unique_id, call_name, args, functions.get(call_name)
             ):
                 return True
         return False
 
-    def _apply_startup_call(
+    def _seed_single_call(
         self,
         unique_id: str,
         call_name: str,

@@ -4,13 +4,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from DGB.SetStateResolver import SetStateResolver
-from DGB.StartupStateInitializer import StartupStateInitializer
+from DGB.StartupStateCoordinator import StartupStateCoordinator
 
 
 @pytest.fixture
 def startup_initializer():
     """Create an initializer with isolated context and MQTT dependencies."""
-    return StartupStateInitializer(
+    return StartupStateCoordinator(
         dgb_context=MagicMock(),
         state_resolver=SetStateResolver(),
         state_retain_topic_prefix="state/test/",
@@ -134,11 +134,11 @@ def test_startup_configuration_bucket_helpers(startup_initializer):
 
 
 def test_startup_configuration_registration(startup_initializer):
-    """Retained requirements and preset values are recorded in the context."""
-    startup_initializer.register_retained_state_need(
+    """Persisted calls and preset values are recorded in the context."""
+    startup_initializer.declare_persisted_calls(
         {"retain_state": {"unique_id": "device", "call": ["set_state"]}}
     )
-    startup_initializer.register_preset_states(
+    startup_initializer.register_preset_calls(
         {
             "preset_value": {
                 "unique_id": "device",
@@ -169,19 +169,19 @@ def test_startup_configuration_registration_rejects_invalid_values(
 ):
     """Startup registration rejects malformed entries and call names."""
     with pytest.raises((TypeError, ValueError)):
-        startup_initializer.register_retained_state_need(registration)
+        startup_initializer.declare_persisted_calls(registration)
 
 
 def test_startup_preset_registration_rejects_invalid_entries(startup_initializer):
     """Preset registration rejects malformed entries and unsupported calls."""
     with pytest.raises(TypeError):
-        startup_initializer.register_preset_states({"preset_value": ["invalid"]})
+        startup_initializer.register_preset_calls({"preset_value": ["invalid"]})
     with pytest.raises(ValueError, match="unique_id"):
-        startup_initializer.register_preset_states(
+        startup_initializer.register_preset_calls(
             {"preset_value": {"call": "set_state", "args": []}}
         )
     with pytest.raises(ValueError, match="set_state"):
-        startup_initializer.register_preset_states(
+        startup_initializer.register_preset_calls(
             {
                 "preset_value": {
                     "unique_id": "device",
@@ -199,7 +199,7 @@ def test_startup_state_merge_prefers_required_retained_values():
         "set_state": {"args": [{"state_name": "state", "state": "on"}]},
         "turn_on": {"args": []},
     }
-    merged = StartupStateInitializer._merge_startup_states(
+    merged = StartupStateCoordinator._merge_startup_states(
         preset, retained, ["set_state"]
     )
     assert merged["set_state"] == retained["set_state"]
@@ -212,7 +212,7 @@ def test_startup_state_application_calls_registered_function(startup_initializer
     function = MagicMock()
     startup_initializer.dgb_context.get_functions.return_value = {"set_state": function}
     state = {"set_state": {"args": [{"state_name": "state", "state": "on"}]}}
-    assert startup_initializer._apply_startup_state("device", state) is True
+    assert startup_initializer._seed_call("device", state) is True
     function.assert_called_once_with(state_name="state", state="on")
 
 
@@ -222,7 +222,7 @@ def test_startup_state_application_ignores_missing_function(startup_initializer)
         "set_state": MagicMock()
     }
     assert (
-        startup_initializer._apply_startup_call("device", "missing", {"args": []}, None)
+        startup_initializer._seed_single_call("device", "missing", {"args": []}, None)
         is False
     )
 
@@ -231,22 +231,20 @@ def test_startup_state_application_ignores_non_dict_arguments(startup_initialize
     """A startup call with a non-dictionary payload is ignored and reports false."""
     function = MagicMock()
     assert (
-        startup_initializer._apply_startup_call("device", "set_state", [], function)
+        startup_initializer._seed_single_call("device", "set_state", [], function)
         is False
     )
     function.assert_not_called()
 
 
 def test_startup_state_application_ignores_missing_functions(startup_initializer):
-    """State application is ignored when the object has no registered functions."""
+    """State seeding is ignored when the object has no registered functions."""
     startup_initializer.dgb_context.get_functions.return_value = {}
-    assert (
-        startup_initializer._apply_startup_state("device", {"set_state": {}}) is False
-    )
+    assert startup_initializer._seed_call("device", {"set_state": {}}) is False
 
 
 def test_apply_startup_states_merges_and_applies_object_states(startup_initializer):
-    """Public application merges object state and delegates it to the helper."""
+    """Startup state resolution merges object state and delegates seeding to helper."""
     dgb_object = SimpleNamespace(
         unique_id="device",
         preset_state={"set_state": {"args": [{"state_name": "state", "state": "off"}]}},
@@ -256,8 +254,8 @@ def test_apply_startup_states_merges_and_applies_object_states(startup_initializ
         retain_required=["set_state"],
     )
     startup_initializer.dgb_context.DGB_objects = {"device": dgb_object}
-    with patch.object(startup_initializer, "_apply_startup_state") as apply:
-        startup_initializer.apply_startup_states()
+    with patch.object(startup_initializer, "_seed_call") as apply:
+        startup_initializer.resolve_and_seed_startup_calls()
     apply.assert_called_once_with(
         unique_id="device",
         state_dict={"set_state": {"args": [{"state_name": "state", "state": "on"}]}},

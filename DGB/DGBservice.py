@@ -34,7 +34,7 @@ from DGB.PinKeeper import PinKeeper
 from DGB.PinModels import PinModel
 from DGB.SetStateResolver import SetStateResolver
 from DGB.StartupPolicy import ErrorStatePolicy, RuntimePhase
-from DGB.StartupStateInitializer import StartupStateInitializer
+from DGB.StartupStateCoordinator import StartupStateCoordinator
 from DGB.SystemDevices import SystemDevices
 
 
@@ -91,7 +91,7 @@ class DGBservice:
         self.devicekeeper = DeviceKeeper(
             self.mqtt_settings, dgb_context=self.dgb_context
         )
-        self.startup_state = StartupStateInitializer(
+        self.startup_state = StartupStateCoordinator(
             dgb_context=self.dgb_context,
             state_resolver=self.state_resolver,
             state_retain_topic_prefix=self.state_retain_topic_prefix,
@@ -126,9 +126,7 @@ class DGBservice:
     def start(self) -> None:
         self.logger.info("Starting runtime")
 
-        # start phase 1: preload
-        # self.startup_state.handle_subscription_to_retained_state_topic()
-
+        # StartupPhase.COLLECT: Preload retained calls from MQTT
         self.handle_temp_subscription(self.startup_policy_topic)
         while self._temp_subscription_active:
             time.sleep(0.5)
@@ -137,7 +135,7 @@ class DGBservice:
         )
         while self._temp_subscription_active:
             time.sleep(0.5)
-        # state phase 2-5: config-create-apply-live
+        # RuntimePhase.CREATE -> APPLY -> LIVE (state config flow)
         self.binder.start_event_dispatcher()
         self.config_thread.start()
         self.client.loop_start()
@@ -327,11 +325,11 @@ class DGBservice:
         )
         return False
 
-    # phase 2 - 5
+    # Phases: RuntimePhase.CREATE -> APPLY -> LIVE
     def _run_config_apply_cycle(
         self, payload: dict, source_topic: str | None = None
     ) -> None:
-        # Phase 2: configure startup policy and confic checks
+        # Parse startup policy and validate config payload
         # Idempotency check: skip if this exact payload was already applied.
         payload_hash = self.dgb_context.config_cycle.compute_payload_hash(payload)
         if self.dgb_context.config_cycle.payload_already_applied(payload_hash):
@@ -339,10 +337,10 @@ class DGBservice:
             return
         self.dgb_context.config_cycle.record_payload_hash(payload_hash)
 
-        # Phase 3: creating phase
+        # RuntimePhase.CREATE: Configure devices, pins, bindings
         try:
             cycle_id = self.dgb_context.config_cycle.begin_cycle()
-            self.logger.info("Config cycle %s entered creation phase", cycle_id)
+            self.logger.info("Config cycle %s entered RuntimePhase.CREATE", cycle_id)
             self._handle_devices(payload)
             self._handle_pins(payload)
             self._handle_bindings(payload)
@@ -350,40 +348,40 @@ class DGBservice:
             self.dgb_context.config_cycle.set_phase(RuntimePhase.ERROR)
             self._blocked_config_topic = source_topic
             self.logger.exception(
-                "Config cycle %s failed at create phase; runtime phase set to error",
+                "Config cycle %s failed at RuntimePhase.CREATE; error phase set",
                 cycle_id,
             )
             self._handle_blocked_cycle()
             return
 
-        # phase 4: record retained state needs and preset state values
+        # StartupPhase.DECLARE: Register persisted and preset calls from config
         if "state_initialization" in payload:
             state_initialization = self.startup_state.get_dict(
                 payload, "state_initialization"
             )
-            self.startup_state.register_retained_state_need(state_initialization)
-            self.startup_state.register_preset_states(state_initialization)
+            self.startup_state.declare_persisted_calls(state_initialization)
+            self.startup_state.register_preset_calls(state_initialization)
 
-        # Phase 5: apply preset and retained values
+        # RuntimePhase.APPLY: Resolve and seed startup calls to objects
         try:
             self.dgb_context.config_cycle.set_phase(RuntimePhase.APPLY)
-            self.logger.info("Config cycle %s entered apply phase", cycle_id)
-            self.startup_state.apply_startup_states()
+            self.logger.info("Config cycle %s entered RuntimePhase.APPLY", cycle_id)
+            self.startup_state.resolve_and_seed_startup_calls()
         except Exception:
             self.dgb_context.config_cycle.set_phase(RuntimePhase.ERROR)
             self._blocked_config_topic = source_topic
             self.logger.exception(
-                "Config cycle %s failed at apply phase; runtime phase set to error",
+                "Config cycle %s failed at RuntimePhase.APPLY; error phase set",
                 cycle_id,
             )
             self._handle_blocked_cycle()
             return
 
-        # Phase 5: Transition to live (and trigger initial values to flow though bindings).
+        # RuntimePhase.LIVE: Config cycle complete; bindings now dispatch events
         self.dgb_context.config_cycle.set_phase(RuntimePhase.LIVE)
         self.dgb_context.config_cycle.complete_cycle(cycle_id)
         self._blocked_config_topic = None
-        self.logger.info("Config cycle %s entered live phase", cycle_id)
+        self.logger.info("Config cycle %s entered RuntimePhase.LIVE", cycle_id)
 
     def _handle_blocked_cycle(self) -> None:
         """Perform recovery required by the failed cycle's error-state policy."""

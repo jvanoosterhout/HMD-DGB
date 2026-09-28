@@ -43,7 +43,7 @@ class LoadingMode(str, Enum):
 class RuntimePhase(str, Enum):
     """Defines a configuration cycle lifecycle phase."""
 
-    CREATION = "creation"
+    CREATE = "creation"
     APPLY = "apply"
     LIVE = "live"
     ERROR = "error"
@@ -56,6 +56,18 @@ class ErrorStatePolicy(str, Enum):
     BLOCK = "block"
     CLEAR_AFFECTED_CONFIG_AND_RESTART = "clear_affected_config_and_restart"
     REMOVE_AFFECTED_DEVICE_AND_BINDING = "remove_affected_device_and_binding"
+
+
+class StartupPhase(str, Enum):
+    """Defines sub-phases within startup state coordination (reserved for future propagation)."""
+
+    COLLECT = "collect"  # Preload retained calls from MQTT
+    DECLARE = "declare"  # Register preset and persisted calls from config
+    RESOLVE_AND_SEED = "resolve_and_seed"  # Apply merged calls to objects
+    PROPAGATE = (
+        "propagate"  # (Not yet implemented) Post synthetic events through bindings
+    )
+    PERSIST = "persist"  # (Not yet implemented) Write canonical calls to state store
 
 
 _DEFAULT_LOADING_MODE = LoadingMode.GATED
@@ -108,7 +120,7 @@ class ConfigCycleState:
         """
         with self._lock:
             self._cycle_id += 1
-            self._runtime_phase = RuntimePhase.CREATION
+            self._runtime_phase = RuntimePhase.CREATE
             return self._cycle_id
 
     def set_phase(self, phase: RuntimePhase) -> None:

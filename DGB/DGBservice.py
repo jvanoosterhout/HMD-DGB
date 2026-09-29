@@ -28,6 +28,7 @@ from ha_mqtt_discoverable import Settings
 from pydantic import ValidationError
 
 from DGB.Binder import Binder
+from DGB.ConfigSchema import validate_config_payload
 from DGB.DeviceKeeper import DeviceKeeper
 from DGB.DGBContext import DGBContext
 from DGB.PinKeeper import PinKeeper
@@ -341,6 +342,7 @@ class DGBservice:
         try:
             cycle_id = self.dgb_context.config_cycle.begin_cycle()
             self.logger.info("Config cycle %s entered RuntimePhase.CREATE", cycle_id)
+            validate_config_payload(payload)
             self._handle_devices(payload)
             self._handle_pins(payload)
             self._handle_bindings(payload)

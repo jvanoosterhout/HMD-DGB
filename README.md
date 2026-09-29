@@ -283,6 +283,8 @@ Once the HMD-DGB service runs on a Pi/SBC and is connected to an MQTT broker (wi
 ```
 How to fill this message is explained in the next sections.
 
+Before any device, pin, or binding is created, DGB validates the structural shape of the payload (required keys like `EntityInfo.component`, `EntityInfo.unique_id`, `PinInfo.pin`, `PinInfo.ptype`, `BindInfo`, and `state_initialization` entries). A structurally invalid payload blocks the configuration cycle the same way a failed device/pin/binding creation does, governed by `error_state_policy`.
+
 [top](#table-of-contents)
 
 ### Devices with EntityInfo

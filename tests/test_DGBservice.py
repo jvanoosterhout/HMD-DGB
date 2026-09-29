@@ -191,6 +191,30 @@ def test_on_message_triggers_config_apply_cycle(make_service):
         )
 
 
+def test_run_config_apply_cycle_accepts_valid_payload(make_service):
+    """A structurally valid payload proceeds through the create handlers."""
+    service, _ = make_service(name="test")
+    with patched_apply_handlers(service) as (mock_devices, mock_pins, mock_bindings):
+        service._run_config_apply_cycle({"Devices": [], "Pins": [], "Bindings": []})
+
+    mock_devices.assert_called_once()
+    mock_pins.assert_called_once()
+    mock_bindings.assert_called_once()
+    assert service.dgb_context.config_cycle.get_phase() == RuntimePhase.LIVE
+
+
+def test_run_config_apply_cycle_blocks_structurally_invalid_payload(make_service):
+    """A structurally invalid payload is blocked before create handlers run."""
+    service, _ = make_service(name="test")
+    with patched_apply_handlers(service) as (mock_devices, mock_pins, mock_bindings):
+        service._run_config_apply_cycle({"Devices": [{"NoEntityInfo": {}}]})
+
+    mock_devices.assert_not_called()
+    mock_pins.assert_not_called()
+    mock_bindings.assert_not_called()
+    assert service.dgb_context.config_cycle.get_phase() == RuntimePhase.ERROR
+
+
 def test_blocked_cycle_with_warn_policy_allows_next_config(make_service):
     service, _ = make_service(name="test")
     service.dgb_context.config_cycle.set_phase(RuntimePhase.ERROR)

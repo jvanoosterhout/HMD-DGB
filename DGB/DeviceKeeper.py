@@ -135,7 +135,7 @@ class DeviceKeeper:
         )
         return False
 
-    def _record_state_if_required(self, unique_id: str, args: dict[str, list]) -> None:
+    def _persist_call_if_required(self, unique_id: str, args: dict[str, list]) -> None:
         if self.dgb_context.is_call_persisted(unique_id):
             self.dgb_context.persist_call(unique_id, "set_state", args)
 
@@ -175,7 +175,7 @@ class DeviceKeeper:
             return False
 
         args = {"args": [{"name": state_name, "value": state}]}
-        self._record_state_if_required(unique_id, args)
+        self._persist_call_if_required(unique_id, args)
         return True
 
     def _set_valve_state(
@@ -214,7 +214,7 @@ class DeviceKeeper:
                 device.position(state)
 
         args = {"args": [{"name": state_name, "value": state}]}
-        self._record_state_if_required(unique_id, args)
+        self._persist_call_if_required(unique_id, args)
         return True
 
     def _set_switch_state(
@@ -239,7 +239,7 @@ class DeviceKeeper:
             return False
 
         args = {"args": [{"name": state_name, "value": state}]}
-        self._record_state_if_required(unique_id, args)
+        self._persist_call_if_required(unique_id, args)
         return True
 
     def _set_text_state(
@@ -255,7 +255,7 @@ class DeviceKeeper:
             device.set_text(state)
 
         args = {"args": [{"name": state_name, "value": state}]}
-        self._record_state_if_required(unique_id, args)
+        self._persist_call_if_required(unique_id, args)
         return True
 
     def _set_number_state(
@@ -271,7 +271,7 @@ class DeviceKeeper:
             device.set_value(state)
 
         args = {"args": [{"name": state_name, "value": state}]}
-        self._record_state_if_required(unique_id, args)
+        self._persist_call_if_required(unique_id, args)
         return True
 
     def _set_select_state(
@@ -287,7 +287,7 @@ class DeviceKeeper:
             device.select_option(state)
 
         args = {"args": [{"name": state_name, "value": state}]}
-        self._record_state_if_required(unique_id, args)
+        self._persist_call_if_required(unique_id, args)
         return True
 
     def _set_sensor_state(
@@ -306,7 +306,7 @@ class DeviceKeeper:
         device.set_state(state)
 
         args = {"args": [{"name": state_name, "value": state}]}
-        self._record_state_if_required(unique_id, args)
+        self._persist_call_if_required(unique_id, args)
         return True
 
     def _set_binary_sensor_state(
@@ -334,7 +334,7 @@ class DeviceKeeper:
             return False
 
         args = {"args": [{"name": state_name, "value": state}]}
-        self._record_state_if_required(unique_id, args)
+        self._persist_call_if_required(unique_id, args)
         return True
 
     def configure_cover(self, payload, dst: bool):

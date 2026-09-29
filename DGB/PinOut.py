@@ -95,7 +95,7 @@ class Pin_out(Pin):
         if self.is_PinNWayOut == is_PinNWayOut:
             self.pin_device.on()
             self.logger.info(f"pin {self.config.pin} is on")
-            self.retain_state(
+            self.persist_call(
                 {
                     "args": [
                         {"name": "state", "value": "on"},
@@ -109,7 +109,7 @@ class Pin_out(Pin):
         if self.is_PinNWayOut == is_PinNWayOut:
             self.pin_device.off()
             self.logger.info(f"pin {self.config.pin} is off")
-            self.retain_state(
+            self.persist_call(
                 {
                     "args": [
                         {"name": "state", "value": "off"},
@@ -157,7 +157,7 @@ class Pin_out(Pin):
             return False
         return result
 
-    def retain_state(self, args):
+    def persist_call(self, args):
         if self.dgb_context.is_call_persisted(str(self.config.pin)):
             self.dgb_context.persist_call(str(self.config.pin), "set_state", args)
 

@@ -146,7 +146,7 @@ class Pin_N_way_out(Pin):
 
         self.config.active_pin = active_pin
 
-        self.retain_state(
+        self.persist_call(
             {
                 "args": [
                     {"name": "active_pin", "value": active_pin},
@@ -161,7 +161,7 @@ class Pin_N_way_out(Pin):
             p.off(is_PinNWayOut=True)
         self.pin_device.off()
         self.config.value = 0
-        self.retain_state(
+        self.persist_call(
             {
                 "args": [
                     {"name": "active_pin", "value": None},
@@ -186,7 +186,7 @@ class Pin_N_way_out(Pin):
 
         return self.off() if state is None else self.on(active_pin=state)
 
-    def retain_state(self, args):
+    def persist_call(self, args):
         if self.dgb_context.is_call_persisted(str(self.config.pin)):
             self.dgb_context.persist_call(str(self.config.pin), "set_state", args)
 

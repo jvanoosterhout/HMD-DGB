@@ -387,5 +387,5 @@ def test_record_retained_call(dgb_context):
     assert retained == {"payload": {"state": "on"}}
 
 
-def test_get_retained_state_object_is_none_when_missing(dgb_context):
+def test_get_retained_call_object_is_none_when_missing(dgb_context):
     assert dgb_context.get_object("unknown") is None

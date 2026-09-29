@@ -66,20 +66,17 @@ class dummy_device:
         print(f"{self.id} is off")
         return True
 
-    def set_int(self, state_name: str, state: int) -> bool:
-        print(f"received {state_name}: {state}. with type {type(state)}")
-        return True
-
-    def set_str(self, state_name: str, state: str) -> bool:
-        print(f"received {state_name}: {state}. with type {type(state)}")
-        return True
-
-    def set_bool(self, state_name: str, state: bool) -> bool:
-        print(f"received {state_name}: {state}. with type {type(state)}")
-        return True
-
-    def set_float(self, state_name: str, state: float) -> bool:
-        print(f"received {state_name}: {state}. with type {type(state)}")
+    def set_state(self, **states) -> bool:
+        for state_name, state in states.items():
+            if state_name == "integer":
+                state = int(state)
+            elif state_name == "string":
+                state = str(state)
+            elif state_name == "boolean":
+                state = bool(state)
+            elif state_name == "floatingpoint":
+                state = float(state)
+            print(f"received {state_name}: {state}. with type {type(state)}")
         return True
 
 
@@ -100,10 +97,7 @@ binder.dgb_context.add_object(
     {
         "on": p1.on,
         "off": p1.off,
-        "set_int": p1.set_int,
-        "set_str": p1.set_str,
-        "set_bool": p1.set_bool,
-        "set_float": p1.set_float,
+        "set_state": p1.set_state,
     },
 )
 binder.dgb_context.add_object("s1", s1)
@@ -236,28 +230,28 @@ binding_with_args = {
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_int",
+                        "call": "set_state",
                         "args": [{"name": "integer", "value": {"$ref": "m.value"}}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_str",
+                        "call": "set_state",
                         "args": [{"name": "string", "value": {"$ref": "m.value"}}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_bool",
+                        "call": "set_state",
                         "args": [{"name": "boolean", "value": {"$ref": "m.value"}}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_float",
+                        "call": "set_state",
                         "args": [
                             {"name": "floatingpoint", "value": {"$ref": "m.value"}}
                         ],
@@ -267,28 +261,28 @@ binding_with_args = {
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_int",
+                        "call": "set_state",
                         "args": [{"name": "integer", "value": 42}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_str",
+                        "call": "set_state",
                         "args": [{"name": "string", "value": "string"}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_bool",
+                        "call": "set_state",
                         "args": [{"name": "boolean", "value": True}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_float",
+                        "call": "set_state",
                         "args": [{"name": "floatingpoint", "value": 42.42}],
                     }
                 },
@@ -296,28 +290,28 @@ binding_with_args = {
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_int",
+                        "call": "set_state",
                         "args": [{"name": "integer", "value": "42"}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_str",
+                        "call": "set_state",
                         "args": [{"name": "string", "value": 42}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_bool",
+                        "call": "set_state",
                         "args": [{"name": "boolean", "value": 1}],
                     }
                 },
                 {
                     "action": {
                         "unique_id": "p1",
-                        "call": "set_float",
+                        "call": "set_state",
                         "args": [{"name": "floatingpoint", "value": "42"}],
                     }
                 },

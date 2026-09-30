@@ -176,7 +176,7 @@ DGB service for service-name:
 - Soft restart (set all entities to unavailable, restart service, leave other MQTT messages untouched)
 - Hard restart (clear the service configuration topic and restart service)
 
-In DGB, your own devices can only be configured inside an entity JSON with the "device" key. DGB alters this device JSON slightly: it overrides/creates the "via_device" key with the unique ID of the DGB service device.
+In DGB, your own Home Assistant devices can only be configured inside an [HMD](https://github.com/unixorn/ha-mqtt-discoverable) JSON with the "device" key. DGB alters this HMD device JSON slightly: it overrides/creates the "via_device" key with the unique ID of the DGB service device.
 
 [top](#table-of-contents)
 

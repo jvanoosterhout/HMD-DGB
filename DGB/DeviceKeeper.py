@@ -141,26 +141,10 @@ class DeviceKeeper:
         if self.dgb_context.is_action_persisted(unique_id):
             self.dgb_context.persist_action(unique_id, "set_state", args)
 
-    def _build_named_state_call(self, setter, dst: bool):
-        def set_state(**states):
-            if not states:
-                return False
-            return all(
-                setter(state_name, state, dst=dst)
-                for state_name, state in states.items()
-            )
-
-        return set_state
-
     def _set_cover_state(
-        self, device: Discoverable, state_name: str, state: str, dst: bool = True
+        self, device: Discoverable, state: str, dst: bool = True
     ) -> bool:
         unique_id = str(device._entity.unique_id)
-        if state_name != "state":
-            self.logger.warning(
-                "Unsupported cover state name for %s: %r", unique_id, state_name
-            )
-            return False
         if state == device._entity.payload_open:
             if dst:
                 device.open()
@@ -176,58 +160,56 @@ class DeviceKeeper:
             )
             return False
 
-        args = {"args": [{"name": state_name, "value": state}]}
+        args = {"args": [{"name": "state", "value": state}]}
         self._persist_action_if_required(unique_id, args)
         return True
 
     def _set_valve_state(
         self,
         device: Discoverable,
-        state_name: str,
-        state: str | int,
+        *,
         dst: bool = True,
+        **states: str | int,
     ) -> bool:
         unique_id = str(device._entity.unique_id)
-        if state_name not in {"state", "position"}:
-            self.logger.warning(
-                "Unsupported valve state name for %s: %r", unique_id, state_name
-            )
+        if not states:
             return False
-
-        if state == device._entity.payload_open:
-            if dst:
-                device.open()
-        elif state == device._entity.payload_close:
-            if dst:
-                device.closed()
-        elif state == device._entity.payload_stop:
-            if dst:
-                device.stopped()
-        else:
-            state_name = "position"
-            try:
-                state = int(state)
-            except (TypeError, ValueError):
-                self.logger.exception(
-                    "Wrong payload type for valve %s: %r", unique_id, state
+        args = []
+        for state_name, state in states.items():
+            if state_name == "state" and state == device._entity.payload_open:
+                if dst:
+                    device.open()
+            elif state_name == "state" and state == device._entity.payload_close:
+                if dst:
+                    device.closed()
+            elif state_name == "state" and state == device._entity.payload_stop:
+                if dst:
+                    device.stopped()
+            elif state_name in {"state", "position"}:
+                try:
+                    state = int(state)
+                except (TypeError, ValueError):
+                    self.logger.warning(
+                        "Wrong position payload for valve %s: %r", unique_id, state
+                    )
+                    return False
+                state_name = "position"
+                if dst:
+                    device.position(state)
+            else:
+                self.logger.warning(
+                    "Unsupported valve state name for %s: %r", unique_id, state_name
                 )
                 return False
-            if dst:
-                device.position(state)
+            args.append({"name": state_name, "value": state})
 
-        args = {"args": [{"name": state_name, "value": state}]}
-        self._persist_action_if_required(unique_id, args)
+        self._persist_action_if_required(unique_id, {"args": args})
         return True
 
     def _set_switch_state(
-        self, device: Discoverable, state_name: str, state: str, dst: bool = True
+        self, device: Discoverable, state: str, dst: bool = True
     ) -> bool:
         unique_id = str(device._entity.unique_id)
-        if state_name != "state":
-            self.logger.warning(
-                "Unsupported switch state name for %s: %r", unique_id, state_name
-            )
-            return False
         if state == device._entity.payload_on:
             if dst:
                 device.on()
@@ -240,90 +222,63 @@ class DeviceKeeper:
             )
             return False
 
-        args = {"args": [{"name": state_name, "value": state}]}
+        args = {"args": [{"name": "state", "value": state}]}
         self._persist_action_if_required(unique_id, args)
         return True
 
     def _set_text_state(
-        self, device: Discoverable, state_name: str, state: str, dst: bool = True
+        self, device: Discoverable, state: str, dst: bool = True
     ) -> bool:
         unique_id = str(device._entity.unique_id)
-        if state_name != "state":
-            self.logger.warning(
-                "Unsupported text state name for %s: %r", unique_id, state_name
-            )
-            return False
         if dst:
             device.set_text(state)
 
-        args = {"args": [{"name": state_name, "value": state}]}
+        args = {"args": [{"name": "state", "value": state}]}
         self._persist_action_if_required(unique_id, args)
         return True
 
     def _set_number_state(
-        self, device: Discoverable, state_name: str, state: float, dst: bool = True
+        self, device: Discoverable, state: float, dst: bool = True
     ) -> bool:
         unique_id = str(device._entity.unique_id)
-        if state_name != "state":
-            self.logger.warning(
-                "Unsupported number state name for %s: %r", unique_id, state_name
-            )
-            return False
         if dst:
             device.set_value(state)
 
-        args = {"args": [{"name": state_name, "value": state}]}
+        args = {"args": [{"name": "state", "value": state}]}
         self._persist_action_if_required(unique_id, args)
         return True
 
     def _set_select_state(
-        self, device: Discoverable, state_name: str, state: str, dst: bool = True
+        self, device: Discoverable, state: str, dst: bool = True
     ) -> bool:
         unique_id = str(device._entity.unique_id)
-        if state_name != "state":
-            self.logger.warning(
-                "Unsupported select state name for %s: %r", unique_id, state_name
-            )
-            return False
         if dst:
             device.select_option(state)
 
-        args = {"args": [{"name": state_name, "value": state}]}
+        args = {"args": [{"name": "state", "value": state}]}
         self._persist_action_if_required(unique_id, args)
         return True
 
     def _set_sensor_state(
         self,
         device: Discoverable,
-        state_name: str,
         state: bytes | str | float,
         dst: bool = True,
     ) -> bool:
         unique_id = str(device._entity.unique_id)
-        if state_name != "state":
-            self.logger.warning(
-                "Unsupported sensor state name for %s: %r", unique_id, state_name
-            )
-            return False
         device.set_state(state)
 
-        args = {"args": [{"name": state_name, "value": state}]}
+        args = {"args": [{"name": "state", "value": state}]}
         self._persist_action_if_required(unique_id, args)
         return True
 
     def _set_binary_sensor_state(
         self,
         device: Discoverable,
-        state_name: str,
         state: bool | int | str,
         dst: bool = True,
     ) -> bool:
         unique_id = str(device._entity.unique_id)
-        if state_name != "state":
-            self.logger.warning(
-                "Unsupported binary_sensor state name for %s: %r", unique_id, state_name
-            )
-            return False
         normalized = str(state).lower().strip()
         if normalized in {"on", "1", "true"}:
             device.on()
@@ -335,7 +290,7 @@ class DeviceKeeper:
             )
             return False
 
-        args = {"args": [{"name": state_name, "value": state}]}
+        args = {"args": [{"name": "state", "value": state}]}
         self._persist_action_if_required(unique_id, args)
         return True
 
@@ -351,9 +306,7 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=cover_info)
         callback = build_callback(cover_info, self.dgb_context, dst)
         device = sensors.Cover(settings, callback)
-        set_state = self._build_named_state_call(
-            partial(self._set_cover_state, device), dst
-        )
+        set_state = partial(self._set_cover_state, device)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -380,9 +333,7 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=valve_info)
         callback = build_callback(valve_info, self.dgb_context, dst)
         device = sensors.Valve(settings, callback)
-        set_state = self._build_named_state_call(
-            partial(self._set_valve_state, device), dst
-        )
+        set_state = partial(self._set_valve_state, device)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -403,9 +354,8 @@ class DeviceKeeper:
         sensor_info = sensors.SensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=sensor_info)
         device = sensors.Sensor(settings)
-        set_state = self._build_named_state_call(
-            partial(self._set_sensor_state, device), True
-        )
+        set_state = partial(self._set_sensor_state, device)
+
         self.dgb_context.add_object(
             str(device._entity.unique_id), device, {"set_state": set_state}
         )
@@ -416,9 +366,8 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=switch_info)
         callback = build_callback(switch_info, self.dgb_context, dst)
         device = sensors.Switch(settings, callback)
-        set_state = self._build_named_state_call(
-            partial(self._set_switch_state, device), dst
-        )
+        set_state = partial(self._set_switch_state, device)
+
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,
@@ -441,9 +390,7 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=text_info)
         callback = build_callback(text_info, self.dgb_context, dst)
         device = sensors.Text(settings, callback)
-        set_state = self._build_named_state_call(
-            partial(self._set_text_state, device), dst
-        )
+        set_state = partial(self._set_text_state, device)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -460,9 +407,7 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=number_info)
         callback = build_callback(number_info, self.dgb_context, dst)
         device = sensors.Number(settings, callback)
-        set_state = self._build_named_state_call(
-            partial(self._set_number_state, device), dst
-        )
+        set_state = partial(self._set_number_state, device)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -479,9 +424,7 @@ class DeviceKeeper:
         settings = Settings(mqtt=self.mqtt_settings, entity=select_info)
         callback = build_callback(select_info, self.dgb_context, dst)
         device = sensors.Select(settings, callback)
-        set_state = self._build_named_state_call(
-            partial(self._set_select_state, device), dst
-        )
+        set_state = partial(self._set_select_state, device)
 
         self.dgb_context.add_object(
             str(device._entity.unique_id),
@@ -497,9 +440,8 @@ class DeviceKeeper:
         binarysensor_info = sensors.BinarySensorInfo(**payload["EntityInfo"])
         settings = Settings(mqtt=self.mqtt_settings, entity=binarysensor_info)
         device = sensors.BinarySensor(settings)
-        set_state = self._build_named_state_call(
-            partial(self._set_binary_sensor_state, device), True
-        )
+        set_state = partial(self._set_binary_sensor_state, device)
+
         self.dgb_context.add_object(
             str(device._entity.unique_id),
             device,

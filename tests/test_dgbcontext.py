@@ -1,9 +1,13 @@
 import queue
-from unittest.mock import MagicMock
+from functools import partial
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from DGB.DeviceKeeper import DeviceKeeper, build_callback
 from DGB.DGBContext import BinderMessage, ConfigMessage, DGBContext
+from DGB.SetStateResolver import CallArgumentResolver
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -38,6 +42,105 @@ def test_add_device_with_functions(dgb_context):
 
     assert dgb_context.get_object("relay1").dgb_obj == device_obj
     assert dgb_context.get_operations("relay1") == functions
+
+
+@pytest.mark.parametrize(
+    ("setter_name", "value", "device_action", "expected"),
+    [
+        ("_set_cover_state", "OPEN", "open", None),
+        ("_set_valve_state", "OPEN", "open", None),
+        ("_set_valve_state", 42, "position", 42),
+        ("_set_switch_state", "ON", "on", None),
+        ("_set_text_state", "hello", "set_text", "hello"),
+        ("_set_number_state", 3.5, "set_value", 3.5),
+        ("_set_select_state", "choice", "select_option", "choice"),
+        ("_set_sensor_state", "reading", "set_state", "reading"),
+        ("_set_binary_sensor_state", "on", "on", None),
+    ],
+)
+def test_hmd_set_state_accepts_configured_state_argument(
+    dgb_context, setter_name, value, device_action, expected
+):
+    keeper = DeviceKeeper(None, dgb_context)
+    device = MagicMock()
+    device._entity.unique_id = "entity1"
+    device._entity.payload_on = "ON"
+    device._entity.payload_off = "OFF"
+    device._entity.payload_open = "OPEN"
+    device._entity.payload_close = "CLOSE"
+    device._entity.payload_stop = "STOP"
+    operation = partial(getattr(keeper, setter_name), device)
+    resolver = CallArgumentResolver()
+    definitions = resolver.parse_argument_definitions(
+        [{"name": "state", "value": value}], operation
+    )
+
+    assert operation(**resolver.build_call_args(definitions, None)) is True
+
+    action = getattr(device, device_action)
+    if expected is None:
+        action.assert_called_once_with()
+    else:
+        action.assert_called_once_with(expected)
+
+
+def test_switch_callback_suppresses_direct_transition(dgb_context):
+    keeper = DeviceKeeper(None, dgb_context)
+    device = MagicMock()
+    device._entity.unique_id = "switch1"
+    device._entity.payload_on = "ON"
+    device._entity.payload_off = "OFF"
+    operation = partial(keeper._set_switch_state, device)
+    dgb_context.add_object("switch1", device, operations={"set_state": operation})
+    entity = SimpleNamespace(component="switch", unique_id="switch1")
+    message = SimpleNamespace(payload=b"ON")
+
+    build_callback(entity, dgb_context, False)(None, None, message)
+    device.on.assert_not_called()
+
+    operation(state="ON")
+    device.on.assert_called_once_with()
+
+
+def test_valve_position_action_uses_named_position_and_persists_it(dgb_context):
+    keeper = DeviceKeeper(None, dgb_context)
+    device = MagicMock()
+    device._entity.unique_id = "valve1"
+    operation = partial(keeper._set_valve_state, device)
+    resolver = CallArgumentResolver()
+    definitions = resolver.parse_argument_definitions(
+        [{"name": "position", "value": 42}], operation
+    )
+
+    with patch.object(keeper, "_persist_action_if_required") as persist:
+        assert operation(**resolver.build_call_args(definitions, None)) is True
+
+    device.position.assert_called_once_with(42)
+    persist.assert_called_once_with(
+        "valve1", {"args": [{"name": "position", "value": 42}]}
+    )
+
+
+def test_valve_mqtt_position_respects_direct_transition(dgb_context):
+    keeper = DeviceKeeper(None, dgb_context)
+    device = MagicMock()
+    device._entity.unique_id = "valve1"
+    dgb_context.add_object(
+        "valve1",
+        device,
+        operations={"set_state": partial(keeper._set_valve_state, device)},
+    )
+    entity = SimpleNamespace(component="valve", unique_id="valve1")
+
+    with patch.object(keeper, "_persist_action_if_required") as persist:
+        build_callback(entity, dgb_context, False)(
+            None, None, SimpleNamespace(payload=b"42")
+        )
+
+    device.position.assert_not_called()
+    persist.assert_called_once_with(
+        "valve1", {"args": [{"name": "position", "value": 42}]}
+    )
 
 
 def test_get_nonexistent_device(dgb_context):

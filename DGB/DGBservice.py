@@ -78,12 +78,12 @@ class DGBservice:
         # MQTT
         self.config_topic = topic or f"config/{self.name}/devices/"
         self.startup_policy_topic = topic or f"config/{self.name}/startup-policy"
-        self.retained_calls_topic_prefix = f"config/{self.name}/retained-calls/"
+        self.retained_actions_topic_prefix = f"config/{self.name}/retained-actions/"
         self.client: mqtt.Client = self._create_mqtt_client()
         self.mqtt_settings = Settings.MQTT(client=self.client)
 
-        self.dgb_context.configure_retained_calls_publishing(
-            prefix=self.retained_calls_topic_prefix,
+        self.dgb_context.configure_retained_actions_publishing(
+            prefix=self.retained_actions_topic_prefix,
             publish_fn=self.client.publish,
         )
         # Core context
@@ -95,7 +95,7 @@ class DGBservice:
         self.startup_state = StartupStateCoordinator(
             dgb_context=self.dgb_context,
             state_resolver=self.state_resolver,
-            retained_calls_topic_prefix=self.retained_calls_topic_prefix,
+            retained_actions_topic_prefix=self.retained_actions_topic_prefix,
         )
 
         # System devices (platform + app) - create before DeviceKeeper
@@ -127,12 +127,12 @@ class DGBservice:
     def start(self) -> None:
         self.logger.info("Starting runtime")
 
-        # StartupPhase.COLLECT: Preload retained calls from MQTT
+        # StartupPhase.COLLECT: Preload retained actions from MQTT
         self.handle_temp_subscription(self.startup_policy_topic)
         while self._temp_subscription_active:
             time.sleep(0.5)
         self.handle_temp_subscription(
-            f"{self.retained_calls_topic_prefix}#", quiet_seconds=1
+            f"{self.retained_actions_topic_prefix}#", quiet_seconds=1
         )
         while self._temp_subscription_active:
             time.sleep(0.5)
@@ -270,8 +270,8 @@ class DGBservice:
             self.logger.error(f"Line: {e.lineno}, column: {e.colno}, char: {e.pos}")
             return
 
-        if self.startup_state.is_retained_calls_topic(msg.topic):
-            self.startup_state.handle_retained_call_message(payload, msg.topic)
+        if self.startup_state.is_retained_actions_topic(msg.topic):
+            self.startup_state.handle_retained_action_message(payload, msg.topic)
             return
 
         if self.startup_policy_topic in msg.topic:
@@ -356,15 +356,15 @@ class DGBservice:
             self._handle_blocked_cycle()
             return
 
-        # StartupPhase.DECLARE: Register persisted and preset calls from config
+        # StartupPhase.DECLARE: Register persisted and preset actions from config
         if "state_initialization" in payload:
             state_initialization = self.startup_state.get_dict(
                 payload, "state_initialization"
             )
-            self.startup_state.declare_persisted_calls(state_initialization)
-            self.startup_state.register_preset_calls(state_initialization)
+            self.startup_state.declare_persisted_actions(state_initialization)
+            self.startup_state.register_preset_actions(state_initialization)
 
-        # RuntimePhase.APPLY: Resolve and seed startup calls to objects
+        # RuntimePhase.APPLY: Resolve and seed startup actions to objects
         try:
             self.dgb_context.config_cycle.set_phase(RuntimePhase.APPLY)
             self.logger.info("Config cycle %s entered RuntimePhase.APPLY", cycle_id)

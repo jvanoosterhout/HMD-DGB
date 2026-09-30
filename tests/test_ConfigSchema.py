@@ -31,14 +31,14 @@ def test_valid_full_payload_passes():
             "Pins": [{"PinInfo": {"pin": 17, "ptype": "in"}}],
             "Bindings": [{"BindInfo": {"rs1": {}}}],
             "state_initialization": {
-                "preset_value": [
+                "preset_action": [
                     {
                         "unique_id": "s1",
                         "call": "set_state",
                         "args": [{"name": "state", "value": "off"}],
                     }
                 ],
-                "retain_state": [{"unique_id": "s1", "call": ["set_state"]}],
+                "persist_action": [{"unique_id": "s1", "call": ["set_state"]}],
             },
         }
     )
@@ -98,16 +98,16 @@ def test_invalid_bindings_rejected(bindings):
     "state_initialization",
     [
         "not-a-dict",
-        {"preset_value": [{"call": "set_state", "args": []}]},
-        {"preset_value": [{"unique_id": "s1", "call": "turn_on", "args": []}]},
+        {"preset_action": [{"call": "set_state", "args": []}]},
+        {"preset_action": [{"unique_id": "s1", "call": "turn_on", "args": []}]},
         {
-            "preset_value": [
+            "preset_action": [
                 {"unique_id": "s1", "call": "set_state", "args": [{"bad": "shape"}]}
             ]
         },
-        {"retain_state": [{"unique_id": "s1"}]},
-        {"retain_state": [{"unique_id": "s1", "call": []}]},
-        {"retain_state": [{"unique_id": "s1", "call": [""]}]},
+        {"persist_action": [{"unique_id": "s1"}]},
+        {"persist_action": [{"unique_id": "s1", "call": []}]},
+        {"persist_action": [{"unique_id": "s1", "call": [""]}]},
     ],
 )
 def test_invalid_state_initialization_rejected(state_initialization):

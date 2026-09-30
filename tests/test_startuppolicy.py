@@ -113,17 +113,17 @@ def test_error_state_policy_non_string_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_retain_state_single_entry():
+def test_persist_action_single_entry():
     # Test disabled: parse_state_initialization currently not exported
     pass
 
 
-def test_retain_state_multiple_entries():
+def test_persist_action_multiple_entries():
     # Test disabled: parse_state_initialization currently not exported
     pass
 
 
-def test_preset_value_with_call_and_args():
+def test_preset_action_with_call_and_args():
     # Test disabled: parse_state_initialization currently not exported
     pass
 

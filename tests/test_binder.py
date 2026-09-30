@@ -20,7 +20,7 @@ class DummyDGBContext:
         self.bindings = {}
         self.config_cycle = ConfigCycleState()
 
-    def get_calls(self, device_id):
+    def get_operations(self, device_id):
         return self._functions.get(device_id, {})
 
     def get_object(self, unique_id):
@@ -161,8 +161,8 @@ def test_iter_parents_ignores_strings():
 # ---------------------------------------------------------------------------
 
 
-def test_build_log_action(binder):
-    action = binder.build_action(
+def test_build_log_item(binder):
+    action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"log": {"msg": "hello"}},
@@ -181,7 +181,7 @@ def test_build_device_action_success(binder, dgb_context):
 
     dgb_context._functions["dev1"] = {"do": fn}
 
-    action = binder.build_action(
+    action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"action": {"unique_id": "dev1", "call": "do"}},
@@ -202,7 +202,7 @@ def test_build_device_action_with_return_false(binder, dgb_context):
 
     dgb_context._functions["dev1"] = {"do": fn}
 
-    action = binder.build_action(
+    action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"action": {"unique_id": "dev1", "call": "do"}},
@@ -222,7 +222,7 @@ def test_build_device_action_with_return_none(binder, dgb_context):
 
     dgb_context._functions["dev1"] = {"do": fn}
 
-    action = binder.build_action(
+    action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"action": {"unique_id": "dev1", "call": "do"}},
@@ -234,9 +234,9 @@ def test_build_device_action_with_return_none(binder, dgb_context):
     assert ctx.s.return_value == {"value": True}
 
 
-def test_build_timer_start_action(binder, dgb_context):
+def test_build_timer_start_item(binder, dgb_context):
     """Test building timer start action"""
-    action = binder.build_action(
+    action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"timer": {"name": "timer1", "action": "start", "seconds": 5.0}},
@@ -246,9 +246,9 @@ def test_build_timer_start_action(binder, dgb_context):
     assert callable(action)
 
 
-def test_build_timer_cancel_action(binder, dgb_context):
+def test_build_timer_cancel_item(binder, dgb_context):
     """Test building timer cancel action"""
-    action = binder.build_action(
+    action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"timer": {"name": "timer1", "action": "cancel"}},
@@ -265,7 +265,7 @@ def test_build_timer_cancel_action(binder, dgb_context):
 
 def test_log_action_wrong_value_raises_value_error(binder):
     with pytest.raises(TypeError):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"log": {"msg": 1}},
@@ -274,7 +274,7 @@ def test_log_action_wrong_value_raises_value_error(binder):
 
 def test_unknown_action_type_raises_value_error(binder):
     with pytest.raises(ValueError):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"unknown": {"x": "1"}},
@@ -284,7 +284,7 @@ def test_unknown_action_type_raises_value_error(binder):
 def test_device_action_wrong_unique_id_raises_value_error(binder, dgb_context):
     """Test device action with non-string unique_id raises ValueError"""
     with pytest.raises(ValueError, match="unique_id must be non-empty str"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"action": {"unique_id": 1, "call": "do"}},
@@ -294,7 +294,7 @@ def test_device_action_wrong_unique_id_raises_value_error(binder, dgb_context):
 def test_device_action_empty_unique_id_raises_value_error(binder, dgb_context):
     """Test device action with empty unique_id raises ValueError"""
     with pytest.raises(ValueError, match="unique_id must be non-empty str"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"action": {"unique_id": "", "call": "do"}},
@@ -304,7 +304,7 @@ def test_device_action_empty_unique_id_raises_value_error(binder, dgb_context):
 def test_device_action_wrong_call_raises_value_error(binder, dgb_context):
     """Test device action with non-string call raises ValueError"""
     with pytest.raises(ValueError, match="call must be non-empty str"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"action": {"unique_id": "dev1", "call": 1}},
@@ -314,7 +314,7 @@ def test_device_action_wrong_call_raises_value_error(binder, dgb_context):
 def test_device_action_empty_call_raises_value_error(binder, dgb_context):
     """Test device action with empty call raises ValueError"""
     with pytest.raises(ValueError, match="call must be non-empty str"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"action": {"unique_id": "dev1", "call": ""}},
@@ -323,7 +323,7 @@ def test_device_action_empty_call_raises_value_error(binder, dgb_context):
 
 def test_device_action_missing_device_raises_key_error(binder, dgb_context):
     with pytest.raises(KeyError, match="No action function"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"action": {"unique_id": "missing", "call": "do"}},
@@ -334,7 +334,7 @@ def test_device_action_missing_call_raises_key_error(binder, dgb_context):
     dgb_context._functions["dev1"] = {}
 
     with pytest.raises(KeyError, match="No action function"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"action": {"unique_id": "dev1", "call": "do"}},
@@ -343,8 +343,8 @@ def test_device_action_missing_call_raises_key_error(binder, dgb_context):
 
 def test_timer_start_missing_seconds_raises_value_error(binder):
     """Test timer start without seconds raises ValueError"""
-    with pytest.raises(ValueError, match="Unknown action definition"):
-        binder.build_action(
+    with pytest.raises(ValueError, match="Unknown run item definition"):
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"timer": {"name": "t1", "action": "start"}},
@@ -354,7 +354,7 @@ def test_timer_start_missing_seconds_raises_value_error(binder):
 def test_timer_start_none_seconds_raises_value_error(binder):
     """Test timer start with None seconds raises ValueError"""
     with pytest.raises(ValueError, match="timer.seconds required"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"timer": {"name": "t1", "action": "start", "seconds": None}},
@@ -364,7 +364,7 @@ def test_timer_start_none_seconds_raises_value_error(binder):
 def test_timer_start_invalid_name_raises_value_error(binder):
     """Test timer start with invalid name raises ValueError"""
     with pytest.raises(ValueError, match="timer.name must be non-empty str"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"timer": {"name": "", "action": "start", "seconds": 5.0}},
@@ -374,7 +374,7 @@ def test_timer_start_invalid_name_raises_value_error(binder):
 def test_timer_cancel_invalid_name_raises_value_error(binder):
     """Test timer cancel with invalid name raises ValueError"""
     with pytest.raises(ValueError, match="timer.name must be non-empty str"):
-        binder.build_action(
+        binder.build_run_item(
             "ruleset1",
             "rule1",
             {"timer": {"name": 123, "action": "cancel"}},
@@ -382,11 +382,11 @@ def test_timer_cancel_invalid_name_raises_value_error(binder):
 
 
 # ---------------------------------------------------------------------------
-# Level 1: Condition handler
+# Level 1: Run handler
 # ---------------------------------------------------------------------------
 
 
-def test_condition_handler_executes_actions(binder, dgb_context):
+def test_run_handler_executes_actions(binder, dgb_context):
     called = {"ok": False}
 
     def fn():
@@ -394,7 +394,7 @@ def test_condition_handler_executes_actions(binder, dgb_context):
 
     dgb_context._functions["dev1"] = {"do": fn}
 
-    handler = binder.build_condition_handler(
+    handler = binder.build_run_handler(
         "ruleset1",
         "rule1",
         [
@@ -409,9 +409,9 @@ def test_condition_handler_executes_actions(binder, dgb_context):
     assert called["ok"] is True
 
 
-def test_condition_handler_sets_return_value_pending(binder):
-    """Test condition handler sets return_value to pending"""
-    handler = binder.build_condition_handler(
+def test_run_handler_sets_return_value_pending(binder):
+    """Test run handler sets return_value to pending"""
+    handler = binder.build_run_handler(
         "ruleset1",
         "rule1",
         [{"log": {"msg": "hi"}}],
@@ -423,15 +423,15 @@ def test_condition_handler_sets_return_value_pending(binder):
     assert ctx.s.return_value == {"value": "pending"}
 
 
-def test_condition_handler_propagates_exceptions(binder, dgb_context):
-    """Test that condition handler propagates action exceptions"""
+def test_run_handler_propagates_exceptions(binder, dgb_context):
+    """Test that run handler propagates action exceptions"""
 
     def failing_fn():
         raise ValueError("Test error")
 
     dgb_context._functions["dev1"] = {"do": failing_fn}
 
-    handler = binder.build_condition_handler(
+    handler = binder.build_run_handler(
         "ruleset1",
         "rule1",
         [{"action": {"unique_id": "dev1", "call": "do"}}],
@@ -457,7 +457,7 @@ def test_device_action_with_arguments(binder, dgb_context):
 
     dgb_context._functions["dev1"] = {"do": fn}
 
-    action = binder.build_action(
+    action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {
@@ -488,7 +488,7 @@ def test_timer_start_action_execution(binder, dgb_context):
 
     binder.timers = TimerRegistry(timer_factory=mock_timer_factory)
 
-    action = binder.build_action(
+    action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"timer": {"name": "timer1", "action": "start", "seconds": 5.0}},
@@ -512,7 +512,7 @@ def test_timer_cancel_action_execution(binder, dgb_context):
 
     binder.timers = TimerRegistry(timer_factory=mock_timer_factory)
 
-    start_action = binder.build_action(
+    start_action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"timer": {"name": "timer1", "action": "start", "seconds": 5.0}},
@@ -522,7 +522,7 @@ def test_timer_cancel_action_execution(binder, dgb_context):
     start_action(ctx)
 
     # Now cancel it
-    cancel_action = binder.build_action(
+    cancel_action = binder.build_run_item(
         "ruleset1",
         "rule1",
         {"timer": {"name": "timer1", "action": "cancel"}},
@@ -648,8 +648,8 @@ def test_handle_event_allowed_when_live(binder, dgb_context):
 #     assert "ruleset4" in dgb_context.get_bindings("pin1")
 
 
-# def test_new_binding_builds_condition_handlers(binder, dgb_context):
-#     """Test new_binding builds condition handlers for run actions"""
+# def test_new_binding_builds_run_handlers(binder, dgb_context):
+#     """Test new_binding builds run handlers for run actions"""
 #     dgb_context._devices["dev5"] = {"type": "relay"}
 #     dgb_context._functions["dev5"] = {"activate": lambda: True}
 

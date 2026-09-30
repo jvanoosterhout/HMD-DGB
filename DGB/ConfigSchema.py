@@ -94,8 +94,8 @@ def _validate_state_initialization(state_initialization: Any) -> None:
     if not isinstance(state_initialization, dict):
         raise TypeError("state_initialization must be a dict")
 
-    for index, entry in enumerate(_as_list(state_initialization.get("preset_value"))):
-        prefix = f"state_initialization.preset_value[{index}]"
+    for index, entry in enumerate(_as_list(state_initialization.get("preset_action"))):
+        prefix = f"state_initialization.preset_action[{index}]"
         if not isinstance(entry, dict):
             raise TypeError(f"{prefix} must be a dict")
         _require_non_empty_str(entry, "unique_id", prefix)
@@ -103,8 +103,8 @@ def _validate_state_initialization(state_initialization: Any) -> None:
             raise ValueError(f"{prefix}.call must be 'set_state'")
         _state_resolver.normalize_argument_definitions(entry.get("args"))
 
-    for index, entry in enumerate(_as_list(state_initialization.get("retain_state"))):
-        prefix = f"state_initialization.retain_state[{index}]"
+    for index, entry in enumerate(_as_list(state_initialization.get("persist_action"))):
+        prefix = f"state_initialization.persist_action[{index}]"
         if not isinstance(entry, dict):
             raise TypeError(f"{prefix} must be a dict")
         _require_non_empty_str(entry, "unique_id", prefix)

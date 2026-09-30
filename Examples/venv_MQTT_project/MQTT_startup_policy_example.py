@@ -55,7 +55,7 @@ SWITCH_CONFIG = {
         }
     ],
     "state_initialization": {
-        "preset_value": [
+        "preset_action": [
             {
                 "unique_id": "rpi4-switch-test",
                 "call": "set_state",
@@ -133,11 +133,11 @@ SENSOR_CONFIG = {
         }
     ],
     "state_initialization": {
-        "retain_state": [
+        "persist_action": [
             {"unique_id": "rpi4-sensor-test", "call": ["set_state"]},
             {"unique_id": "21", "call": ["set_state"]},
         ],
-        "preset_value": [
+        "preset_action": [
             {
                 "unique_id": "21",
                 "call": "set_state",

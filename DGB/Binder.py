@@ -13,12 +13,12 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-#    Binder to manage actions to execute on specific triggers.
+#    Binder to manage run items to execute on specific triggers.
 
 #    The triggers are assumed to originate from a device or pin, which holds the binder.
-#    The binder keeps a list of actions (references to functions of the target device)
-#    that will execute when a specific trigger/callback of the holding device fires.
-#    This means that one device has multiple binders: one per trigger.
+#    The binder keeps a list of run items (references to log, timer or actions of the
+#    target device) that will execute when a specific trigger matches the coreseponding
+#    condition of the rule. This means that one device can have multiple binders.
 
 
 from __future__ import annotations
@@ -103,17 +103,17 @@ class Binder:
         self.logger = logging.getLogger("Binder")
 
     # ------------------------------------------------------------------
-    # Action building (dispatcher)
+    # Run item building (dispatcher)
     # ------------------------------------------------------------------
 
-    def build_action(
+    def build_run_item(
         self,
         ruleset_name: str,
         rule_name: str,
-        action_def: dict[str, Any],
+        run_item_def: dict[str, Any],
     ) -> Callable[[Any], None]:
         """
-        Build a single executable action callable from config.
+        Build a single executable run item callable from config.
 
         Supported shapes:
           - {"log": {"msg": str}}
@@ -122,32 +122,32 @@ class Binder:
           - {"timer": {"name": str, "action": "start", "seconds": float}}
           - {"timer": {"name": str, "action": "cancel"}}
         """
-        match action_def:
+        match run_item_def:
             case {"log": {"msg": msg}}:
-                return self._build_log_action(rule_name, msg)
+                return self._build_log_item(rule_name, msg)
 
-            case {"action": {"unique_id": dev, "call": call, **rest}}:
+            case {"action": {"unique_id": dev, "call": operation_name, **rest}}:
                 args_config = rest.get("args", None)
-                return self._build_device_action(rule_name, dev, call, args_config)
-
-            case {"timer": {"name": name, "action": "start", "seconds": secs}}:
-                return self._build_timer_start_action(
-                    ruleset_name, rule_name, name, secs
+                return self._build_action_item(
+                    rule_name, dev, operation_name, args_config
                 )
 
+            case {"timer": {"name": name, "action": "start", "seconds": secs}}:
+                return self._build_timer_start_item(ruleset_name, rule_name, name, secs)
+
             case {"timer": {"name": name, "action": "cancel"}}:
-                return self._build_timer_cancel_action(rule_name, name)
+                return self._build_timer_cancel_item(rule_name, name)
 
             case _:
                 raise ValueError(
-                    f"Unknown action definition in rule '{rule_name}': {action_def!r}"
+                    f"Unknown run item definition in rule '{rule_name}': {run_item_def!r}"
                 )
 
     # ------------------------------------------------------------------
-    # Action builders (private)
+    # Run item builders (private)
     # ------------------------------------------------------------------
 
-    def _build_log_action(self, rule_name: str, msg: Any) -> Callable[[Any], None]:
+    def _build_log_item(self, rule_name: str, msg: Any) -> Callable[[Any], None]:
         if not isinstance(msg, str):
             raise TypeError(f"log.msg must be str (rule '{rule_name}')")
 
@@ -159,70 +159,70 @@ class Binder:
         _log.__name__ = f"log__{rule_name}"
         return _log
 
-    def _build_device_action(
+    def _build_action_item(
         self,
         rule_name: str,
         unique_id: Any,
-        call_name: Any,
+        operation_name: Any,
         args_config: list[dict[str, Any]] | None = None,
     ) -> Callable[[Any], None]:
         """
-        Build a device action with optional dynamic arguments.
+        Build an action item that calls an object operation with optional dynamic arguments.
 
         Args:
             rule_name: Name of the rule
             unique_id: Device/pin unique_id
-            call_name: Function name to call
+            operation_name: Name of the registered operation to call
             args_config: Optional list of {"name": "parameter", "value": "Any"} argument definitions
         """
         if not isinstance(unique_id, str) or not unique_id:
             raise ValueError(
                 f"action.unique_id must be non-empty str (rule '{rule_name}')"
             )
-        if not isinstance(call_name, str) or not call_name:
+        if not isinstance(operation_name, str) or not operation_name:
             raise ValueError(f"action.call must be non-empty str (rule '{rule_name}')")
 
-        action_fn = self.dgb_context.get_calls(unique_id).get(call_name)
-        if action_fn is None:
+        operation_fn = self.dgb_context.get_operations(unique_id).get(operation_name)
+        if operation_fn is None:
             raise KeyError(
-                f"No action function '{call_name}' for device '{unique_id}' "
+                f"No action function '{operation_name}' for device '{unique_id}' "
                 f"(rule '{rule_name}')"
             )
 
         arg_defs = self.state_resolver.parse_argument_definitions(
-            args_config, action_fn
+            args_config, operation_fn
         )
 
         self.logger.info(
             "building action for %s.%s with %d args",
             unique_id,
-            call_name,
+            operation_name,
             len(arg_defs),
         )
 
-        def _device_action(
+        def _action_item(
             c,
-            _fn=action_fn,
+            _fn=operation_fn,
             _rule=rule_name,
-            _call=call_name,
+            _operation=operation_name,
             _dev=unique_id,
             _arg_defs=arg_defs,
         ):
             self.logger.info(
                 "rule '%s' fired with action '%s' on device '%s'",
                 _rule,
-                _call,
+                _operation,
                 _dev,
             )
             call_args = self.state_resolver.build_call_args(_arg_defs, c)
-            self.logger.debug(f"Calling {_call} with args: {call_args}")
+            self.logger.debug(f"Calling {_operation} with args: {call_args}")
             result = _fn(**call_args)
             c.s.return_value = {"value": True if result is None else bool(result)}
 
-        _device_action.__name__ = f"action__{rule_name}__{unique_id}__{call_name}"
-        return _device_action
+        _action_item.__name__ = f"action__{rule_name}__{unique_id}__{operation_name}"
+        return _action_item
 
-    def _build_timer_start_action(
+    def _build_timer_start_item(
         self,
         ruleset_name: str,
         rule_name: str,
@@ -264,7 +264,7 @@ class Binder:
         _timer_start.__name__ = f"timer__{rule_name}__{name}__start"
         return _timer_start
 
-    def _build_timer_cancel_action(
+    def _build_timer_cancel_item(
         self,
         rule_name: str,
         name: Any,
@@ -282,32 +282,34 @@ class Binder:
         return _timer_cancel
 
     # ------------------------------------------------------------------
-    # Condition handler
+    # Run handler
     # ------------------------------------------------------------------
 
-    def build_condition_handler(
+    def build_run_handler(
         self,
         ruleset_name: str,
         rule_name: str,
-        actions_def: list[dict[str, Any]],
+        run_item_defs: list[dict[str, Any]],
     ) -> Callable[[Any], None]:
-        actions = [self.build_action(ruleset_name, rule_name, a) for a in actions_def]
+        run_items = [
+            self.build_run_item(ruleset_name, rule_name, d) for d in run_item_defs
+        ]
 
-        def condition_handler(c):
+        def run_handler(c):
             c.s.return_value = {"value": "pending"}
-            for act in actions:
+            for run_item in run_items:
                 try:
-                    act(c)
+                    run_item(c)
                 except Exception:
                     self.logger.exception(
-                        "Error executing action '%s' in rule '%s'",
-                        getattr(act, "__name__", act),
+                        "Error executing run item '%s' in rule '%s'",
+                        getattr(run_item, "__name__", run_item),
                         rule_name,
                     )
                     raise
 
-        condition_handler.__name__ = f"handler__{rule_name}"
-        return condition_handler
+        run_handler.__name__ = f"run_handler__{rule_name}"
+        return run_handler
 
     # ------------------------------------------------------------------
     # Event dispatcher / binding
@@ -396,14 +398,14 @@ class Binder:
                     )
                 self.dgb_context.add_binding(uid, path[0])
 
-        # Build condition handlers
+        # Build run handlers
         for path, run_parent in iter_parents(bind, "run"):
-            actions = (
+            run_item_defs = (
                 run_parent["run"]
                 if isinstance(run_parent["run"], list)
                 else [run_parent["run"]]
             )
-            run_parent["run"] = self.build_condition_handler(path[0], path[1], actions)
+            run_parent["run"] = self.build_run_handler(path[0], path[1], run_item_defs)
 
         with self.dgb_context.engine_lock:
             self.logger.info(f"Adding binding {next(iter(bind))} to durable rules")

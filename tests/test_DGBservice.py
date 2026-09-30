@@ -255,22 +255,25 @@ def test_clear_and_restart_policy_clears_failed_config_topic(make_service):
 def test_on_message_stores_state_shadow_payload(make_service):
     service, _ = make_service(name="test")
     msg = MagicMock()
-    msg.topic = "config/test/retained-calls/switch_one"
+    msg.topic = "config/test/retained-actions/switch_one"
     msg.payload = json.dumps({"args": [{"name": "state", "value": "on"}]}).encode()
 
     with patch.object(service.dgb_context, "put_to_config_queue") as mock_enqueue:
         service._on_message(None, None, msg)
         mock_enqueue.assert_not_called()
 
-    retained = service.dgb_context.get_object("switch_one").retained_calls
+    retained = service.dgb_context.get_object("switch_one").retained_actions
     assert retained == {"set_state": {"args": [{"name": "state", "value": "on"}]}}
 
 
 def test_publish_state_value_uses_configured_prefix(make_service):
     service, mock_client = make_service(name="test")
 
-    service.dgb_context.persist_call("switch_1", "state", "on")
+    service.dgb_context.persist_action("switch_1", "state", "on")
 
     mock_client.publish.assert_any_call(
-        "config/test/retained-calls/switch_1/state", payload='"on"', qos=1, retain=True
+        "config/test/retained-actions/switch_1/state",
+        payload='"on"',
+        qos=1,
+        retain=True,
     )

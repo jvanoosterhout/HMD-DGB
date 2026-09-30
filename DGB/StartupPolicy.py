@@ -61,13 +61,13 @@ class ErrorStatePolicy(str, Enum):
 class StartupPhase(str, Enum):
     """Defines sub-phases within startup state coordination (reserved for future propagation)."""
 
-    COLLECT = "collect"  # Preload retained calls from MQTT
-    DECLARE = "declare"  # Register preset and persisted calls from config
-    RESOLVE_AND_SEED = "resolve_and_seed"  # Apply merged calls to objects
+    COLLECT = "collect"  # Preload retained actions from MQTT
+    DECLARE = "declare"  # Register preset and persisted actions from config
+    RESOLVE_AND_SEED = "resolve_and_seed"  # Apply merged actions to objects
     PROPAGATE = (
         "propagate"  # (Not yet implemented) Post synthetic events through bindings
     )
-    PERSIST = "persist"  # (Not yet implemented) Write canonical calls to state store
+    PERSIST = "persist"  # (Not yet implemented) Write canonical actions to state store
 
 
 _DEFAULT_LOADING_MODE = LoadingMode.GATED

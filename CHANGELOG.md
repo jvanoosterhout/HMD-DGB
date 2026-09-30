@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `direct_state_transition` being baked into `set_state`, which caused binder-driven state changes to also honor the `dst` flag and never take effect when it was `False`. `False` was only meant to suppress direct changes triggered by incoming MQTT messages, not by binder actions.
 - Fixed Uptime Sensor not being set correctly the availability_topic and not being registerd in DGB context as of which it was set unavailable when needed or not deleted at a hard restart.
 
+### Changed
+
+- Redesigned runtime events with explicit `kind`, `name`, `value`, and `origin` fields; device commands, pin states, and timer events now use the unified event vocabulary.
+- Renamed the startup lifecycle phases and renamed `StartupStateInitializer` to `StartupStateCoordinator`.
+- Renamed the internal object registry from calls/functions to operations and clarified Binder terminology with run items, run handlers, and action items.
+- Redesigned call arguments as `{ "name": ..., "value": ... }` entries, with object-form `$ref` references and named-state `set_state(**states)` operations.
+- Renamed startup configuration keys from `preset_value` to `preset_action` and from `retain_state` to `persist_action`.
+- Renamed the retained MQTT namespace from `config/{name}/retained-states/` to `config/{name}/retained-actions/`.
+- Added structural validation for device, pin, binding, preset-action, and persist-action configuration before the create phase.
+- Updated tests, examples, and documentation to use the new event, action, operation, startup, and retained-action terminology.
+
+### Breaking
+
+- Existing retained MQTT messages under `config/{name}/retained-states/` are not migrated automatically; publish them manually under `config/{name}/retained-actions/`.
+- Existing configuration keys `preset_value` and `retain_state` must be renamed to `preset_action` and `persist_action`.
+- Existing event consumers must use `value` instead of `payload`; `$m.payload` references must use `{"$ref": "m.value"}`.
+
 ## [1.0.0b5] - 2026-09-22
 
 ### Added

@@ -32,48 +32,50 @@ class StartupStateCoordinator:
         self,
         dgb_context: DGBContext,
         state_resolver: CallArgumentResolver,
-        retained_calls_topic_prefix: str,
+        retained_actions_topic_prefix: str,
     ) -> None:
         """Initialize the startup-state coordinator.
 
         Args:
             dgb_context: Context that stores registered objects and startup state data.
             state_resolver: Resolver used to build callable arguments from startup state data.
-            retained_calls_topic_prefix: Topic prefix used for retained call messages.
+            retained_actions_topic_prefix: Topic prefix used for retained action messages.
         """
         self.dgb_context = dgb_context
         self.logger = logging.getLogger("StartupStateCoordinator")
         self.state_resolver = state_resolver
-        self.retained_calls_topic_prefix = retained_calls_topic_prefix.rstrip("/") + "/"
+        self.retained_actions_topic_prefix = (
+            retained_actions_topic_prefix.rstrip("/") + "/"
+        )
 
     # ------------------------------------------------------------------
-    # StartupPhase.COLLECT: Preload retained calls from MQTT (helpers)
+    # StartupPhase.COLLECT: Preload retained actions from MQTT (helpers)
     # ------------------------------------------------------------------
 
-    def is_retained_calls_topic(self, topic: str) -> bool:
+    def is_retained_actions_topic(self, topic: str) -> bool:
         """Return whether a topic belongs to the retained state namespace."""
-        return self._parse_retained_calls_topic(topic) is not None
+        return self._parse_retained_actions_topic(topic) is not None
 
-    def _parse_retained_calls_topic(self, topic: str) -> tuple[str, str] | None:
-        """Parse a retained state topic into its object ID and call name.
+    def _parse_retained_actions_topic(self, topic: str) -> tuple[str, str] | None:
+        """Parse a retained state topic into its object ID and operation/call name.
 
         Args:
             topic: MQTT topic to inspect.
 
         Returns:
-            A tuple containing the object unique ID and call name, or None for an invalid topic.
+            A tuple containing the object unique ID and operation/call name, or None for an invalid topic.
         """
-        if not topic.startswith(self.retained_calls_topic_prefix):
+        if not topic.startswith(self.retained_actions_topic_prefix):
             return None
-        suffix = topic[len(self.retained_calls_topic_prefix) :].strip("/")
+        suffix = topic[len(self.retained_actions_topic_prefix) :].strip("/")
         if not suffix:
             return None
-        unique_id, _, call_name = suffix.partition("/")
+        unique_id, _, operation_name = suffix.partition("/")
         if not unique_id:
             return None
-        return unique_id, call_name or "set_state"
+        return unique_id, operation_name or "set_state"
 
-    def _unique_id_from_retained_calls_topic(self, topic: str) -> str | None:
+    def _unique_id_from_retained_actions_topic(self, topic: str) -> str | None:
         """Extract the object unique ID from a retained state topic.
 
         Args:
@@ -82,75 +84,75 @@ class StartupStateCoordinator:
         Returns:
             The object unique ID or None when the topic is outside the configured namespace.
         """
-        parsed_topic = self._parse_retained_calls_topic(topic)
+        parsed_topic = self._parse_retained_actions_topic(topic)
         return parsed_topic[0] if parsed_topic else None
 
-    def _call_name_from_retained_calls_topic(self, topic: str) -> str:
-        """Extract the state call name from a retained state topic.
+    def _operation_name_from_retained_actions_topic(self, topic: str) -> str:
+        """Extract the state operation/call name from a retained state topic.
 
         Args:
             topic: MQTT topic to inspect.
 
         Returns:
-            The call name or an empty string when the topic is outside the configured namespace.
+            The operation/call name or an empty string when the topic is outside the configured namespace.
         """
-        parsed_topic = self._parse_retained_calls_topic(topic)
+        parsed_topic = self._parse_retained_actions_topic(topic)
         return parsed_topic[1] if parsed_topic else ""
 
     # ------------------------------------------------------------------
-    # StartupPhase.COLLECT: Preload retained calls from MQTT (message handling)
+    # StartupPhase.COLLECT: Preload retained actions from MQTT (message handling)
     # ------------------------------------------------------------------
 
-    def handle_retained_call_message(self, payload: Any, topic: str) -> None:
-        """Validate and store a retained state message in the DGB context.
+    def handle_retained_action_message(self, payload: Any, topic: str) -> None:
+        """Validate and store a retained action message in the DGB context.
 
         Args:
-            msg: MQTT message containing the retained state topic and payload.
+            msg: MQTT message containing the retained action topic and payload.
         """
-        unique_id = self._unique_id_from_retained_calls_topic(topic)
+        unique_id = self._unique_id_from_retained_actions_topic(topic)
         if unique_id is None:
-            self.logger.warning("Ignoring invalid state shadow topic: %s", topic)
+            self.logger.warning("Ignoring invalid action shadow topic: %s", topic)
             return
 
-        call_name = self._call_name_from_retained_calls_topic(topic)
+        operation_name = self._operation_name_from_retained_actions_topic(topic)
 
-        if call_name == "set_state":
+        if operation_name == "set_state":
             try:
                 payload = self._validate_set_state_payload(payload)
             except (TypeError, ValueError) as exc:
                 self.logger.warning(
-                    "Ignoring retained set_state for %s on %s: %s",
+                    "Ignoring retained action for %s on %s: %s",
                     unique_id,
                     topic,
                     exc,
                 )
                 return
-        self.dgb_context.record_retained_call(
+        self.dgb_context.record_retained_action(
             unique_id=unique_id,
-            call_name=call_name,
+            operation_name=operation_name,
             args=payload,
         )
 
         self.logger.info(
-            "Stored retained state value for %s from %s (%s: %s)",
+            "Stored retained action value for %s from %s (%s: %s)",
             unique_id,
             topic,
-            call_name,
+            operation_name,
             payload,
         )
 
     # ------------------------------------------------------------------
-    # StartupPhase.DECLARE: Register persisted calls from config
+    # StartupPhase.DECLARE: Register persisted actions from config
     # ------------------------------------------------------------------
 
     def _validate_set_state_args(self, args_list: Any) -> list[dict[str, Any]]:
-        """Validate named state values for set_state.
+        """Validate named values for set_state.
 
         Args:
             args_list: Candidate list containing name/value argument objects.
 
         Returns:
-            A normalized list containing the validated state argument.
+            A normalized list containing the validated arguments.
         """
         if not isinstance(args_list, list):
             args_list = [args_list]
@@ -163,7 +165,7 @@ class StartupStateCoordinator:
         """Validate a set_state payload in either wrapped or direct argument form.
 
         Args:
-            payload: Decoded retained state payload to validate.
+            payload: Decoded retained action payload to validate.
 
         Returns:
             A normalized set_state payload containing the validated argument list.
@@ -177,26 +179,26 @@ class StartupStateCoordinator:
 
         return self._validate_set_state_args(payload)
 
-    def declare_persisted_calls(self, raw_startup_policy: dict) -> None:
-        """Register persisted call names from startup policy configuration.
+    def declare_persisted_actions(self, raw_startup_policy: dict) -> None:
+        """Register persisted actions from startup policy configuration.
 
         Args:
-            raw_startup_policy: State initialization configuration containing retain_state entries.
+            raw_startup_policy: State initialization configuration containing persist_action entries.
         """
-        retain_devices = self.get_list(raw_startup_policy, "retain_state")
+        retain_devices = self.get_list(raw_startup_policy, "persist_action")
         for retain_device in retain_devices:
             if not isinstance(retain_device, dict):
-                raise TypeError("retain_state entries must be dictionaries")
+                raise TypeError("persist_action entries must be dictionaries")
             unique_id = retain_device.get("unique_id")
             if not isinstance(unique_id, str) or not unique_id.strip():
-                raise ValueError("retain_state 'unique_id' must be a non-empty str")
-            call_names = self.get_list(retain_device, "call")
-            if not call_names or not all(
-                isinstance(call_name, str) and call_name.strip()
-                for call_name in call_names
+                raise ValueError("persist_action 'unique_id' must be a non-empty str")
+            operation_names = self.get_list(retain_device, "call")
+            if not operation_names or not all(
+                isinstance(operation_name, str) and operation_name.strip()
+                for operation_name in operation_names
             ):
-                raise ValueError("retain_state 'call' must contain non-empty strings")
-            self.dgb_context.declare_persisted_calls(unique_id, call_names)
+                raise ValueError("persist_action 'call' must contain non-empty strings")
+            self.dgb_context.declare_persisted_actions(unique_id, operation_names)
 
     def get_list(
         self,
@@ -243,84 +245,84 @@ class StartupStateCoordinator:
         return raw_dict
 
     # ------------------------------------------------------------------
-    # StartupPhase.DECLARE: Register preset calls from config
+    # StartupPhase.DECLARE: Register preset actions from config
     # ------------------------------------------------------------------
 
-    def register_preset_calls(self, raw_sources: dict) -> None:
-        """Validate and register preset calls from startup configuration.
+    def register_preset_actions(self, raw_sources: dict) -> None:
+        """Validate and register preset actions from startup configuration.
 
         Args:
-            raw_sources: State initialization configuration containing preset_value key and entries. structured like:
+            raw_sources: State initialization configuration containing preset_action key and entries. structured like:
              "unique_id": "id", "call": "set_state", "args": [{"name": "state", "value": "Any"}]}
         """
-        raw_list = self.get_list(raw_sources, "preset_value")
+        raw_list = self.get_list(raw_sources, "preset_action")
 
         for raw in raw_list:
             if not isinstance(raw, dict):
                 raise TypeError(
-                    f"Key preset_value in given dict does not contain a dict, got {type(raw_list).__name__!r}"
+                    f"Key preset_action in given dict does not contain a dict, got {type(raw_list).__name__!r}"
                 )
             unique_id = raw.get("unique_id")
             if not isinstance(unique_id, str) or not unique_id.strip():
-                raise ValueError("preset_value 'unique_id' must be a non-empty str")
-            call_name = raw.get("call")
+                raise ValueError("preset_action 'unique_id' must be a non-empty str")
+            operation_name = raw.get("call")
             args_list = self.get_list(raw, "args")
-            if call_name != "set_state":
-                raise ValueError("preset_value 'call' must be 'set_state' for now")
+            if operation_name != "set_state":
+                raise ValueError("preset_action 'call' must be 'set_state' for now")
 
             args_list = self._validate_set_state_args(args_list)
 
-            self.dgb_context.record_preset_call(
-                unique_id, call_name, {"args": args_list}
+            self.dgb_context.record_preset_action(
+                unique_id, operation_name, {"args": args_list}
             )
 
     # ------------------------------------------------------------------
-    # StartupPhase.RESOLVE_AND_SEED: Merge and seed calls to objects
+    # StartupPhase.RESOLVE_AND_SEED: Merge and seed actions to objects
     # ------------------------------------------------------------------
 
     @staticmethod
     def _merge_startup_states(
-        preset_calls: dict[str, Any],
-        retained_calls: dict[str, Any],
-        persisted_calls: list[str],
+        preset_actions: dict[str, Any],
+        retained_actions: dict[str, Any],
+        persisted_actions: list[str],
     ) -> dict[str, Any]:
-        """Merge retained calls over preset calls when they are persisted.
+        """Merge retained actions over preset actions when they are persisted.
 
         Args:
-            preset_calls: Configured default calls.
-            retained_calls: Calls loaded from MQTT.
-            persisted_calls: Call names configured to use retained values.
+            preset_actions: Configured default actions.
+            retained_actions: Actions loaded from MQTT.
+            persisted_actions: Operation names whose actions are persisted.
 
         Returns:
-            A new state mapping with applicable retained values overriding presets.
+            A new action mapping with applicable retained actions overriding presets.
         """
-        merged_calls = dict(preset_calls)
-        for call_name, args in retained_calls.items():
-            if call_name in persisted_calls:
-                merged_calls[call_name] = args
-        return merged_calls
+        merged_actions = dict(preset_actions)
+        for operation_name, args in retained_actions.items():
+            if operation_name in persisted_actions:
+                merged_actions[operation_name] = args
+        return merged_actions
 
     def resolve_and_seed_startup_calls(self) -> None:
-        """Merge preset and retained calls, then apply to every registered object."""
+        """Merge preset and retained actions, then apply them to every registered object."""
         for dgb_object in self.dgb_context.DGB_objects.values():
             unique_id = dgb_object.unique_id
             state_dict = self._merge_startup_states(
-                dgb_object.preset_calls,
-                dgb_object.retained_calls,
-                dgb_object.persisted_calls,
+                dgb_object.preset_actions,
+                dgb_object.retained_actions,
+                dgb_object.persisted_actions,
             )
             if state_dict:
                 self.logger.info(
-                    "Found preset calls for unique_id %s: %s",
+                    "Found preset actions for unique_id %s: %s",
                     unique_id,
                     state_dict,
                 )
-            for call_name in set(state_dict) & set(dgb_object.persisted_calls):
+            for operation_name in set(state_dict) & set(dgb_object.persisted_actions):
                 self.logger.info(
-                    "Found retained call for unique_id %s (%s): %s",
+                    "Found retained action for unique_id %s (%s): %s",
                     unique_id,
-                    call_name,
-                    state_dict[call_name],
+                    operation_name,
+                    state_dict[operation_name],
                 )
             if state_dict:
                 self._seed_call(unique_id=unique_id, state_dict=dict(state_dict))
@@ -330,14 +332,14 @@ class StartupStateCoordinator:
         unique_id: str,
         state_dict: dict[str, Any],
     ) -> bool:
-        """Apply configured calls for one object using the registered function map.
+        """Apply all configured actions for one object using the registered operation map.
 
         Args:
             unique_id: Unique ID of the object receiving the startup state.
-            state_dict: Mapping of call names to their argument payloads.
+            state_dict: Mapping of operation names to their argument payloads.
 
         Returns:
-            True when at least one startup call was applied, otherwise False.
+            True only when every startup action was applied successfully.
         """
         if not isinstance(state_dict, dict):
             self.logger.warning(
@@ -346,51 +348,57 @@ class StartupStateCoordinator:
             )
             return False
 
-        functions = self.dgb_context.get_calls(unique_id)
-        if not functions:
+        operations = self.dgb_context.get_operations(unique_id)
+        if not operations:
             self.logger.warning(
-                "Configured default for %s ignored: no registered functions",
+                "Configured default for %s ignored: no registered operations",
                 unique_id,
             )
             return False
 
-        for call_name, args in state_dict.items():
-            if self._seed_single_call(
-                unique_id, call_name, args, functions.get(call_name)
+        all_applied = True
+        for operation_name, args in state_dict.items():
+            if not self._seed_single_call(
+                unique_id, operation_name, args, operations.get(operation_name)
             ):
-                return True
-        return False
+                self.logger.warning(
+                    "Seeding startup action %s for %s failed",
+                    operation_name,
+                    unique_id,
+                )
+                all_applied = False
+        return all_applied
 
     def _seed_single_call(
         self,
         unique_id: str,
-        call_name: str,
+        operation_name: str,
         args: Any,
         function: Callable[..., Any] | None,
     ) -> bool:
-        """Resolve and invoke one configured startup call.
+        """Resolve and invoke one configured startup action.
 
         Args:
-            unique_id: Unique ID of the object receiving the startup call.
-            call_name: Name of the configured call.
-            args: Argument payload for the configured call.
-            function: Registered callable for the configured call.
+            unique_id: Unique ID of the object receiving the startup action.
+            operation_name: Name of the operation to call.
+            args: Argument payload for the operation.
+            function: Registered callable for the operation.
 
         Returns:
-            True when the call was invoked, otherwise False when it was ignored.
+            True when the operation was invoked and did not report failure.
         """
         if function is None:
             self.logger.warning(
-                "Configured default for %s ignored: unknown function %s",
+                "Configured default for %s ignored: unknown operation %s",
                 unique_id,
-                call_name,
+                operation_name,
             )
             return False
         if not isinstance(args, dict):
             self.logger.warning(
                 "Configured default for %s ignored: arguments for %s must be a dict",
                 unique_id,
-                call_name,
+                operation_name,
             )
             return False
 
@@ -398,10 +406,12 @@ class StartupStateCoordinator:
             args.get("args"), function
         )
         call_args = self.state_resolver.build_call_args(arg_defs, None)
-        function(**call_args)
+        result = function(**call_args)
+        if result is False:
+            return False
         self.logger.info(
-            "Applied configured default via action call for %s (%s)",
+            "Applied startup action for %s (%s)",
             unique_id,
-            call_name,
+            operation_name,
         )
         return True

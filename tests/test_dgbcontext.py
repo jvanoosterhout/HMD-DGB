@@ -27,17 +27,17 @@ def test_add_device_without_functions(dgb_context):
     dgb_context.add_object("relay1", device_obj)
 
     assert dgb_context.get_object("relay1").dgb_obj == device_obj
-    assert dgb_context.get_calls("relay1") == {}
+    assert dgb_context.get_operations("relay1") == {}
 
 
 def test_add_device_with_functions(dgb_context):
     """Test adding a device with functions"""
     device_obj = {"type": "relay"}
     functions = {"on": lambda: True, "off": lambda: False}
-    dgb_context.add_object("relay1", device_obj, functions=functions)
+    dgb_context.add_object("relay1", device_obj, operations=functions)
 
     assert dgb_context.get_object("relay1").dgb_obj == device_obj
-    assert dgb_context.get_calls("relay1") == functions
+    assert dgb_context.get_operations("relay1") == functions
 
 
 def test_get_nonexistent_device(dgb_context):
@@ -56,17 +56,17 @@ def test_add_pin_without_functions(dgb_context):
     dgb_context.add_object("gpio17", pin_obj)
 
     assert dgb_context.get_object("gpio17").dgb_obj == pin_obj
-    assert dgb_context.get_calls("gpio17") == {}
+    assert dgb_context.get_operations("gpio17") == {}
 
 
 def test_add_pin_with_functions(dgb_context):
     """Test adding a pin with functions"""
     pin_obj = {"pin": 17, "mode": "OUT"}
     functions = {"set_high": lambda: None, "set_low": lambda: None}
-    dgb_context.add_object("gpio17", pin_obj, functions=functions)
+    dgb_context.add_object("gpio17", pin_obj, operations=functions)
 
     assert dgb_context.get_object("gpio17").dgb_obj == pin_obj
-    assert dgb_context.get_calls("gpio17") == functions
+    assert dgb_context.get_operations("gpio17") == functions
 
 
 def test_get_nonexistent_pin(dgb_context):
@@ -152,104 +152,110 @@ def test_get_bindings_returns_copy(dgb_context):
 
 
 def test_get_calls_from_device(dgb_context):
-    """Test getting calls from a device"""
+    """Test getting operations from a device"""
     functions = {"on": lambda: True}
-    dgb_context.add_object("dev1", {}, functions=functions)
+    dgb_context.add_object("dev1", {}, operations=functions)
 
-    assert dgb_context.get_calls("dev1") == functions
+    assert dgb_context.get_operations("dev1") == functions
 
 
 def test_get_calls_from_pin(dgb_context):
-    """Test getting calls from a pin"""
+    """Test getting operations from a pin"""
     functions = {"set": lambda: True}
-    dgb_context.add_object("pin1", {}, functions=functions)
+    dgb_context.add_object("pin1", {}, operations=functions)
 
-    assert dgb_context.get_calls("pin1") == functions
+    assert dgb_context.get_operations("pin1") == functions
 
 
 def test_get_calls_last_write_wins(dgb_context):
     """Unified object model: latest registration for a unique_id wins."""
     dev_functions = {"on": lambda: "device"}
     pin_functions = {"on": lambda: "pin"}
-    dgb_context.add_object("id1", {}, functions=dev_functions)
-    dgb_context.add_object("id1", {}, functions=pin_functions)
+    dgb_context.add_object("id1", {}, operations=dev_functions)
+    dgb_context.add_object("id1", {}, operations=pin_functions)
 
-    assert dgb_context.get_calls("id1") == pin_functions
+    assert dgb_context.get_operations("id1") == pin_functions
 
 
 def test_get_calls_nonexistent(dgb_context):
-    """Test getting calls for non-existent device/pin returns empty dict"""
-    assert dgb_context.get_calls("nonexistent") == {}
+    """Test getting operations for non-existent device/pin returns empty dict"""
+    assert dgb_context.get_operations("nonexistent") == {}
 
 
 def test_retained_value_updates_dgb_object_state_store(dgb_context):
-    dgb_context.record_retained_call("switch_2", "state", "on")
+    dgb_context.record_retained_action("switch_2", "state", "on")
 
-    retained = dgb_context.get_object("switch_2").retained_calls
+    retained = dgb_context.get_object("switch_2").retained_actions
     assert retained == {"state": "on"}
-    assert dgb_context.get_object("switch_2").retained_calls == {"state": "on"}
+    assert dgb_context.get_object("switch_2").retained_actions == {"state": "on"}
 
 
 def test_record_preset_call_creates_and_updates_object(dgb_context):
-    """Preset calls are stored on the object wrapper."""
+    """Preset operations are stored on the object wrapper."""
     args = {"state": ["on"]}
 
-    dgb_context.record_preset_call("switch_1", "set_state", args)
+    dgb_context.record_preset_action("switch_1", "set_state", args)
 
-    assert dgb_context.get_object("switch_1").preset_calls == {"set_state": args}
+    assert dgb_context.get_object("switch_1").preset_actions == {"set_state": args}
 
 
 def test_declare_persisted_calls_and_requirement(dgb_context):
-    """Declaring persisted calls marks the object as required."""
-    dgb_context.declare_persisted_calls("switch_1", ["set_state"])
+    """Declaring persisted operations marks the object as required."""
+    dgb_context.declare_persisted_actions("switch_1", ["set_state"])
 
-    assert dgb_context.is_call_persisted("switch_1") is True
-    assert dgb_context.get_object("switch_1").persisted_calls == ["set_state"]
+    assert dgb_context.is_action_persisted("switch_1") is True
+    assert dgb_context.get_object("switch_1").persisted_actions == ["set_state"]
 
 
 def test_is_call_persisted_for_missing_or_unconfigured_object(dgb_context):
-    """Objects without persisted-call requirements return false."""
+    """Objects without persisted-operation requirements return false."""
     dgb_context.add_object("switch_1", {})
 
-    assert dgb_context.is_call_persisted("switch_1") is False
-    assert dgb_context.is_call_persisted("unknown") is False
+    assert dgb_context.is_action_persisted("switch_1") is False
+    assert dgb_context.is_action_persisted("unknown") is False
 
 
 def test_publish_state_value_calls_publish_fn(dgb_context):
     publish_fn = MagicMock()
-    dgb_context.configure_retained_calls_publishing("retained-calls/test/", publish_fn)
+    dgb_context.configure_retained_actions_publishing(
+        "retained-actions/test/", publish_fn
+    )
 
-    dgb_context.persist_call("switch_7", "state", "off")
+    dgb_context.persist_action("switch_7", "state", "off")
 
     publish_fn.assert_called_once_with(
-        "retained-calls/test/switch_7/state", payload='"off"', qos=1, retain=True
+        "retained-actions/test/switch_7/state", payload='"off"', qos=1, retain=True
     )
 
 
 def test_publish_state_without_configuration_is_ignored(dgb_context):
     """Publishing does nothing until a topic and callback are configured."""
-    dgb_context.persist_call("switch_1", "state", "on")
+    dgb_context.persist_action("switch_1", "state", "on")
 
 
 def test_publish_state_falls_back_to_string_for_unserializable_args(dgb_context):
     """Unserializable state arguments are published using their string form."""
     publish_fn = MagicMock()
-    dgb_context.configure_retained_calls_publishing("retained-calls/test/", publish_fn)
+    dgb_context.configure_retained_actions_publishing(
+        "retained-actions/test/", publish_fn
+    )
     args = {"value": object()}
 
-    dgb_context.persist_call("switch_1", "state", args)
+    dgb_context.persist_action("switch_1", "state", args)
 
     publish_fn.assert_called_once_with(
-        "retained-calls/test/switch_1/state", payload=str(args), qos=1, retain=True
+        "retained-actions/test/switch_1/state", payload=str(args), qos=1, retain=True
     )
 
 
 def test_publish_state_swallows_publish_errors(dgb_context):
     """Publish callback errors are logged without escaping."""
     publish_fn = MagicMock(side_effect=RuntimeError("publish failed"))
-    dgb_context.configure_retained_calls_publishing("retained-calls/test/", publish_fn)
+    dgb_context.configure_retained_actions_publishing(
+        "retained-actions/test/", publish_fn
+    )
 
-    dgb_context.persist_call("switch_1", "state", "on")
+    dgb_context.persist_action("switch_1", "state", "on")
 
     publish_fn.assert_called_once()
 
@@ -334,9 +340,9 @@ def test_exit_calls_close(dgb_context):
 
 def test_add_device_with_empty_functions(dgb_context):
     """Test adding device with empty functions dict"""
-    dgb_context.add_object("dev1", {}, functions={})
+    dgb_context.add_object("dev1", {}, operations={})
 
-    assert dgb_context.get_calls("dev1") == {}
+    assert dgb_context.get_operations("dev1") == {}
 
 
 def test_add_binding_empty_ruleset_name(dgb_context):
@@ -381,9 +387,9 @@ def test_put_config_shutdown_command(dgb_context):
 
 
 def test_record_retained_call(dgb_context):
-    dgb_context.record_retained_call("switch_one", "payload", {"state": "on"})
+    dgb_context.record_retained_action("switch_one", "payload", {"state": "on"})
 
-    retained = dgb_context.get_object("switch_one").retained_calls
+    retained = dgb_context.get_object("switch_one").retained_actions
     assert retained == {"payload": {"state": "on"}}
 
 

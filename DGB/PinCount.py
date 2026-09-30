@@ -120,8 +120,8 @@ class Pin_count(Pin):
                 "origin": "pin",
             },
         )
-        if self.dgb_context.is_call_persisted(str(self.config.pin)):
-            self.dgb_context.persist_call(
+        if self.dgb_context.is_action_persisted(str(self.config.pin)):
+            self.dgb_context.persist_action(
                 str(self.config.pin),
                 "set_state",
                 {

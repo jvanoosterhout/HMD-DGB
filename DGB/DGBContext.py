@@ -56,7 +56,7 @@ class DuplicatePolicy(Enum):
     REPLACE = "replace"
 
 
-FunctionMap = dict[str, Callable[..., Any]]
+OperationMap = dict[str, Callable[..., Any]]
 
 _UNSET = object()
 
@@ -67,11 +67,11 @@ class DGBObject:
 
     unique_id: str
     dgb_obj: Any | None = None
-    calls: FunctionMap = field(default_factory=dict)
+    operations: OperationMap = field(default_factory=dict)
     obj_type: type[Any] | None = None
-    persisted_calls: list[str] = field(default_factory=list)
-    retained_calls: dict[str, list] = field(default_factory=dict)
-    preset_calls: dict[str, list] = field(default_factory=dict)
+    persisted_actions: list[str] = field(default_factory=list)
+    retained_actions: dict[str, list] = field(default_factory=dict)
+    preset_actions: dict[str, list] = field(default_factory=dict)
 
 
 class DGBContext:
@@ -99,8 +99,8 @@ class DGBContext:
 
         self._phase_lock = threading.Lock()
         self.config_cycle = ConfigCycleState()
-        self._retained_calls_prefix = ""
-        self._retained_calls_publish_fn: Callable[..., Any] | None = None
+        self._retained_actions_prefix = ""
+        self._retained_actions_publish_fn: Callable[..., Any] | None = None
 
         self._closed = False
         self._logger.info("DGBContext initialized.")
@@ -136,28 +136,28 @@ class DGBContext:
         self,
         unique_id: str,
         obj: Any,
-        functions: dict[str, Callable[..., Any]] | None = None,
+        operations: dict[str, Callable[..., Any]] | None = None,
     ) -> None:
-        """Register or replace an object and its callable functions.
+        """Register or replace an object and its callable operations.
 
         Args:
             unique_id: Identifier used to register the object.
             obj: Device or pin object to register.
-            functions: Callable operations exposed by the object.
+            operations: Callable operations exposed by the object.
         """
-        fn_map: FunctionMap = functions if functions else {}
+        operation_map: OperationMap = operations if operations else {}
         dgb_object = self.DGB_objects.get(unique_id)
         if dgb_object is None:
             dgb_object = DGBObject(unique_id=unique_id)
             self.DGB_objects[unique_id] = dgb_object
 
         dgb_object.dgb_obj = obj
-        dgb_object.calls = fn_map
+        dgb_object.operations = operation_map
         dgb_object.obj_type = type(obj)
         self._logger.info(
-            "Added object %s with functions %s",
+            "Added object %s with operations %s",
             unique_id,
-            sorted(dgb_object.calls.keys()),
+            sorted(dgb_object.operations.keys()),
         )
 
     def _ensure_dgb_object(self, unique_id: str) -> DGBObject:
@@ -194,7 +194,7 @@ class DGBContext:
         """
         self.DGB_objects.pop(unique_id, None)
 
-    def get_calls(self, unique_id: str) -> FunctionMap:
+    def get_operations(self, unique_id: str) -> OperationMap:
         """Return a registered object's callable map or an empty map.
 
         Args:
@@ -206,101 +206,101 @@ class DGBContext:
         dgb_object = self.DGB_objects.get(unique_id)
         if dgb_object is None:
             return {}
-        return dgb_object.calls
+        return dgb_object.operations
 
-    def record_preset_call(
+    def record_preset_action(
         self,
         unique_id: str,
-        call_name: str,
+        operation_name: str,
         args: dict[str, list],
     ) -> None:
-        """Store a configured startup state for an object.
+        """Store a configured startup action for an object.
 
         Args:
             unique_id: Identifier of the target object.
-            call_name: State-setting call name.
-            args: Arguments for the state-setting call.
+            operation_name: Name of the operation the action calls.
+            args: Arguments for the operation.
         """
         with self._phase_lock:
             dgb_object = self._ensure_dgb_object(unique_id)
-            dgb_object.preset_calls[call_name] = args
+            dgb_object.preset_actions[operation_name] = args
 
     # ------------------------------------------------------------------
-    # StartupPhase.COLLECT: Preload retained calls from MQTT
+    # StartupPhase.COLLECT: Preload retained actions from MQTT
     # ------------------------------------------------------------------
 
-    def record_retained_call(
+    def record_retained_action(
         self,
         unique_id: str,
-        call_name: str,
+        operation_name: str,
         args: Any,
     ) -> None:
-        """Store a state loaded from an MQTT retained message.
+        """Store an action loaded from an MQTT retained message.
 
         Args:
             unique_id: Identifier of the target object.
-            call_name: State-setting call name.
+            operation_name: Name of the operation the action calls.
             args: Decoded arguments from the retained message.
         """
         with self._phase_lock:
             dgb_object = self._ensure_dgb_object(unique_id)
-            dgb_object.retained_calls[call_name] = args
+            dgb_object.retained_actions[operation_name] = args
 
     # ------------------------------------------------------------------
-    # StartupPhase.DECLARE: Record persisted call requirements from config
+    # StartupPhase.DECLARE: Record persisted actions from config
     # ------------------------------------------------------------------
 
-    def declare_persisted_calls(
+    def declare_persisted_actions(
         self,
         unique_id: str,
-        states: list[str],
+        operation_names: list[str],
     ) -> None:
-        """Record which state calls require retained values.
+        """Record which actions are persisted to retained MQTT messages.
 
         Args:
             unique_id: Identifier of the target object.
-            states: State-setting call names requiring retained values.
+            operation_names: Operation names whose actions are persisted.
         """
         with self._phase_lock:
             dgb_object = self._ensure_dgb_object(unique_id)
-            for state_name in states:
-                dgb_object.persisted_calls.append(state_name)
+            for operation_name in operation_names:
+                dgb_object.persisted_actions.append(operation_name)
 
     # ------------------------------------------------------------------
-    # StartupPhase.RESOLVE_AND_SEED: Persist resolved calls to MQTT
+    # StartupPhase.RESOLVE_AND_SEED: Persist resolved actions to MQTT
     # ------------------------------------------------------------------
 
-    def is_call_persisted(self, unique_id: str) -> bool:
-        """Return whether an object has retained-state requirements.
+    def is_action_persisted(self, unique_id: str) -> bool:
+        """Return whether an object has persisted actions.
 
         Args:
             unique_id: Identifier of the object to inspect.
 
         Returns:
-            ``True`` when at least one retained state is required.
+            ``True`` when at least one action is persisted.
         """
         with self._phase_lock:
             dgb_object = self.DGB_objects.get(unique_id)
-            return bool(dgb_object and dgb_object.persisted_calls)
+            return bool(dgb_object and dgb_object.persisted_actions)
 
-    def persist_call(
-        self, unique_id: str, call_name: str, args: dict[str, list]
+    def persist_action(
+        self, unique_id: str, operation_name: str, args: dict[str, list]
     ) -> None:
-        """Publish an object's state to its configured retained topic.
+        """Publish an object's action to its configured retained topic.
 
         Args:
             unique_id: Identifier of the target object.
-            call_name: State-setting call name used in the topic.
+            operation_name: Name of the operation used in the topic.
             args: Arguments to serialize and publish.
         """
         with self._phase_lock:
-            prefix = self._retained_calls_prefix
-            publish_fn = self._retained_calls_publish_fn
+            prefix = self._retained_actions_prefix
+            publish_fn = self._retained_actions_publish_fn
 
         if not prefix or publish_fn is None:
             return
 
-        topic = f"{prefix}{unique_id}/{call_name}"
+        topic = f"{prefix}{unique_id}/{operation_name}"
         try:
             payload = json.dumps(args)
         except (TypeError, ValueError):
@@ -312,7 +312,7 @@ class DGBContext:
             self._logger.exception(
                 "Failed to publish retained state for %s/%s",
                 unique_id,
-                call_name,
+                operation_name,
             )
 
     # ------------------------------------------------------------------
@@ -331,7 +331,7 @@ class DGBContext:
         """
         return ruleset_name.split("$", 1)[0]
 
-    def configure_retained_calls_publishing(
+    def configure_retained_actions_publishing(
         self,
         prefix: str,
         publish_fn: Callable[..., Any] | None,
@@ -343,8 +343,8 @@ class DGBContext:
             publish_fn: MQTT publish callback, or ``None`` to disable publishing.
         """
         with self._phase_lock:
-            self._retained_calls_prefix = prefix
-            self._retained_calls_publish_fn = publish_fn
+            self._retained_actions_prefix = prefix
+            self._retained_actions_publish_fn = publish_fn
 
     # ------------------------------------------------------------------
     # bindings

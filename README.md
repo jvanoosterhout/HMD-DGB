@@ -29,7 +29,7 @@ The power and uniqueness of HMD-DGB is twofold:
 - [Reference documentation](#reference-documentation)
   - [Node & system health & control](#node--system-health--control)
   - [Startup policy](#startup-policy)
-  - [Startup states](#startup-states)
+  - [Startup actions](#startup-actions)
   - [Basic configuration](#basic-configuration)
   - [Devices with EntityInfo](#devices-with-entityinfo)
     - [Device](#device)
@@ -211,13 +211,13 @@ Note that loading_mode is not yet impleemnted. Whatever is configured, DGB uses 
 
 [top](#table-of-contents)
 
-### Startup states
+### Startup actions
 
-Startup states restore or set object state after devices and pins have been created, but before bindings become live. State initialization is an option in the regular configuration payload on `config/{name}/devices/`. It has two optional lists: `preset_value` defines a configured default, while `retain_state` selects calls to publish and restore through the retained MQTT namespace `config/{name}/retained-calls/{unique_id}/{call_name}`.
+Startup actions restore or set object state after devices and pins have been created, but before bindings become live. State initialization is an option in the regular configuration payload on `config/{name}/devices/`. It has two optional lists: `preset_action` defines a configured default, while `persist_action` selects actions to publish and restore through the retained MQTT namespace `config/{name}/retained-actions/{unique_id}/{call}`.
 
-When the DGB service starts, it checks for the `config/{name}/retained-calls/#` topic. Calls can only be restored when a retained message exists. A retained call only overrides a preset when its call is listed in `retain_state` for that `unique_id`. If you remove a call from `retain_state`, the service may still load the retained message, but it will not apply it to the device.
+When the DGB service starts, it checks for the `config/{name}/retained-actions/#` topic. Actions can only be restored when a retained message exists. A retained action only overrides a preset when its operation is listed in `persist_action` for that `unique_id`. If you remove an operation from `persist_action`, the service may still load the retained message, but it will not apply it to the device.
 
-Configured preset values use the `set_state` call with one named state value per argument object. Each argument uses the `{ "name": "...", "value": ... }` form. Multiple named states may be supplied in one call. Retained messages for other calls are stored and can be selected with `retain_state`, provided that the target object exposes that call.
+Configured preset values use the `set_state` call with one named state value per argument object. Each argument uses the `{ "name": "...", "value": ... }` form. Multiple named states may be supplied in one call. Retained messages for other calls are stored and can be selected with `persist_action`, provided that the target object exposes that call.
 
 Examples for an HMD switch and a GPIO pin_20 count:
 ```json
@@ -226,7 +226,7 @@ Examples for an HMD switch and a GPIO pin_20 count:
   "Pins": [],
   "Bindings": [],
   "state_initialization": {
-    "preset_value": [
+    "preset_action": [
       {
         "unique_id": "switch_one",
         "call": "set_state",
@@ -238,7 +238,7 @@ Examples for an HMD switch and a GPIO pin_20 count:
         "args": [{"name": "total_count", "value": 42}]
       }
     ],
-    "retain_state": [
+    "persist_action": [
       {
         "unique_id": "switch_one",
         "call": ["set_state"]
@@ -252,7 +252,7 @@ Examples for an HMD switch and a GPIO pin_20 count:
 }
 ```
 
-For example, publish the retained message below to `config/{name}/retained-calls/switch_one/set_state` to restore `switch_one` as 'on' instead of using the preset value 'off':
+For example, publish the retained message below to `config/{name}/retained-actions/switch_one/set_state` to restore `switch_one` as 'on' instead of using the preset value 'off':
 
 ```json
 {

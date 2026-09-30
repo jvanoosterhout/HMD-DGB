@@ -146,7 +146,7 @@ class Pin_N_way_out(Pin):
 
         self.config.active_pin = active_pin
 
-        self.persist_call(
+        self.persist_action(
             {
                 "args": [
                     {"name": "active_pin", "value": active_pin},
@@ -161,7 +161,7 @@ class Pin_N_way_out(Pin):
             p.off(is_PinNWayOut=True)
         self.pin_device.off()
         self.config.value = 0
-        self.persist_call(
+        self.persist_action(
             {
                 "args": [
                     {"name": "active_pin", "value": None},
@@ -186,9 +186,9 @@ class Pin_N_way_out(Pin):
 
         return self.off() if state is None else self.on(active_pin=state)
 
-    def persist_call(self, args):
-        if self.dgb_context.is_call_persisted(str(self.config.pin)):
-            self.dgb_context.persist_call(str(self.config.pin), "set_state", args)
+    def persist_action(self, args):
+        if self.dgb_context.is_action_persisted(str(self.config.pin)):
+            self.dgb_context.persist_action(str(self.config.pin), "set_state", args)
 
     def ProcessPinUpdate(self, config: PinModel) -> bool:
         """

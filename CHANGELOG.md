@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed latest-release lookup for newer `ghapi` versions that return coroutine results, and cached the lookup so update cycles do not call GitHub every time.
 - Fixed `direct_state_transition` being baked into `set_state`, which caused binder-driven state changes to also honor the `dst` flag and never take effect when it was `False`. `False` was only meant to suppress direct changes triggered by incoming MQTT messages, not by binder actions.
 - Fixed valve `set_state` actions to accept named `state` commands and numeric `position` values, and to retain numeric MQTT positions as `position` for startup restoration.
+- Fixed number `set_state` crashing on incoming MQTT commands, which arrive as strings while `set_value` requires a numeric value. The state is now coerced to `float`, and an unconvertible value is logged and rejected instead of raising a `TypeError` that terminated the MQTT network thread.
 - Fixed Uptime Sensor not being set correctly the availability_topic and not being registerd in DGB context as of which it was set unavailable when needed or not deleted at a hard restart.
 
 ### Changed

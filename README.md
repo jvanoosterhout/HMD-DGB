@@ -169,10 +169,11 @@ DGB node for service-name:
 - CPU usage
 - RAM usage
 - CPU temperature
-- Uptime
+- Uptime of the node (is time.monotonic())
 
 DGB service for service-name:
 - Current software version installed
+- Uptime of the service, this may be different from the node due to a restart of the service of crashes of the service.
 - Soft restart (set all entities to unavailable, restart service, leave other MQTT messages untouched)
 - Hard restart (clear the service configuration topic and restart service)
 

@@ -241,6 +241,13 @@ class DeviceKeeper:
         self, device: Discoverable, state: float, dst: bool = True
     ) -> bool:
         unique_id = str(device._entity.unique_id)
+        try:
+            state = float(state)
+        except (TypeError, ValueError):
+            self.logger.warning(
+                "Unsupported number payload for %s: %r", unique_id, state
+            )
+            return False
         if dst:
             device.set_value(state)
 

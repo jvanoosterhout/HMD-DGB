@@ -26,11 +26,12 @@ The power and uniqueness of HMD-DGB is twofold:
   - [Option 1: venv](#option-1-venv)
   - [Option 2: Docker](#option-2-docker)
   - [Operational caveats](#operational-caveats)
+- [Example projects](#example-projects)
 - [Reference documentation](#reference-documentation)
   - [Node & system health & control](#node--system-health--control)
+  - [Basic configuration](#basic-configuration)
   - [Startup policy](#startup-policy)
   - [Startup actions](#startup-actions)
-  - [Basic configuration](#basic-configuration)
   - [Devices with EntityInfo](#devices-with-entityinfo)
     - [Device](#device)
     - [Basic parameters (for all entities)](#basic-parameters-for-all-entities)
@@ -123,7 +124,8 @@ The table below reflects current implementation status in this repository.
 ### Tested Platforms
 
 - Raspberry Pi 4 with Bookworm (64-bit, desktop) and Python 3.11.2
-- Raspberry Pi Zero 2 W with Bookworm (32-bit, lite) and Python 3.10.0
+- Raspberry Pi Zero 2 W with Bookworm (32-bit, lite) and Python 3.10
+- Raspberry Pi Zero 2 W with Trixie (32-bit, lite) and Python 3.13
 
 [top](#table-of-contents)
 
@@ -159,6 +161,15 @@ There is currently no Dockerfile or compose setup in this repository.
 
 [top](#table-of-contents)
 
+## Example projects
+
+In order to get some inspiration to use HMD-DGB (and custom IOT hardware design), take a look at these personal projects that I provide as examples.
+
+- The [MK controler](https://github.com/jvanoosterhout/MKcontroller) make dumb systems in my utility cupboard (Dutch: MeterKast → MK) smart and connect them to Home Assistant. It connects a doorbell and water meter. Futhermore it can disable the doorbell physical ring while maintaining sensor capability for notifications.
+- The [G controler](https://github.com/jvanoosterhout/Gcontroller) make dumb systems in my Garage (Dutch: Garage → G) smart and connect them to Home Assistant. It connects controles the garden irrigation and electrical garage door.
+
+[top](#table-of-contents)
+
 ## Reference documentation
 
 ### Node & system health & control
@@ -178,6 +189,30 @@ DGB service for service-name:
 - Hard restart (clear the service configuration topic and restart service)
 
 In DGB, your own Home Assistant devices can only be configured inside an [HMD](https://github.com/unixorn/ha-mqtt-discoverable) JSON with the "device" key. DGB alters this HMD device JSON slightly: it overrides/creates the "via_device" key with the unique ID of the DGB service device.
+
+[top](#table-of-contents)
+
+### Basic configuration
+
+Once the HMD-DGB service runs on a Pi/SBC and is connected to an MQTT broker (with Home Assistant as subscriber), the next step is to publish a configuration message via MQTT to the config topic `config/{name}/devices/`. Such a message can configure devices (Home Assistant entities optionally grouped in devices), GPIO pins, and bindings between the first two. The message should be a JSON payload structured like this:
+
+```json
+{
+  "Devices": [
+    {"EntityInfo": EntityInfo},
+  ],
+  "Pins": [
+    {"PinInfo": pinoutinfo},
+    ],
+  "Bindings": [
+    {"BindInfo": binding_info},
+  ],
+  "state_initialization": {...}
+}
+```
+How to fill this message is explained in the next sections.
+
+Before any device, pin, or binding is created, DGB validates the structural shape of the payload (required keys like `EntityInfo.component`, `EntityInfo.unique_id`, `PinInfo.pin`, `PinInfo.ptype`, `BindInfo`, and `state_initialization` entries). A structurally invalid payload blocks the configuration cycle the same way a failed device/pin/binding creation does, governed by `error_state_policy`.
 
 [top](#table-of-contents)
 
@@ -262,29 +297,6 @@ For example, publish the retained message below to `config/{name}/retained-actio
 ```
 
 Note that the blink state of PinOut cannot be retained in an MQTT topic. Blink is a temporary state. Meaning that it is only valid at execution, in case of a restart of the system, the condition may longer be valid.
-
-[top](#table-of-contents)
-
-### Basic configuration
-
-Once the HMD-DGB service runs on a Pi/SBC and is connected to an MQTT broker (with Home Assistant as subscriber), the next step is to publish a configuration MQTT message to the config topic `config/{name}/devices/`. Such a message can configure devices (Home Assistant entities optionally grouped in devices), GPIO pins, and bindings between the first two. The message should be a JSON payload structured like this:
-
-```json
-{
-  "Devices": [
-    {"EntityInfo": EntityInfo},
-  ],
-  "Pins": [
-    {"PinInfo": pinoutinfo},
-    ],
-  "Bindings": [
-    {"BindInfo": binding_info},
-  ],
-}
-```
-How to fill this message is explained in the next sections.
-
-Before any device, pin, or binding is created, DGB validates the structural shape of the payload (required keys like `EntityInfo.component`, `EntityInfo.unique_id`, `PinInfo.pin`, `PinInfo.ptype`, `BindInfo`, and `state_initialization` entries). A structurally invalid payload blocks the configuration cycle the same way a failed device/pin/binding creation does, governed by `error_state_policy`.
 
 [top](#table-of-contents)
 

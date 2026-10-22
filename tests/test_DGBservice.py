@@ -277,3 +277,84 @@ def test_publish_state_value_uses_configured_prefix(make_service):
         qos=1,
         retain=True,
     )
+
+
+def test_dgbservice_restores_subscriptions_on_reconnect(make_service):
+    """Subscriptions (incl. entity command topics) are renewed after a reconnect."""
+    from types import SimpleNamespace
+
+    from paho.mqtt.reasoncodes import ReasonCode
+
+    service, mock_client = make_service(name="test")
+    raw_subscribe = service._raw_subscribe
+    raw_subscribe.return_value = (0, 1)
+
+    # Subscriptions made via the shared client (e.g. by ha_mqtt_discoverable entities)
+    mock_client.subscribe("hmd/switch/s1/command", qos=1)
+    mock_client.subscribe("tmp/topic", qos=1)
+    mock_client.unsubscribe("tmp/topic")
+    raw_subscribe.reset_mock()
+
+    service._on_connect(
+        mock_client,
+        None,
+        SimpleNamespace(session_present=False),
+        ReasonCode(2, identifier=0),
+        None,
+    )
+
+    raw_subscribe.assert_called_once()
+    restored = dict(raw_subscribe.call_args.args[0])
+    assert restored == {
+        "config/test/devices/#": 1,
+        "hmd/switch/s1/command": 1,
+    }
+
+
+def test_dgbservice_skips_restore_when_session_present(make_service):
+    from types import SimpleNamespace
+
+    from paho.mqtt.reasoncodes import ReasonCode
+
+    service, mock_client = make_service(name="test")
+    service._raw_subscribe.reset_mock()
+
+    service._on_connect(
+        mock_client,
+        None,
+        SimpleNamespace(session_present=True),
+        ReasonCode(2, identifier=0),
+        None,
+    )
+
+    service._raw_subscribe.assert_not_called()
+
+
+def test_dgbservice_notifies_connected_listeners(make_service):
+    from types import SimpleNamespace
+
+    from paho.mqtt.reasoncodes import ReasonCode
+
+    service, mock_client = make_service(name="test")
+    service._raw_subscribe.return_value = (0, 1)
+    failing = MagicMock(side_effect=RuntimeError("boom"))
+    listener = MagicMock()
+    service.add_connected_listener(failing)
+    service.add_connected_listener(listener)
+
+    service._on_connect(
+        mock_client,
+        None,
+        SimpleNamespace(session_present=False),
+        ReasonCode(2, identifier=0),
+        None,
+    )
+
+    failing.assert_called_once()
+    listener.assert_called_once()
+
+
+def test_dgbservice_registers_entity_republish_on_connect(make_service):
+    service, _ = make_service(name="test")
+
+    assert service.devicekeeper.republish_entities in service._connected_listeners

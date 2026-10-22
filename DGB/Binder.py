@@ -365,20 +365,20 @@ class Binder:
 
         rulesets = allowed_rulesets
 
-        try:
-            with self.dgb_context.engine_lock:
-                for ruleset in rulesets:
+        with self.dgb_context.engine_lock:
+            for ruleset in rulesets:
+                try:
                     self.logger.info(
                         "Posting event to ruleset %s: %s", ruleset, payload
                     )
                     post(ruleset, payload)
 
-        except MessageNotHandledException as e:
-            self.logger.exception("Unmatched event: %s", e.message)
-        except MessageObservedException as e:
-            self.logger.exception("Event already observed: %s", e.message)
-        except Exception:
-            self.logger.exception("Exception while posting event")
+                except MessageNotHandledException as e:
+                    self.logger.exception("Unmatched event: %s", e.message)
+                except MessageObservedException as e:
+                    self.logger.exception("Event already observed: %s", e.message)
+                except Exception:
+                    self.logger.exception("Exception while posting event")
 
     def new_binding(self, bind: dict, policy: DuplicatePolicy = DuplicatePolicy.SKIP):
 

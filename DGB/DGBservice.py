@@ -22,6 +22,7 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 
 import paho.mqtt.client as mqtt
 from ha_mqtt_discoverable import Settings
@@ -64,6 +65,11 @@ class DGBservice:
         self._temp_subscription_active = False
         self._temp_subscription_last_activity = time.monotonic()
 
+        # Active subscriptions (topic -> qos), restored after every (re)connect
+        self._subscriptions_lock = threading.Lock()
+        self._subscriptions: dict[str, int] = {}
+        self._connected_listeners: list[Callable[[], None]] = []
+
         self.client_id = f"dgb-{self.name}"
 
         self.logger = logging.getLogger(f"DGBservice[{self.name}]")
@@ -92,6 +98,7 @@ class DGBservice:
         self.devicekeeper = DeviceKeeper(
             self.mqtt_settings, dgb_context=self.dgb_context
         )
+        self.add_connected_listener(self.devicekeeper.republish_entities)
         self.startup_state = StartupStateCoordinator(
             dgb_context=self.dgb_context,
             state_resolver=self.state_resolver,
@@ -233,6 +240,7 @@ class DGBservice:
         client.on_connect = self._on_connect
         client.on_message = self._on_message
         client.on_subscribe = self._on_subscribe
+        self._track_subscriptions(client)
 
         client.will_set(
             self.dgb_context.availability_topic_ns,
@@ -247,11 +255,69 @@ class DGBservice:
 
         return client
 
+    def _track_subscriptions(self, client: mqtt.Client) -> None:
+        """Record subscriptions made on the shared client (also by ha_mqtt_discoverable
+        entities), so they can be restored after a reconnect. With clean_session=True the
+        broker forgets all subscriptions when the connection drops."""
+        original_subscribe = client.subscribe
+        original_unsubscribe = client.unsubscribe
+        self._raw_subscribe = original_subscribe
+
+        def subscribe(topic, qos=0, *args, **kwargs):
+            if isinstance(topic, str):
+                entries = [(topic, qos)]
+            elif isinstance(topic, tuple):
+                entries = [topic]
+            elif isinstance(topic, list):
+                entries = list(topic)
+            else:
+                entries = []
+            with self._subscriptions_lock:
+                for t, q in entries:
+                    self._subscriptions[t] = q if isinstance(q, int) else qos
+            return original_subscribe(topic, qos, *args, **kwargs)
+
+        def unsubscribe(topic, *args, **kwargs):
+            topics = [topic] if isinstance(topic, str) else list(topic)
+            with self._subscriptions_lock:
+                for t in topics:
+                    self._subscriptions.pop(t, None)
+            return original_unsubscribe(topic, *args, **kwargs)
+
+        client.subscribe = subscribe
+        client.unsubscribe = unsubscribe
+
+    def _restore_subscriptions(self) -> None:
+        with self._subscriptions_lock:
+            subscriptions = list(self._subscriptions.items())
+        if not subscriptions:
+            return
+        self.logger.info("Restoring %d MQTT subscription(s)", len(subscriptions))
+        result, _ = self._raw_subscribe(subscriptions)
+        if result != mqtt.MQTT_ERR_SUCCESS:
+            self.logger.error("Failed to restore MQTT subscriptions (rc=%s)", result)
+
     def _on_connect(self, client, userdata, flags, rc, properties):
         self.logger.info("Connected to MQTT broker (rc=%s)", rc)
+        if getattr(rc, "is_failure", False) is True:
+            return
+        if getattr(flags, "session_present", False) is not True:
+            self._restore_subscriptions()
         self.client.publish(
             self.dgb_context.availability_topic_ns, payload="online", qos=1, retain=True
         )
+        self._notify_connected_listeners()
+
+    def add_connected_listener(self, listener: Callable[[], None]) -> None:
+        """Register a callback invoked after every successful (re)connect."""
+        self._connected_listeners.append(listener)
+
+    def _notify_connected_listeners(self) -> None:
+        for listener in list(self._connected_listeners):
+            try:
+                listener()
+            except Exception:
+                self.logger.exception("Error in MQTT connected listener %r", listener)
 
     def _on_subscribe(self, client, userdata, mid, granted_qos, properties):
         self.logger.info("Subscribed (mid=%s qos=%s)", mid, granted_qos)
@@ -365,6 +431,7 @@ class DGBservice:
             self.startup_state.register_preset_actions(state_initialization)
 
         # RuntimePhase.APPLY: Resolve and seed startup actions to objects
+        time.sleep(0.5)
         try:
             self.dgb_context.config_cycle.set_phase(RuntimePhase.APPLY)
             self.logger.info("Config cycle %s entered RuntimePhase.APPLY", cycle_id)

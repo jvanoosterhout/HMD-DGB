@@ -460,6 +460,32 @@ class DeviceKeeper:
         )
         self.finalize_device(device)
 
+    def republish_entities(self) -> None:
+        """Republish discovery config and last known state of all HA entities.
+
+        Intended to run after an MQTT (re)connect: the broker may have lost retained
+        messages, and non-retained states are never replayed by the broker.
+        """
+        entities = [
+            obj.dgb_obj
+            for obj in list(self.dgb_context.DGB_objects.values())
+            if isinstance(obj.dgb_obj, Discoverable)
+        ]
+        republished = 0
+        for entity in entities:
+            try:
+                entity.write_config()
+                if republish_last_state(entity):
+                    republished += 1
+            except Exception:
+                self.logger.exception(
+                    "Error republishing entity '%s'",
+                    getattr(entity._entity, "unique_id", entity),
+                )
+        self.logger.info(
+            "Republished %d entities (%d with last state)", len(entities), republished
+        )
+
     def finalize_device(self, device: Discoverable):
         device.availability_topic = self.dgb_context.availability_topic_ns
         device.write_config()
@@ -500,3 +526,17 @@ def build_callback(
             state_transition(state=value, dst=dst)
 
     return callback
+
+
+def republish_last_state(entity: Discoverable) -> bool:
+    """Publish the entity's last known state again; returns False if there is none.
+
+    ha_mqtt_discoverable keeps a single `last_state` per entity for every topic written
+    via `_update_state`. DGB only uses that for the state topic, so it holds the state.
+    """
+    last_state = getattr(entity, "last_state", None)
+    if last_state is None:
+        return False
+    retain = bool(getattr(entity._entity, "retain", False))
+    entity.mqtt_client.publish(entity.state_topic, last_state, retain=retain)
+    return True

@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed valve `set_state` actions to accept named `state` commands and numeric `position` values, and to retain numeric MQTT positions as `position` for startup restoration.
 - Fixed number `set_state` crashing on incoming MQTT commands, which arrive as strings while `set_value` requires a numeric value. The state is now coerced to `float`, and an unconvertible value is logged and rejected instead of raising a `TypeError` that terminated the MQTT network thread.
 - Fixed Uptime Sensor not being set correctly the availability_topic and not being registerd in DGB context as of which it was set unavailable when needed or not deleted at a hard restart.
+- Fixed devices no longer responding to commands after an MQTT broker reconnect. With `clean_session=True` the broker drops all subscriptions on disconnect, and they were never renewed. All active subscriptions, including the Home Assistant entity command topics, are now tracked and restored on every (re)connect.
+- Fixed the discovery config and last known state of Home Assistant entities not being republished after an MQTT broker reconnect. The service now notifies registered connected-listeners after each successful (re)connect, and `DeviceKeeper` republishes the config and `last_state` of every entity.
 
 ### Changed
 

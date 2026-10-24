@@ -186,6 +186,21 @@ class DGBContext:
         """
         return self.DGB_objects.get(unique_id)
 
+    def is_registered(self, unique_id: str) -> bool:
+        """Return whether a live object is registered under the identifier.
+
+        Placeholders created by retained or preset actions have no ``dgb_obj``
+        yet and are not considered registered.
+
+        Args:
+            unique_id: Identifier of the object.
+
+        Returns:
+            ``True`` when an object with a ``dgb_obj`` is registered.
+        """
+        dgb_object = self.DGB_objects.get(unique_id)
+        return dgb_object is not None and dgb_object.dgb_obj is not None
+
     def remove_object(self, unique_id: str) -> None:
         """Remove a registered object and ignore unknown identifiers.
 

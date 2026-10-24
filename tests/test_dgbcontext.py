@@ -172,6 +172,16 @@ def test_add_pin_with_functions(dgb_context):
     assert dgb_context.get_operations("gpio17") == functions
 
 
+def test_is_registered(dgb_context):
+    """Only objects with a dgb_obj count as registered, not retained placeholders."""
+    dgb_context.add_object("relay_pin_20", object())
+    dgb_context.record_retained_action("counter_pin_21", "set_state", {"args": []})
+
+    assert dgb_context.is_registered("relay_pin_20") is True
+    assert dgb_context.is_registered("counter_pin_21") is False
+    assert dgb_context.is_registered("unknown") is False
+
+
 def test_get_nonexistent_pin(dgb_context):
     """Test getting a non-existent pin returns None"""
     assert dgb_context.get_object("nonexistent") is None

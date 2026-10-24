@@ -212,7 +212,7 @@ Once the HMD-DGB service runs on a Pi/SBC and is connected to an MQTT broker (wi
 ```
 How to fill this message is explained in the next sections.
 
-Before any device, pin, or binding is created, DGB validates the structural shape of the payload (required keys like `EntityInfo.component`, `EntityInfo.unique_id`, `PinInfo.pin`, `PinInfo.ptype`, `BindInfo`, and `state_initialization` entries). A structurally invalid payload blocks the configuration cycle the same way a failed device/pin/binding creation does, governed by `error_state_policy`.
+Before any device, pin, or binding is created, DGB validates the structural shape of the payload (required keys like `EntityInfo.component`, `EntityInfo.unique_id`, `PinInfo.pin`, `PinInfo.unique_id`, `PinInfo.ptype`, `BindInfo`, and `state_initialization` entries). It also checks that every `unique_id` occurs only once across all devices and pins in the payload. A structurally invalid payload blocks the configuration cycle the same way a failed device/pin/binding creation does, governed by `error_state_policy`.
 
 [top](#table-of-contents)
 
@@ -255,7 +255,7 @@ When the DGB service starts, it checks for the `config/{name}/retained-actions/#
 
 Configured preset values use the `set_state` call with one named state value per argument object. Each argument uses the `{ "name": "...", "value": ... }` form. Multiple named states may be supplied in one call. Retained messages for other calls are stored and can be selected with `persist_action`, provided that the target object exposes that call.
 
-Examples for an HMD switch and a GPIO pin_20 count:
+Examples for an HMD switch and a GPIO count pin with `unique_id` `water_meter_pin_5`:
 ```json
 {
   "Devices": [],
@@ -269,9 +269,9 @@ Examples for an HMD switch and a GPIO pin_20 count:
         "args": [{"name": "state", "value": "off"}]
       },
       {
-        "unique_id": "20",
+        "unique_id": "water_meter_pin_5",
         "call": "set_state",
-        "args": [{"name": "total_count", "value": 42}]
+        "args": [{"name": "count_total", "value": 42}]
       }
     ],
     "persist_action": [
@@ -280,7 +280,7 @@ Examples for an HMD switch and a GPIO pin_20 count:
         "call": ["set_state"]
       },
       {
-        "unique_id": "20",
+        "unique_id": "water_meter_pin_5",
         "call": ["set_state"]
       }
     ]
@@ -903,6 +903,10 @@ DGB binder run.action.call and (optional) run.action.args:
 
 This section lists the configuration parameters and defaults for GPIO pins. In the background, pins are configured and managed by the [GPIOzero](https://github.com/gpiozero/gpiozero) package and [lgpio](https://abyz.me.uk/lg/py_lgpio.html) as factory. HMD-DGB provides an overlay on GPIOzero. Most parameters align with those from [GPIOzero](https://github.com/gpiozero/gpiozero), though all available parameters are defined within HMD-DGB and listed below. Additionally, you can find the `run.action.call` IDs and `run.action.args` that can be used in bindings via [Durable Rules](https://github.com/jruizgit/rules).
 
+Every pin is identified by its `unique_id`, not by its GPIO number. The `unique_id` is required, may only contain lowercase letters, digits, `_` and `-` (`[a-z0-9_-]+`), and must be unique across all devices and pins. Use it to address the pin in bindings (`run.action.unique_id` and rule conditions), in pin events, in `state_initialization`, and in the retained topic `config/{name}/retained-actions/{unique_id}/{call}`. Including the GPIO number in the id, like `garden_pump_pin_27`, keeps configurations readable. The `pin` parameter only selects the hardware GPIO. When a payload contains a pin whose `unique_id` or GPIO is already in use by a previously created device or pin, that pin is skipped with a warning.
+
+Output pins always start in the off state. Use `state_initialization.preset_action` (see [Startup actions](#startup-actions)) to start a pin in another state.
+
 [top](#table-of-contents)
 
 #### PinIn
@@ -912,6 +916,7 @@ DGB parameters:
 | Parameter      | Description                                                                 | Type | Default |
 |----------------|-----------------------------------------------------------------------------|------|---------|
 | pin            | BCM GPIO pin number to configure, change, or read.                              | int  | required |
+| unique_id      | Unique identifier of the pin, used in bindings, events, and `state_initialization`. Allowed characters: `[a-z0-9_-]`. | str  | required |
 | ptype          | Functional type of the pin (input).                                         | str  | `in` |
 | active_state   | If `true`, a HIGH hardware signal maps to HIGH software state. If `false`, the input polarity is inverted. | bool | `True` |
 | pull_up        | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `True` |
@@ -920,6 +925,7 @@ DGB parameters:
 ```json
 {
   "pin": 17,
+  "unique_id": "doorbell_button_pin_17",
   "ptype": "in",
   "active_state": true,
   "pull_up": true,
@@ -938,20 +944,20 @@ DGB parameters:
 | Parameter     | Description                                                                 | Type | Default |
 |---------------|-----------------------------------------------------------------------------|------|---------|
 | pin           | BCM GPIO pin number to configure, change, or control.                           | int  | required |
+| unique_id      | Unique identifier of the pin, used in bindings, events, and `state_initialization`. Allowed characters: `[a-z0-9_-]`. | str  | required |
 | ptype         | Functional type of the pin (output).                                        | str  | `out` |
-| initial       | Initial output value of the pin when it is created.                         | int  | `0` |
+| initial       | Initial output value of the pin when it is created. This action occures before any preset or retained values.                         | int  | `0` |
 | active_state  | If `true`, a HIGH software state maps to a HIGH hardware output. If `false`, the output polarity is inverted. | bool | `False` |
-| value         | Desired output value of the pin.                                            | int  | optional |
 | password      | Optional safety password to prevent unwanted activation of the pin. **Do not reuse real account passwords** (no HTTPS or encryption). | str | optional |
-| blink      | The blink time of the output once for this number of seconds. Note it uses the previous set value to start from, the value of this call will be ignored. | int | optional |
+| blink      | Default blink time in seconds, used by the `blink` call when no blink time is provided. | int | optional |
 
 ```json
 {
   "pin": 27,
+  "unique_id": "garden_pump_pin_27",
   "ptype": "out",
   "initial": 0,
   "active_state": false,
-  "value": 1,
   "password": "local-control-only",
   "blink": 2
 }
@@ -975,6 +981,7 @@ DGB parameters:
 | Parameter     | Description                                                                 | Type | Default |
 |---------------|-----------------------------------------------------------------------------|------|---------|
 | pin           | BCM GPIO pin number to configure, change, or read.                              | int  | required |
+| unique_id      | Unique identifier of the pin, used in bindings, events, and `state_initialization`. Allowed characters: `[a-z0-9_-]`. | str  | required |
 | ptype         | Functional type of the pin (counting input).                                | str  | `count` |
 | active_state  | If `true`, a HIGH hardware signal maps to a HIGH software state. If `false`, the input polarity is inverted. | bool | `True` |
 | pull_up       | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `False` |
@@ -986,6 +993,7 @@ DGB parameters:
 ```json
 {
   "pin": 5,
+  "unique_id": "water_meter_pin_5",
   "ptype": "count",
   "active_state": true,
   "pull_up": false,
@@ -1010,24 +1018,24 @@ DGB parameters:
 
 | Parameter      | Description                                                                 | Type | Default |
 |----------------|-----------------------------------------------------------------------------|------|---------|
-| pin            | BCM GPIO pin used to identify the n‑way output configuration. This pin must also be present in `pin_list`. | int | required |
-| pin_list       | List of **≥ 2** GPIO pins controlled by this n‑way output. May include “dummy” pins indicated by `-1`. The `pin` must be included in this list. | list[int] | required |
+| pin            | BCM GPIO pin of the n‑way output configuration. This pin must also be present in `pin_list`. | int | required |
+| unique_id      | Unique identifier of the pin, used in bindings, events, and `state_initialization`. Allowed characters: `[a-z0-9_-]`. | str  | required |
+| pin_list       | List of **≥ 2** unique GPIO pins controlled by this n‑way output. May include (repeated) “dummy” pins indicated by `-1`. The `pin` must be included in this list. | list[int] | required |
 | ptype          | Functional type of the pin (n‑way output).                                  | str | `nwayout` |
-| initial        | Initial output values for each pin. Order must match `pin_list`. At most one pin may be HIGH; this may also be a dummy pin. | list[int] | `[0]` |
+| initial        | Initial output values for each pin. Order must match `pin_list`. At most one pin may be HIGH; this may also be a dummy pin. This action occures before any preset or retained values. | list[int] | `[0]` |
 | active_state   | List defining output polarity per pin. Order must match `pin_list`. If `true`, HIGH software state maps to HIGH hardware state; otherwise output is inverted. | list[bool] | `[False]` |
 | pin_names      | Human‑readable names for each pin. Order must match `pin_list`. Examples: `["open", "close", "stop"]` or `["0", "1", "2"]`. | list[str] | `[""]` |
-| active_pin     | Pin to activate, specified either by pin number (`int`) or by `pin_names` entry (`str`). Set to `-1` to deactivate all pins. | int \| str | optional |
 | password       | Optional safety password to prevent unwanted activation. Applies to all pins but is only checked for the first pin in `pin_list`. **Do not reuse real passwords** (no HTTPS or encryption). | str | optional |
 
 ```json
 {
   "pin": 22,
+  "unique_id": "sunscreen_motor_pin_22",
   "pin_list": [22, 23, 24],
   "ptype": "nwayout",
   "initial": [0, 0, 0],
   "active_state": [false, false, false],
   "pin_names": ["open", "close", "stop"],
-  "active_pin": "open",
   "password": "local-control-only"
 }
 ```
@@ -1036,10 +1044,12 @@ DGB binder run.action.call and (optional) run.action.args:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
-| on        | Set pin state to on                                                      |    active_pin      |  int    |     The GPIO pin id to turn on        |
+| on        | Turn on one pin and turn off all others                                  |    active_pin      |  int \| str    |     The GPIO pin number or `pin_names` entry to turn on        |
 | off      | Set pin state to off                                                      |          |      |             |
 | set_state | Select the active pin or deactivate all pins. | `state_name`, `state` | `str`, `int \| str \| null` | `state_name` must be `active_pin`; use `null` to deactivate all pins. |
 <!-- | blink      | Set pin state to on for a certain time                                     |          |      |             |   |      |             | -->
+
+The n‑way output is addressed as a whole by its `unique_id`. Internally, every other GPIO in `pin_list` becomes a sub-pin with the id `{unique_id}_{index}` (for example `sunscreen_motor_pin_22_1`). Sub-pins are not registered as separate objects and cannot be addressed by their separate unique_id in bindings. They can only be called via the main pin.
 
 [top](#table-of-contents)
 

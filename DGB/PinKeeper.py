@@ -30,15 +30,10 @@ class PinKeeper:
     def __init__(
         self,
         dgb_context: DGBContext,
-        pin_pw_list: dict | None = None,
     ):
         """
         Initialize the PinKeeper class with default values.
         """
-        if pin_pw_list is None:
-            pin_pw_list = {}
-        self.PinPWList = pin_pw_list
-        self.PinList: list[Pin] = []
         self.logger = logging.getLogger("PinKeeper")
         self.dgb_context = dgb_context
         logging.getLogger().setLevel(logging.INFO)
@@ -46,101 +41,97 @@ class PinKeeper:
         self.logger.info("PinKeeper initialized.")
 
     def __del__(self):
-        for pin in self.PinList:
+        for pin in self._pins():
+            for sub_pin in getattr(pin, "Pins", []):
+                sub_pin.pin_device.close()
             pin.pin_device.close()
         self.logger.info("PinKeeper cleaned up all pins")
+
+    def _pins(self) -> list[Pin]:
+        """Return all pin objects registered in the DGB context."""
+        return [
+            obj.dgb_obj
+            for obj in self.dgb_context.DGB_objects.values()
+            if isinstance(obj.dgb_obj, Pin)
+        ]
 
     def SetPin(
         self, config: PinModel, policy: DuplicatePolicy = DuplicatePolicy.SKIP
     ) -> bool:
         """
-        Set the configuration of a pin, in case the pin does not jet exists, it sends to creates one.
+        Create a new pin, unless its unique_id or one of its GPIO pins is already in use.
 
         Parameters:
         config (Pin): Configuratie van de pin.
+        policy (DuplicatePolicy): Policy applied when the unique_id already exists.
 
         Returns:
-        bool: True if succesfully made or new settings succesfully processed, otherwise False.
+        bool: True if succesfully made, otherwise False.
         """
-        if not self._handle_existing_pin(config.pin, policy):
+        if not self._handle_existing_pin(config.unique_id, policy):
             return False
 
-        pin_id = self.DoIExist(config)
-        if isinstance(pin_id, bool):  # pin does not exist jet
-            if config.ptype == PinType.pinnwayout.value:
-                # check if n ways do also not jet exist
-                for p in config.pin_list:
-                    if (
-                        p >= 0
-                        and p != config.pin
-                        and isinstance(
-                            self.DoIExist(
-                                PinModel({"pin": p, "ptype": PinType.pinout.value}), int
-                            )
-                        )
-                    ):
-                        self.logger.warning(
-                            f"Pin {p} already exists. Cannot override existing pin to make an nwayout pin."
-                        )
-                        return False
-            if self.MakeNewPin(config):
-                return True
-            else:
-                self.logger.warning("No pin configuration recognized.")
+        gpios = (
+            config.pin_list
+            if config.ptype == PinType.pinnwayout.value
+            else [config.pin]
+        )
+        for gpio in gpios:
+            if gpio >= 0 and self._gpio_in_use(gpio):
+                self.logger.warning(
+                    f"GPIO {gpio} of pin {config.unique_id} is already in use -- skipping"
+                )
                 return False
-        else:  # is pin config, and exists, thus process update
-            self.logger.info(f"Proces update for pin {config.pin}.")
-            if self.PinList[pin_id].config.pin in self.PinPWList and not self.PinList[
-                pin_id
-            ].CheckPW(config.password):
-                self.logger.warning(f"Worng password for pin {config.pin}!")
-                return False
-            if self.PinList[pin_id].HasSameConfig(config):
-                return self.PinList[pin_id].ProcessPinUpdate(config)
-            else:
-                return False
+
+        if self.MakeNewPin(config):
+            return True
+        self.logger.warning("No pin configuration recognized.")
+        return False
 
     def _handle_existing_pin(
         self,
-        pin: int,
+        unique_id: str,
         policy: DuplicatePolicy,
     ) -> bool:
         """
-        Check whether a pin already exists and apply policy.
+        Check whether an object with this unique_id already exists and apply policy.
 
         Returns:
-            True  -> caller may proceed with creating/updating the pin
+            True  -> caller may proceed with creating the pin
             False -> caller must skip
         """
-        existing = next((p for p in self.PinList if p.config.pin == pin), None)
-        if existing is None:  # pin does not exist yet
+        if not self.dgb_context.is_registered(unique_id):
             return True
 
         if policy == DuplicatePolicy.SKIP:
-            self.logger.warning(f"Pin {pin} already exists -- skipping")
+            self.logger.warning(
+                f"Pin with unique_id '{unique_id}' already exists -- skipping"
+            )
             return False
 
         self.logger.warning(
-            f"Pin {pin} already exists -- unknown policy '{policy}', skipping"
+            f"Pin with unique_id '{unique_id}' already exists -- unknown policy '{policy}', skipping"
         )
         return False
 
-    def DoIExist(self, config: PinModel):
+    def _gpio_in_use(self, gpio: int) -> bool:
         """
-        Check if a pin allready exists in PinList.
+        Check if a GPIO pin is already used by a registered pin.
 
         Parameters:
-        config (Pin): Configuration of the pin.
+        gpio (int): GPIO pin number.
 
         Returns:
-        int/bool: Index of the pin in the PinList or False.
+        bool: True if the GPIO pin is in use, otherwise False.
         """
-
-        if self.PinList == []:
-            return False
-        for pin in self.PinList:
-            if pin.config.pin == config.pin:
-                return self.PinList.index(pin)
+        for pin in self._pins():
+            if pin.config.pin == gpio:
+                return True
+            if (
+                pin.config.ptype == PinType.pinnwayout.value
+                and gpio in pin.config.pin_list
+            ):
+                return True
         return False
 
     def MakeNewPin(self, config: PinModel) -> bool:
@@ -154,23 +145,10 @@ class PinKeeper:
         bool: True if succesfully made, otherwise False.
         """
         self.logger.info(f"Make a new pin with config: {config}")
-        pw_needed = False
-        if config.pin in self.PinPWList:
-            if config.password is not None:
-                if config.password == self.PinPWList[config.pin]:
-                    pw_needed = True
-                else:
-                    self.logger.warning(f"Worng password for pin {config.pin}!")
-                    return False
-            else:
-                self.logger.warning(
-                    f"No password provided for pin {config.pin}, while this is required!"
-                )
-                return False
         if config.ptype is PinType.pinout.value:
             P = Pin_out(config=config, dgb_context=self.dgb_context)
             self.dgb_context.add_object(
-                str(config.pin),
+                config.unique_id,
                 P,
                 {
                     "on": P.on,
@@ -181,19 +159,18 @@ class PinKeeper:
             )
         elif config.ptype is PinType.pinin.value:
             P = Pin_in(config=config, dgb_context=self.dgb_context)
-            self.dgb_context.add_object(str(config.pin), P)
+            self.dgb_context.add_object(config.unique_id, P)
         elif config.ptype is PinType.pincount.value:
             P = Pin_count(config=config, dgb_context=self.dgb_context)
-            self.dgb_context.add_object(str(config.pin), P, {"set_state": P.set_state})
+            self.dgb_context.add_object(config.unique_id, P, {"set_state": P.set_state})
         elif config.ptype is PinType.pinnwayout.value:
             P = Pin_N_way_out(config=config, dgb_context=self.dgb_context)
             self.dgb_context.add_object(
-                str(config.pin),
+                config.unique_id,
                 P,
                 {
                     "on": P.on,
                     "off": P.off,
-                    "blink": P.blink,
                     "set_state": P.set_state,
                 },
             )
@@ -208,18 +185,8 @@ class PinKeeper:
                     )
                     N.ConfigurePin()
                     P.Pins.append(N)
-                    self.PinList.append(N)
-                    self.dgb_context.add_object(str(sub_config.pin), N)
         else:
             return False
-        if pw_needed:
-            P.pw = {config.pin: self.PinPWList[config.pin]}
-        self.logger.info(f"Configure pin {P.config.pin}.")
         P.ConfigurePin()
-        if not P.ProcessPinUpdate(config):
-            self.logger.error("Could not set pin update")
-        self.logger.info(f"Add pin {P.config.pin} to PinList")
-        self.PinList.append(P)
-        # self.logger.info(self.dgb_context.get_object(str(P.config.pin)).config)
-        self.logger.info(f"Pin {P.config.pin} added to PinList.")
+        self.logger.info(f"Pin {P.label} added.")
         return True

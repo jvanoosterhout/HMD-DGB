@@ -15,10 +15,13 @@
 #
 #    BaseModel to handel the generic rest GPIO api calls to control.
 
+import re
 from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, Field, RootModel, model_validator
+
+UNIQUE_ID_PATTERN = re.compile(r"[a-z0-9_-]+")
 
 
 class PinType(str, Enum):
@@ -28,8 +31,28 @@ class PinType(str, Enum):
     pinnwayout = "nwayout"
 
 
-class PinIn(BaseModel):
+class PinBase(BaseModel):
     pin: int = Field(description="GPIO pin to configure, change or read")
+    unique_id: str = Field(
+        description="Unique identifier of the pin, used to address it in bindings, events, state_initialization and retained-action topics. Allowed characters: [a-z0-9_-].",
+    )
+
+    @model_validator(mode="after")
+    def validate_unique_id(self):
+        if self.pin not in range(29):
+            raise ValueError(
+                f"{self.pin} is not a valid GPIO pin number. Pin must be in range(27)"
+            )
+        if not self.unique_id:
+            raise ValueError("unique_id must be a non-empty str")
+        if not UNIQUE_ID_PATTERN.fullmatch(self.unique_id):
+            raise ValueError(
+                f"unique_id {self.unique_id!r} is invalid. Only lowercase letters, digits, '_' and '-' are allowed."
+            )
+        return self
+
+
+class PinIn(PinBase):
     ptype: Literal[PinType.pinin.value] = Field(
         default=PinType.pinin.value,
         description="The functional type of the pin like in(put) or out(put).",
@@ -49,10 +72,6 @@ class PinIn(BaseModel):
 
     @model_validator(mode="after")
     def validate_atts(self):
-        if self.pin not in range(29):
-            raise ValueError(
-                f"{self.pin} is not a valid GPIO pin number. Pin must be in range(27)"
-            )
         if self.ptype is not PinType.pinin.value:
             raise ValueError(
                 f"{self.ptype} is not a valid pin configuration. Please leave this value empty in the configuration."
@@ -60,8 +79,7 @@ class PinIn(BaseModel):
         return self
 
 
-class PinOut(BaseModel):
-    pin: int = Field(description="GPIO pin to configure, change or read")
+class PinOut(PinBase):
     ptype: Literal[PinType.pinout.value] = Field(
         default=PinType.pinout.value,
         description="The functional type of the pin like in(put) or out(put).",
@@ -74,25 +92,14 @@ class PinOut(BaseModel):
         default=False,
         description="If True, when the software state is HIGH, the hardware pin is HIGH. If False, the hardware output is reversed",
     )
-    value: int | None = Field(
-        default=None,
-        description="The output value of the pin that is currently desired.",
-    )
-    password: str | None = Field(
-        default=None,
-        description="An optional safety layer to prevent unwanted activation of a pin. ATTENTION! Do not use your daily passwords for (online) accounts as this api has no https and no encription.",
-    )
+
     blink: int | None = Field(
         default=None,
-        description="The blink time of the output once for this number of seconds. Note it uses the previous set value to start from, the value of this call will be ignored.",
+        description="Default blink time in seconds, used by the blink call when no blink time is provided.",
     )
 
     @model_validator(mode="after")
     def validate_atts(self):
-        if self.pin not in range(29):
-            raise ValueError(
-                f"{self.pin} is not a valid GPIO pin number. Pin must be in range(27)"
-            )
         if self.ptype is not PinType.pinout.value:
             raise ValueError(
                 f"{self.ptype} is not a valid pin configuration. Please leave this value empty in the configuration."
@@ -101,28 +108,17 @@ class PinOut(BaseModel):
             raise ValueError(
                 f"{self.initial} is not a valid number. Initial must be either 1 or 0"
             )
-        if self.value is not None:
-            if self.value not in [1, 0]:
-                raise ValueError(
-                    f"{self.value} is not a valid number. Value must be either 1 or 0"
-                )
-        else:
-            self.value = self.initial
         if self.blink is not None and self.blink <= 0:
-            raise ValueError(
-                f"{self.blink} is not a valid number. Blink must be larger >0"
-            )
-        if self.password is None:
-            self.password = ""
+            raise ValueError(f"{self.blink} is not a valid number. Blink must be >0")
         return self
 
 
-class PinNWayOut(BaseModel):
+class PinNWayOut(PinBase):
     pin: int = Field(
-        description="GPIO pin to configure, change or read. For the n way out type this is the pin with which the configuration is identified. This pin should also be listed in pin_list."
+        description="GPIO pin to configure, change or read. For the n way out type this is the pin with which the configuration is identified. This pin must also be listed in pin_list."
     )
     pin_list: list[int] = Field(
-        description='List of >=2 GPIO pins to configure, change or read. The "pin" must also be in this lis. The list can include multiple "dummy" pins indicated bij -1. Pins can be aranged in any order.'
+        description='List of >=2 unique GPIO pins to configure, change or read. The "pin" must also be in this list. The list can include multiple "dummy" pins indicated by -1. Pins can be aranged in any order.'
     )
     ptype: Literal[PinType.pinnwayout.value] = Field(
         default=PinType.pinnwayout.value,
@@ -141,31 +137,24 @@ class PinNWayOut(BaseModel):
         description='List of names to identify the pins, the order of names should match the order in pin. This could be ["open", "close", "stop"] or ["0", "1", "2", "3]". ',
     )
 
-    active_pin: int | str | None = Field(
-        default=None,
-        description="The pin that must be turned on, indicated either as the pin number (int) or a pin_name (str). All other pins will be deactivated, all will be deactivated when set to -1.",
-    )
-    password: str | None = Field(
-        default=None,
-        description="An optional safety layer to prevent unwanted activation of a pin, only checked for the first pin in the list but applies to all pins. ATTENTION! Do not use your daily passwords for (online) accounts as this api has no https and no encription.",
-    )
-
     @model_validator(mode="after")
     def validate_atts(self):
-        if self.pin not in range(29):
-            raise ValueError(
-                f"{self.pin} is not a valid GPIO pin number. Pin must be in range(27)"
-            )
         if not len(self.pin_list) >= 2:
             raise ValueError(f"{self.pin_list} is not a list of at least 2 GPIO pins")
         if self.initial == [0]:
             self.initial = [0] * len(self.pin_list)
+
+        if self.pin not in self.pin_list:
+            raise ValueError(f"Pin {self.pin} must also be listed in pin_list.")
+        real_pins = [p for p in self.pin_list if p != -1]
+        if len(real_pins) != len(set(real_pins)):
+            raise ValueError(
+                f"{self.pin_list} contains duplicate GPIO pins. Only the dummy pin -1 may be repeated."
+            )
         if self.active_state == [False]:
             self.active_state = [False] * len(self.pin_list)
         if self.pin_names == [""]:
             self.pin_names = [""] * len(self.pin_list)
-        if self.password is None:
-            self.password = ""
 
         if not len(self.pin_list) == len(self.initial):
             raise ValueError(
@@ -204,23 +193,10 @@ class PinNWayOut(BaseModel):
             raise ValueError(
                 f"{self.ptype} is not a valid pin configuration. Please leave this value empty in the configuration."
             )
-
-        if self.active_pin is not None and self.active_pin not in self.pin_names:
-            try:
-                self.active_pin = int(self.active_pin)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"Active_pin {self.active_pin} is neither in the pin list nor an int."
-                ) from exc
-            if self.active_pin not in self.pin_list:
-                raise ValueError(
-                    f"Active_pin {self.active_pin} is neither in the pin list nor in the pin_names list."
-                )
         return self
 
 
-class PinCount(BaseModel):
-    pin: int = Field(description="GPIO pin to configure, change or read")
+class PinCount(PinBase):
     ptype: Literal[PinType.pincount.value] = Field(
         default=PinType.pincount.value,
         description="The functional type of the pin like in(put) or out(put).",
@@ -252,10 +228,6 @@ class PinCount(BaseModel):
 
     @model_validator(mode="after")
     def validate_atts(self):
-        if self.pin not in range(29):
-            raise ValueError(
-                f"{self.pin} is not a valid GPIO pin number. Pin must be in range(27)"
-            )
         if self.ptype is not PinType.pincount.value:
             raise ValueError(
                 f"{self.ptype} is not a valid pin configuration. Please leave this value empty in the configuration."

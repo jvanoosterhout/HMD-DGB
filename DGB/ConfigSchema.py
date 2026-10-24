@@ -14,8 +14,9 @@
 #    limitations under the License.
 #
 #    Structural validation for the config/{name}/devices/ overlay payload.
-#    Validates shape only; component/pin-specific fields are still validated
-#    by DeviceKeeper, PinModel, and Binder at RuntimePhase.CREATE.
+#    Validates shape and unique_id uniqueness within the payload;
+#    component/pin-specific fields are still validated by DeviceKeeper,
+#    PinModel, and Binder at RuntimePhase.CREATE.
 
 from __future__ import annotations
 
@@ -42,6 +43,7 @@ def validate_config_payload(payload: dict[str, Any]) -> None:
     _validate_devices(payload.get("Devices", []))
     _validate_pins(payload.get("Pins", []))
     _validate_bindings(payload.get("Bindings", []))
+    _validate_unique_ids(payload)
     if "state_initialization" in payload:
         _validate_state_initialization(payload["state_initialization"])
 
@@ -75,6 +77,25 @@ def _validate_pins(pins: Any) -> None:
         if "pin" not in pin_info:
             raise ValueError(f"Pins[{index}].PinInfo must contain 'pin'")
         _require_non_empty_str(pin_info, "ptype", f"Pins[{index}].PinInfo")
+        _require_non_empty_str(pin_info, "unique_id", f"Pins[{index}].PinInfo")
+
+
+def _validate_unique_ids(payload: dict[str, Any]) -> None:
+    """Reject unique_ids that occur more than once across devices and pins."""
+    seen: dict[str, str] = {}
+    locations = [
+        (f"Devices[{index}].EntityInfo", device["EntityInfo"]["unique_id"])
+        for index, device in enumerate(payload.get("Devices", []))
+    ] + [
+        (f"Pins[{index}].PinInfo", pin["PinInfo"]["unique_id"])
+        for index, pin in enumerate(payload.get("Pins", []))
+    ]
+    for location, unique_id in locations:
+        if unique_id in seen:
+            raise ValueError(
+                f"Duplicate unique_id {unique_id!r} in {seen[unique_id]} and {location}"
+            )
+        seen[unique_id] = location
 
 
 def _validate_bindings(bindings: Any) -> None:

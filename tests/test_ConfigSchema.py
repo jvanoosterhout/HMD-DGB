@@ -28,7 +28,9 @@ def test_valid_full_payload_passes():
     validate_config_payload(
         {
             "Devices": [{"EntityInfo": {"component": "switch", "unique_id": "s1"}}],
-            "Pins": [{"PinInfo": {"pin": 17, "ptype": "in"}}],
+            "Pins": [
+                {"PinInfo": {"pin": 17, "unique_id": "button_pin_17", "ptype": "in"}}
+            ],
             "Bindings": [{"BindInfo": {"rs1": {}}}],
             "state_initialization": {
                 "preset_action": [
@@ -71,13 +73,37 @@ def test_invalid_devices_rejected(devices):
         "not-a-list",
         [{"NoPinInfo": {}}],
         [{"PinInfo": "not-a-dict"}],
-        [{"PinInfo": {"ptype": "in"}}],
-        [{"PinInfo": {"pin": 17}}],
+        [{"PinInfo": {"unique_id": "p17", "ptype": "in"}}],
+        [{"PinInfo": {"pin": 17, "unique_id": "p17"}}],
+        [{"PinInfo": {"pin": 17, "ptype": "in"}}],
+        [{"PinInfo": {"pin": 17, "unique_id": "", "ptype": "in"}}],
     ],
 )
 def test_invalid_pins_rejected(pins):
     with pytest.raises((TypeError, ValueError)):
         validate_config_payload({"Pins": pins})
+
+
+def test_duplicate_pin_unique_ids_rejected():
+    with pytest.raises(ValueError, match="Duplicate unique_id 'p1'"):
+        validate_config_payload(
+            {
+                "Pins": [
+                    {"PinInfo": {"pin": 17, "unique_id": "p1", "ptype": "in"}},
+                    {"PinInfo": {"pin": 18, "unique_id": "p1", "ptype": "out"}},
+                ]
+            }
+        )
+
+
+def test_duplicate_unique_id_between_device_and_pin_rejected():
+    with pytest.raises(ValueError, match=r"Devices\[0\].EntityInfo and Pins\[0\]"):
+        validate_config_payload(
+            {
+                "Devices": [{"EntityInfo": {"component": "switch", "unique_id": "x"}}],
+                "Pins": [{"PinInfo": {"pin": 17, "unique_id": "x", "ptype": "in"}}],
+            }
+        )
 
 
 @pytest.mark.parametrize(

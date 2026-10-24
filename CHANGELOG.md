@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0b6] - Pending
+
+## [1.0.0] - pending
+
+### Changed
+
+- **Breaking:** every pin in `PinInfo` now requires a `unique_id` (`[a-z0-9_-]+`). Pins are registered, addressed in bindings and `state_initialization`, emitted in events, and persisted under `config/{name}/retained-actions/{unique_id}/` by this id instead of their GPIO number. Retained actions stored under the old GPIO-number topics are no longer used and can be removed from the broker.
+- Configuration payloads with a `unique_id` that occurs more than once across `Devices` and `Pins` are rejected during structural validation.
+- A pin whose `unique_id` already belongs to a created device or pin, or whose GPIO is already in use, is skipped with a warning (the same behavior as for devices).
+- `PinKeeper` now finds pins through the `DGBContext` object registry; the separate `PinList` was removed. Sub-pins of an n-way output get the id `{unique_id}_{index}` and are no longer registered as separate objects.
+- Pin loggers are now named `pin_{unique_id}`.
+
+### Removed
+
+- **Breaking:** removed the `value` field from `PinOut` and the `active_pin` field from `PinNWayOut`.
+- Removed the legacy `ProcessPinUpdate` and `HasSameConfig` pin methods and the pin update path in `PinKeeper`.
+
+### Fixed
+
+- Fixed `PinOut.blink` without a blink time referencing the method instead of the configured `blink` time.
+- Fixed creating an n-way output pin failing on an invalid `isinstance` check and on registering a non-existent `blink` operation.
+- `PinNWayOut` now validates that `pin` is listed in `pin_list` and that `pin_list` contains no duplicate GPIO pins.
+- Fixed the README startup-action example using `total_count` instead of `count_total`.
+
+## [1.0.0b6] - 2026-10-22
 
 ### Fixed
 

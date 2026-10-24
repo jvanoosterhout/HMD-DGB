@@ -26,33 +26,6 @@ class Pin_in(Pin):
     def __init__(self, config: PinModel, dgb_context: DGBContext):
         super().__init__(config=config, dgb_context=dgb_context)
 
-    def HasSameConfig(self, config: PinModel) -> bool:
-        """
-        Check if the given pin configurtation truly matches the configuration of the saved pin.
-
-        Parameters:
-        config (Pin): Configuratien of the pin.
-
-        Returns:
-        bool: True if the configuration matches, otherwise False.
-        """
-        if config.ptype != self.config.ptype:
-            self.logger.warning(
-                f'New "ptype" {config.ptype} for pin {self.config.pin} is different from known "ptype" {self.config.ptype}'
-            )
-            return False
-        if config.active_state != self.config.active_state:
-            self.logger.warning(
-                f'New "active_state" {config.active_state} for pin {self.config.pin} is different from known "active_state" {self.config.active_state}'
-            )
-            return False
-        if config.pull_up != self.config.pull_up:
-            self.logger.warning(
-                f'New "pull_up" {config.pull_up} for pin {self.config.pin} is different from known "pull_up" {self.config.pull_up}'
-            )
-            return False
-        return True
-
     def ConfigurePin(self):
         """
         Configure the de GPIO as the rigth type.
@@ -77,11 +50,11 @@ class Pin_in(Pin):
         """
         value = self.pin_device.value
 
-        self.logger.info(f"Pin {self.config.pin} is: {value}")
+        self.logger.info(f"Pin {self.label} is: {value}")
         self.dgb_context.put_to_binder_queue(
             "event",
             {
-                "unique_id": str(self.config.pin),
+                "unique_id": self.config.unique_id,
                 "kind": "state",
                 "name": "value",
                 "value": value,
@@ -89,19 +62,4 @@ class Pin_in(Pin):
             },
         )
 
-        self.logger.info(f"pin {self.config.pin} has signal {value}")
-
-    def ProcessPinUpdate(self, config: PinModel) -> bool:
-        """
-        Process the new optained value of the pin configuration. Gennerally
-        this only works for output pins. Input pins wil only show a log
-        message with their current state.
-
-        Parameters:
-        config (Pin): Configuratie of the pin.
-
-        Returns:
-        bool: True if update succesful, otherwise False.
-        """
-        self.logger.info(f"pin {self.config.pin} has signal {self.pin_device.value}")
-        return True
+        self.logger.info(f"pin {self.label} has signal {value}")

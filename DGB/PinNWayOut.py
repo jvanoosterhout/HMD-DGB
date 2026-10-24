@@ -35,38 +35,7 @@ class Pin_N_way_out(Pin):
         """
         super().__init__(config=config, dgb_context=dgb_context)
         self.Pins: list[Pin_out] = []
-
-    def HasSameConfig(self, config: PinModel) -> bool:
-        """
-        Check if the given pin configurtation truly matches the configuration of the saved pin.
-
-        Parameters:
-        config (Pin): Configuratien of the pin.
-
-        Returns:
-        bool: True if the configuration matches, otherwise False.
-        """
-        if config.ptype != self.config.ptype:
-            self.logger.warning(
-                f'New "ptype" {config.ptype} for pin {self.config.pin} is different from known "ptype" {self.config.ptype}'
-            )
-            return False
-        if config.pin_list != self.config.pin_list:
-            self.logger.warning(
-                f'New "pin_list" {config.pin_list} for pin {self.config.pin} is different from known "pin_list" {self.config.pin_list}'
-            )
-            return False
-        if config.active_state != self.config.active_state:
-            self.logger.warning(
-                f'New "active_state" {config.active_state} for pin {self.config.pin} is different from known "active_state" {self.config.active_state}'
-            )
-            return False
-        if config.pin_names != self.config.pin_names:
-            self.logger.warning(
-                f'New "pin_names" {config.pin_names} for pin {self.config.pin} is different from known "pin_names" {self.config.pin_names}'
-            )
-            return False
-        return True
+        self.active_pin: int | str | None = None
 
     def ConfigurePin(self):
         """
@@ -93,33 +62,18 @@ class Pin_N_way_out(Pin):
         return PinModel(
             {
                 "pin": self.config.pin_list[n],
+                "unique_id": f"{self.config.unique_id}_{n}",
                 "ptype": PinType.pinout.value,
                 "initial": self.config.initial[n],
                 "active_state": self.config.active_state[n],
             }
         )
 
-    # def blink(self, blink:int = None) -> bool:
-    #     if blink is None  and self.blink is None:
-    #         self.logger.info('pin {} is has no blink configured'.format(self.config.pin))
-    #         return False
-    #     elif blink is not None:
-    #         on_time = blink
-    #     else :
-    #         on_time = self.blink
-
-    #     self.pin_device.blink(on_time=on_time,
-    #                             off_time=on_time,
-    #                             n=1,
-    #                             background=True)
-    #     self.logger.info('pin {} has value {} for {} seconds'.format(self.config.pin, 1, on_time))
-    #     return True
-
     def on(self, active_pin: int | str) -> bool:
         self.off()
 
         if active_pin is None:
-            self.config.active_pin = None
+            self.active_pin = None
             return True
         n = self.GetPinIndex(active_pin)
 
@@ -129,7 +83,7 @@ class Pin_N_way_out(Pin):
             self.logger.info(
                 f'N Way Out dummy pin with name "{self.config.pin_names[n]}" turned on'
             )
-            self.config.active_pin = active_pin
+            self.active_pin = active_pin
             return True
 
         if self.config.pin_list[n] != self.config.pin:
@@ -138,13 +92,12 @@ class Pin_N_way_out(Pin):
                     p.on(is_PinNWayOut=True)
         else:
             self.pin_device.on()
-            self.config.value = 1
 
         self.logger.info(
             f'N Way Out pin {self.config.pin_list[n]} with name "{self.config.pin_names[n]}" turned on'
         )
 
-        self.config.active_pin = active_pin
+        self.active_pin = active_pin
 
         self.persist_action(
             {
@@ -160,7 +113,6 @@ class Pin_N_way_out(Pin):
         for p in self.Pins:
             p.off(is_PinNWayOut=True)
         self.pin_device.off()
-        self.config.value = 0
         self.persist_action(
             {
                 "args": [
@@ -180,26 +132,12 @@ class Pin_N_way_out(Pin):
     def _set_state_value(self, state_name: str, state: int | str | None) -> bool:
         if state_name not in {"active_pin"}:
             self.logger.warning(
-                "pin %s unsupported state name %r", self.config.pin, state_name
+                "pin %s unsupported state name %r", self.label, state_name
             )
             return False
 
         return self.off() if state is None else self.on(active_pin=state)
 
     def persist_action(self, args):
-        if self.dgb_context.is_action_persisted(str(self.config.pin)):
-            self.dgb_context.persist_action(str(self.config.pin), "set_state", args)
-
-    def ProcessPinUpdate(self, config: PinModel) -> bool:
-        """
-        Process the new optained value of the pin configuration. Gennerally
-        this only works for output pins. Input pins wil only show a log
-        message with their current state.
-
-        Parameters:
-        config (Pin): Configuratie of the pin.
-
-        Returns:
-        bool: True if update succesful, otherwise False.
-        """
-        return self.on(active_pin=config.active_pin)
+        if self.dgb_context.is_action_persisted(self.config.unique_id):
+            self.dgb_context.persist_action(self.config.unique_id, "set_state", args)

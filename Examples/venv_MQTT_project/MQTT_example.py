@@ -66,15 +66,16 @@ def main():
 
     pinoutinfo = {
         "pin": 20,  # int = Field(description='GPIO pin to configure, change or read')
+        "unique_id": "test_relay_pin_20",  # str = Field(description='Unique identifier of the pin. Allowed characters: [a-z0-9_-].')
         "ptype": "out",  # Literal[PinType.pinout.value] = Field(default= PinType.pinout.value, description='The functional type of the pin like in(put) or out(put).')
         "initial": 0,  # int = Field(default= 0, description='The initial output value of the pin at the time it is created.')
         "active_state": True,  # bool = Field(default= False, description='If True, when the software state is HIGH, the hardware pin is HIGH. If False, the hardware output is reversed')
-        "value": 0,  # int  | None = Field(default= None, description='The output value of the pin that is currently desired.')
         # "password": "ok",  #str | None = Field(default= None, description='An optional safety layer to prevent unwanted activation of a pin. ATTENTION! Do not use your daily passwords for (online) accounts as this api has no https and no encription.')
-        "blink": 1,  # int | None = Field(default= None, description='The blink time of the output once for this number of seconds. Note it uses the previous set value to start from, the value of this call will be ignored.')
+        "blink": 1,  # int | None = Field(default= None, description='Default blink time in seconds, used by the blink call when no blink time is provided.')
     }
     pinininfo = {
         "pin": 21,  # int = Field(description='GPIO pin to configure, change or read')
+        "unique_id": "test_button_pin_21",  # str = Field(description='Unique identifier of the pin. Allowed characters: [a-z0-9_-].')
         "ptype": "in",  #  Literal[PinType.pinin.value] = Field(default= PinType.pinin.value, description='The functional type of the pin like in(put) or out(put).')
         "active_state": True,  #  bool = Field(default= True, description='If True, when the hardware pin state is HIGH, the software pin is HIGH. If False, the input polarity is reversed')
         "pull_up": False,  #  bool = Field(default= True, description='If True, the pin will be pulled high with an internal resistor. If False (the default), the pin will be pulled low.')
@@ -82,7 +83,7 @@ def main():
     }
 
     binding_to_pin = {
-        "switch_test_to_pin_20": {
+        "switch_test_to_test_relay_pin_20": {
             "p_on": {
                 "all": [
                     {
@@ -94,7 +95,7 @@ def main():
                         }
                     }
                 ],
-                "run": {"action": {"unique_id": "20", "call": "on"}},
+                "run": {"action": {"unique_id": "test_relay_pin_20", "call": "on"}},
             },
             "p_off": {
                 "all": [
@@ -107,18 +108,22 @@ def main():
                         }
                     }
                 ],
-                "run": {"action": {"unique_id": "20", "call": "off"}},
+                "run": {"action": {"unique_id": "test_relay_pin_20", "call": "off"}},
             },
         }
     }
     binding_to_sensor = {
-        "pin_20_to_sensor_test": {
+        "test_button_pin_21_to_sensor_test": {
             "p_on": {
-                "all": [{"m": {"$and": [{"unique_id": "21"}, {"value": 1}]}}],
+                "all": [
+                    {"m": {"$and": [{"unique_id": "test_button_pin_21"}, {"value": 1}]}}
+                ],
                 "run": {"action": {"unique_id": "rpi4-sensor-test", "call": "on"}},
             },
             "p_off": {
-                "all": [{"m": {"$and": [{"unique_id": "21"}, {"value": 0}]}}],
+                "all": [
+                    {"m": {"$and": [{"unique_id": "test_button_pin_21"}, {"value": 0}]}}
+                ],
                 "run": {"action": {"unique_id": "rpi4-sensor-test", "call": "off"}},
             },
         }

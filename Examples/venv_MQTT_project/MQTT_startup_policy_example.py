@@ -46,10 +46,10 @@ SWITCH_CONFIG = {
         {
             "PinInfo": {
                 "pin": 20,
+                "unique_id": "test_relay_pin_20",
                 "ptype": "out",
                 "initial": 0,
                 "active_state": True,
-                "value": 0,
                 "blink": 1,
             }
         }
@@ -62,7 +62,7 @@ SWITCH_CONFIG = {
                 "args": [{"name": "state", "value": "ON"}],
             },
             {
-                "unique_id": "20",
+                "unique_id": "test_relay_pin_20",
                 "call": "set_state",
                 "args": [{"name": "state", "value": "on"}],
             },
@@ -71,7 +71,7 @@ SWITCH_CONFIG = {
     "Bindings": [
         {
             "BindInfo": {
-                "switch_test_to_pin_20": {
+                "switch_test_to_test_relay_pin_20": {
                     "p_on": {
                         "all": [
                             {
@@ -83,7 +83,9 @@ SWITCH_CONFIG = {
                                 }
                             }
                         ],
-                        "run": {"action": {"unique_id": "20", "call": "on"}},
+                        "run": {
+                            "action": {"unique_id": "test_relay_pin_20", "call": "on"}
+                        },
                     },
                     "p_off": {
                         "all": [
@@ -96,7 +98,9 @@ SWITCH_CONFIG = {
                                 }
                             }
                         ],
-                        "run": {"action": {"unique_id": "20", "call": "off"}},
+                        "run": {
+                            "action": {"unique_id": "test_relay_pin_20", "call": "off"}
+                        },
                     },
                 }
             }
@@ -126,6 +130,7 @@ SENSOR_CONFIG = {
         {
             "PinInfo": {
                 "pin": 21,
+                "unique_id": "test_pulse_counter_pin_21",
                 "ptype": "count",
                 "when_activated": True,
                 "when_deactivated": True,
@@ -135,11 +140,11 @@ SENSOR_CONFIG = {
     "state_initialization": {
         "persist_action": [
             {"unique_id": "rpi4-sensor-test", "call": ["set_state"]},
-            {"unique_id": "21", "call": ["set_state"]},
+            {"unique_id": "test_pulse_counter_pin_21", "call": ["set_state"]},
         ],
         "preset_action": [
             {
-                "unique_id": "21",
+                "unique_id": "test_pulse_counter_pin_21",
                 "call": "set_state",
                 "args": [{"name": "count_total", "value": 42}],
             }
@@ -148,13 +153,13 @@ SENSOR_CONFIG = {
     "Bindings": [
         {
             "BindInfo": {
-                "pin_21_to_sensor_test": {
+                "test_pulse_counter_pin_21_to_sensor_test": {
                     "p_on": {
                         "all": [
                             {
                                 "m": {
                                     "$and": [
-                                        {"unique_id": "21"},
+                                        {"unique_id": "test_pulse_counter_pin_21"},
                                         {"$ex": {"value": 1}},
                                     ]
                                 }

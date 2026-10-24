@@ -36,48 +36,6 @@ class Pin_count(Pin):
 
         self.calibrationFactor = 1  # 6.6
 
-    def HasSameConfig(self, config: PinModel) -> bool:
-        """
-        Check if the given pin configurtation truly matches the configuration of the saved pin.
-
-        Parameters:
-        config (Pin): Configuratien of the pin.
-
-        Returns:
-        bool: True if the configuration matches, otherwise False.
-        """
-        if config.ptype != self.config.ptype:
-            self.logger.warning(
-                f'New "ptype" {config.ptype} for pin {self.config.pin} is different from known "ptype" {self.config.ptype}'
-            )
-            return False
-        if config.active_state != self.config.active_state:
-            self.logger.warning(
-                f'New "active_state" {config.active_state} for pin {self.config.pin} is different from known "active_state" {self.config.active_state}'
-            )
-            return False
-        if config.pull_up != self.config.pull_up:
-            self.logger.warning(
-                f'New "pull_up" {config.pull_up} for pin {self.config.pin} is different from known "pull_up" {self.config.pull_up}'
-            )
-            return False
-        if config.when_activated != self.config.when_activated:
-            self.logger.warning(
-                f'New "when_activated" {config.when_activated} for pin {self.config.pin} is different from known "when_activated" {self.config.when_activated}'
-            )
-            return False
-        if config.when_deactivated != self.config.when_deactivated:
-            self.logger.warning(
-                f'New "when_deactivated" {config.when_deactivated} for pin {self.config.pin} is different from known "when_deactivated" {self.config.when_deactivated}'
-            )
-            return False
-        if config.scaling_factor != self.config.scaling_factor:
-            self.logger.warning(
-                f'New "scaling_factor" {config.scaling_factor} for pin {self.config.pin} is different from known "scaling_factor" {self.config.scaling_factor}'
-            )
-            return False
-        return True
-
     def ConfigurePin(self):
         """
         Configure the de GPIO as the rigth type.
@@ -113,16 +71,16 @@ class Pin_count(Pin):
         self.dgb_context.put_to_binder_queue(
             "event",
             {
-                "unique_id": str(self.config.pin),
+                "unique_id": self.config.unique_id,
                 "kind": "state",
                 "name": "scaled_total",
                 "value": scaled_total,
                 "origin": "pin",
             },
         )
-        if self.dgb_context.is_action_persisted(str(self.config.pin)):
+        if self.dgb_context.is_action_persisted(self.config.unique_id):
             self.dgb_context.persist_action(
-                str(self.config.pin),
+                self.config.unique_id,
                 "set_state",
                 {
                     "args": [
@@ -130,23 +88,6 @@ class Pin_count(Pin):
                     ]
                 },
             )
-
-    def ProcessPinUpdate(self, config: PinModel) -> bool:
-        """
-        Process the new optained value of the pin configuration. Gennerally
-        this only works for output pins. Input pins wil only show a log
-        message with their current state.
-
-        Parameters:
-        config (Pin): Configuratie of the pin.
-
-        Returns:
-        bool: True if update succesful, otherwise False.
-        """
-        self.logger.info(
-            f"pin {self.config.pin} heeft {self.count_total} tellen totaal, met een stroom van {self.stroom} per seconde"
-        )
-        return True
 
     def set_state(self, **states: float) -> bool:
         return all(
@@ -157,7 +98,7 @@ class Pin_count(Pin):
     def _set_state_value(self, state_name: str, state: float) -> bool:
         if state_name not in {"scaled_total", "count_total"}:
             self.logger.warning(
-                "pin %s unsupported state name %r", self.config.pin, state_name
+                "pin %s unsupported state name %r", self.label, state_name
             )
             return False
 
@@ -166,7 +107,7 @@ class Pin_count(Pin):
         except (TypeError, ValueError):
             self.logger.warning(
                 "pin %s rejected retained count value %r for %s",
-                self.config.pin,
+                self.label,
                 state,
                 state_name,
             )
@@ -180,5 +121,5 @@ class Pin_count(Pin):
         self.tijd_laatste_count = time.monotonic()
         self.tijd_laatste_block = self.tijd_laatste_count
 
-        self.logger.info("pin %s total restored to %s", self.config.pin, total)
+        self.logger.info("pin %s total restored to %s", self.label, total)
         return True

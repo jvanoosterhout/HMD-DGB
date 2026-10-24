@@ -165,6 +165,7 @@ There is currently no Dockerfile or compose setup in this repository.
 
 In order to get some inspiration to use HMD-DGB (and custom IOT hardware design), take a look at these personal projects that I provide as examples.
 
+- **[DGB-systems](https://github.com/jvanoosterhout/DGB-systems)** - System-wide context, architecture, and design history
 - The [MK controler](https://github.com/jvanoosterhout/MKcontroller) make dumb systems in my utility cupboard (Dutch: MeterKast → MK) smart and connect them to Home Assistant. It connects a doorbell and water meter. Futhermore it can disable the doorbell physical ring while maintaining sensor capability for notifications.
 - The [G controler](https://github.com/jvanoosterhout/Gcontroller) make dumb systems in my Garage (Dutch: Garage → G) smart and connect them to Home Assistant. It connects controles the garden irrigation and electrical garage door.
 

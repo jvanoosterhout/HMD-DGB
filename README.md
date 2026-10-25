@@ -80,7 +80,8 @@ The power and uniqueness of HMD-DGB is twofold:
 
 **HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi with Home Assistant integration via MQTT discoverable devices. Unique to this package is that it is an end-to-end solution relying on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins. This eliminates manual programming via easy JSON configuration. While developing this package over the years, I learned that this resembles several aspects of ESPHome.
 
-The future vision is to make a flexible solution to configure and manage edge devices/nodes like Raspberry Pi, while having near-zero need to touch code on the node. Think of installing the OS with the initial package setup, and then working only from Home Assistant to, for example, update the package or configure GPIO, devices, and bindings.
+
+The vision an future intentions are described in [DGB-systems](https://github.com/jvanoosterhout/DGB-systems). It provides the system-wide context, architecture, and design history across the HMD-DGB ecosystem. In short, the future vision is to create a flexible solution for configuring and managing edge devices/nodes such as Raspberry Pis, while having near-zero need to touch code on the nodes themselves. Ideally, after installing the OS and initial packages, everything can be managed from Home Assistant, including package updates and configuration of GPIO, devices, and bindings.
 
 The system consists of four core concepts:
 
@@ -93,7 +94,7 @@ The system consists of four core concepts:
 
 The table below reflects current implementation status in this repository.
 
-| Area | Status |
+| Aspect | Items |
 |---|---|
 | Entity components implemented | `binary_sensor`, `cover`, `valve`, `sensor`, `switch`, `text`, `number`, `select` |
 | Entity components not implemented yet | `button`, `camera`, `device_automation` trigger, `image`, `light`, `lock` |
@@ -157,7 +158,7 @@ There is currently no Dockerfile or compose setup in this repository.
 ### Operational caveats
 
 - The service restart actions are designed for deployments managed by a supervisor (for example `systemd`) that automatically starts the process again after it exits.
-- During configuration load, devices/pins may emit posts before all bindings are registered. In that case, early posts can be missed until binding setup is complete.
+- During configuration load, devices/pins may emit events before all bindings are registered. In that case, early event can be missed until binding setup is complete.
 
 [top](#table-of-contents)
 
@@ -189,7 +190,7 @@ DGB service for service-name:
 - Soft restart (set all entities to unavailable, restart service, leave other MQTT messages untouched)
 - Hard restart (clear the service configuration topic and restart service)
 
-In DGB, your own Home Assistant devices can only be configured inside an [HMD](https://github.com/unixorn/ha-mqtt-discoverable) JSON with the "device" key. DGB alters this HMD device JSON slightly: it overrides/creates the "via_device" key with the unique ID of the DGB service device.
+In DGB, your own Home Assistant devices will automatically be linked as a chiled to the DGB service device. Your own devices can be configured inside an [HMD](https://github.com/unixorn/ha-mqtt-discoverable) JSON with the "device" key. DGB alters your HMD device JSON slightly: it overrides/creates the "via_device" key with the unique ID of the DGB service device. As of that, the service device lists all devices on the service created, and each device has a link to the service, which eases Home Assistant navigation.
 
 [top](#table-of-contents)
 
@@ -949,7 +950,6 @@ DGB parameters:
 | ptype         | Functional type of the pin (output).                                        | str  | `out` |
 | initial       | Initial output value of the pin when it is created. This action occures before any preset or retained values.                         | int  | `0` |
 | active_state  | If `true`, a HIGH software state maps to a HIGH hardware output. If `false`, the output polarity is inverted. | bool | `False` |
-| password      | Optional safety password to prevent unwanted activation of the pin. **Do not reuse real account passwords** (no HTTPS or encryption). | str | optional |
 | blink      | Default blink time in seconds, used by the `blink` call when no blink time is provided. | int | optional |
 
 ```json
@@ -959,7 +959,6 @@ DGB parameters:
   "ptype": "out",
   "initial": 0,
   "active_state": false,
-  "password": "local-control-only",
   "blink": 2
 }
 ```
@@ -1026,7 +1025,6 @@ DGB parameters:
 | initial        | Initial output values for each pin. Order must match `pin_list`. At most one pin may be HIGH; this may also be a dummy pin. This action occures before any preset or retained values. | list[int] | `[0]` |
 | active_state   | List defining output polarity per pin. Order must match `pin_list`. If `true`, HIGH software state maps to HIGH hardware state; otherwise output is inverted. | list[bool] | `[False]` |
 | pin_names      | Human‑readable names for each pin. Order must match `pin_list`. Examples: `["open", "close", "stop"]` or `["0", "1", "2"]`. | list[str] | `[""]` |
-| password       | Optional safety password to prevent unwanted activation. Applies to all pins but is only checked for the first pin in `pin_list`. **Do not reuse real passwords** (no HTTPS or encryption). | str | optional |
 
 ```json
 {
@@ -1037,7 +1035,6 @@ DGB parameters:
   "initial": [0, 0, 0],
   "active_state": [false, false, false],
   "pin_names": ["open", "close", "stop"],
-  "password": "local-control-only"
 }
 ```
 
@@ -1248,7 +1245,7 @@ As shown in the first example in this section, the matching constructs inside th
 - Patterns like match pattern (`$mt`) and case-insensitive match pattern (`$imt`)
 - Arithmetic expressions like $add, $sub, $mul, $div
 
-HMD-DGB currently only supports posting one entity/pin/timer message in the shape of an event, meaning events are ephemeral: they are evaluated and then gone. Posts have the shape:
+HMD-DGB currently only supports entity/pin/timer messages in the shape of an event, meaning events are ephemeral: they are evaluated and then gone. Events have the shape:
 
 ```JSON
 {"unique_id": "...", "kind": "command", "name": "value", "value": "...", "origin": "device"}
@@ -1430,7 +1427,7 @@ What would currently happen, and should happen when the HMD-DGB service restarts
 
 **Status:** Needs split of operational phases or robust error handling
 
-Currently devices and pins can emit posts directly after creation, while rules/bindings can only be set once all included devices and pins are defined --> early posts fail.
+Currently devices and pins can emit events directly after creation, while rules/bindings can only be set once all included devices and pins are defined --> early events fail.
 
 ### Count-Type Pin Device
 
@@ -1442,7 +1439,7 @@ Currently the count-type pin implementation is incomplete. Water flow meters and
 
 **Status:** unknown
 
-HMD-DGB currently pins Durable Rules to a fixed upstream git commit instead of the PyPI sdist. This keeps the package metadata at `2.0.28` while including the Python 3.13 compatibility fix for the native extension. Durable Rules still has limited maintenance/updates and no responses on issues lately, so a project-owned fork/tag may be preferable for long-term stability.
+HMD-DGB currently pins Durable Rules to a fixed git commit instead of a PyPI version. This keeps the package metadata at `2.0.28` while including the Python 3.13 compatibility fix for the native extension. Durable Rules still seems to have limited maintenance/updates and no responses on issues lately, so long-term stability is a concern.
 
 [top](#table-of-contents)
 

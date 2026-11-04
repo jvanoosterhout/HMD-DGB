@@ -10,7 +10,7 @@ Control Raspberry Pi GPIO pins via MQTT with automatic Home Assistant discoverab
 
 The power and uniqueness of HMD-DGB is twofold:
 - it allows you to configure complex entities that can rely on multiple sensors and actors, like a cover (control open/close/stop, sense is_open/is_closed) or a light (RGBW).
-- it allows you to manage the node (the RPi/SBC), service, and configurations from Home Assistant or another central location. This way, Home Assistant only stores configurations, with no flooding of Home Assistant with helpers or intermediate entities.
+- it allows you to manage the node (the RPi/SBC), service, and configurations from Home Assistant or another central location. This way, Home Assistant only stores configurations as the single source of truth, with no flooding of Home Assistant with helpers or intermediate entities.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -78,17 +78,17 @@ The power and uniqueness of HMD-DGB is twofold:
 
 ## Overview
 
-**HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi with Home Assistant integration via MQTT discoverable devices. Unique to this package is that it is an end-to-end solution relying on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins. This eliminates manual programming via easy JSON configuration. While developing this package over the years, I learned that this resembles several aspects of ESPHome.
+**HMD-DGB** (Home Assistant MQTT-Discoverable Device GPIO Binder) provides a Python-based solution for managing GPIO pins on Raspberry Pi and bind them to Home Assistant devices via MQTT discovery. Unique to this package is that it is an end-to-end solution relying on the [ha-mqtt-discoverable](https://github.com/unixorn/ha-mqtt-discoverable) package for MQTT Discovery and [Durable Rules](https://github.com/jruizgit/rules) to bind these devices to [GPIOzero](https://github.com/gpiozero/gpiozero) pins. This eliminates manual programming by more intuitive JSON configuration. While developing this package over the years, it seems to have some resembles with ESPHome, while still being unique. 
 
 
-The vision an future intentions are described in [DGB-systems](https://github.com/jvanoosterhout/DGB-systems). It provides the system-wide context, architecture, and design history across the HMD-DGB ecosystem. In short, the future vision is to create a flexible solution for configuring and managing edge devices/nodes such as Raspberry Pis, while having near-zero need to touch code on the nodes themselves. Ideally, after installing the OS and initial packages, everything can be managed from Home Assistant, including package updates and configuration of GPIO, devices, and bindings.
+The vision an future intentions of HMD-DGB described in [DGB-systems](https://github.com/jvanoosterhout/DGB-systems). It provides the system-wide context, architecture, and design history across the HMD-DGB ecosystem. In short, the future vision is to create a flexible solution for configuring and managing edge devices/nodes such as Raspberry Pis, while having near-zero need to touch code on the nodes themselves. Node configurations are managed centrally from Home Assistant. Ideally, after installing the OS and HMD-DGB, everything can be managed from Home Assistant, including package updates and configuration of GPIO, devices, and bindings. 
 
 The system consists of four core concepts:
 
 - **MQTT Discoverable Devices**: Devices that automatically appear in Home Assistant via MQTT discovery protocol
 - **Durable Binding Rules**: Define relationships and actions between physical GPIO pins and Home Assistant devices
 - **GPIOzero Devices**: configuration of GPIO pins to perform meaningful actions in the real world
-- **on the fly configuration**: send device, binding and GPIO configurations over MQTT to your Raspberry Pi (you still need to install this package, configure HA, and setup the MQTT service)
+- **On the fly configuration**: send device, binding and GPIO configurations over MQTT to your Raspberry Pi (you still need to install this package, configure HA, and setup the MQTT service)
 
 ### Current implementation status
 
@@ -164,11 +164,11 @@ There is currently no Dockerfile or compose setup in this repository.
 
 ## Example projects
 
-In order to get some inspiration to use HMD-DGB (and custom IOT hardware design), take a look at these personal projects that I provide as examples.
+In order to get some inspiration to use HMD-DGB (and custom IOT hardware design), take a look at these personal projects provide as examples.
 
-- **[DGB-systems](https://github.com/jvanoosterhout/DGB-systems)** - System-wide context, architecture, and design history
-- The [MK controler](https://github.com/jvanoosterhout/MKcontroller) make dumb systems in my utility cupboard (Dutch: MeterKast → MK) smart and connect them to Home Assistant. It connects a doorbell and water meter. Futhermore it can disable the doorbell physical ring while maintaining sensor capability for notifications.
-- The [G controler](https://github.com/jvanoosterhout/Gcontroller) make dumb systems in my Garage (Dutch: Garage → G) smart and connect them to Home Assistant. It connects controles the garden irrigation and electrical garage door.
+- **[DGB-systems](https://github.com/jvanoosterhout/DGB-systems)**: System-wide context, architecture, and design history
+- **[MK controler](https://github.com/jvanoosterhout/MKcontroller)**: Make dumb utility cupboard (Dutch: MeterKast → MK) systems smart and connect them to Home Assistant. It connects a doorbell and water meter. Futhermore it can disable the doorbell physical ring while maintaining sensor capability for notifications.
+- **[G controler](https://github.com/jvanoosterhout/Gcontroller)**: make dumb Garage (Dutch: Garage → G) systems smart and connect them to Home Assistant. It connects controles the garden irrigation and electrical garage door.
 
 [top](#table-of-contents)
 
@@ -176,17 +176,17 @@ In order to get some inspiration to use HMD-DGB (and custom IOT hardware design)
 
 ### Node & system health & control
 
-When the HMD-DGB service starts, it creates a discoverable DGB node and DGB service for the given service name. Both devices have sensors, controls, and basic information.
+When the HMD-DGB service starts, it creates a discoverable DGB node and DGB service for the given service-name. Both devices have sensors, controls, and basic information.
 
-DGB node for service-name:
+DGB node (with service-name):
 - CPU usage
 - RAM usage
 - CPU temperature
 - Uptime of the node (is time.monotonic())
 
-DGB service for service-name:
+DGB service (with service-name):
 - Current software version installed
-- Uptime of the service, this may be different from the node due to a restart of the service of crashes of the service.
+- Uptime of the service, this may be different from the node due to a restart of the service or a crashes of the service.
 - Soft restart (set all entities to unavailable, restart service, leave other MQTT messages untouched)
 - Hard restart (clear the service configuration topic and restart service)
 
@@ -214,44 +214,15 @@ Once the HMD-DGB service runs on a Pi/SBC and is connected to an MQTT broker (wi
 ```
 How to fill this message is explained in the next sections.
 
-Before any device, pin, or binding is created, DGB validates the structural shape of the payload (required keys like `EntityInfo.component`, `EntityInfo.unique_id`, `PinInfo.pin`, `PinInfo.unique_id`, `PinInfo.ptype`, `BindInfo`, and `state_initialization` entries). It also checks that every `unique_id` occurs only once across all devices and pins in the payload. A structurally invalid payload blocks the configuration cycle the same way a failed device/pin/binding creation does, governed by `error_state_policy`.
-
-[top](#table-of-contents)
-
-### Startup policy
-
-Startup policy is a separate configuration message. Publish it as a retained MQTT message to `config/{name}/startup-policy` before starting the DGB service. At startup, DGB temporarily subscribes to this topic and closes the preload window after 0.5 seconds without activity (or after 1 second total). A policy published after that window is not loaded until the next service start.
-
-The payload contains a `startup_policy` object. Both fields are optional:
-
-| Parameter | Description | Type | Default |
-|---|---|---|---|
-| `loading_mode` | Configuration lifecycle mode. Accepted values are `gated` and `unsupervised`. | str | `gated` |
-| `error_state_policy` | Action after a configuration cycle fails. | str | `block` |
-
-Note that loading_mode is not yet impleemnted. Whatever is configured, DGB uses the gated approach.
-
-`error_state_policy` may be one of:
-
-- `block`: do not dispatch further configuration after a failed cycle.
-- `warn`: allow the next configuration message after a failed cycle. The bindings in the failed cycle will be blocked, devices and pins may or may not work. Behaviour may become unpredictable.
-- `clear_affected_config_and_restart`: clear the failed (retained) configuration message and restart the service. The will result in continued operationes on a live system with  existing configs when a new faulty config is loaded for testing.
-- `remove_affected_device_and_binding`: reserved for removing affected objects; this behavior is not implemented yet.
-
-```json
-{
-  "startup_policy": {
-    "loading_mode": "gated",
-    "error_state_policy": "block"
-  }
-}
-```
+Before any device, pin, or binding is created, DGB validates the structural shape of the payload (required keys like `EntityInfo.component`, `EntityInfo.unique_id`, `PinInfo.pin`, `PinInfo.unique_id`, `PinInfo.ptype`, `BindInfo`, and `state_initialization` entries). It also checks that every `unique_id` occurs only once across all devices and pins in the payload. A structurally invalid payload blocks the configuration cycle the same way a failed device/pin/binding creation does, governed by `error_state_policy` as can be read in the [Startup policy](#startup-policy).
 
 [top](#table-of-contents)
 
 ### Startup actions
 
-Startup actions restore or set object state after devices and pins have been created, but before bindings become live. State initialization is an option in the regular configuration payload on `config/{name}/devices/`. It has two optional lists: `preset_action` defines a configured default, while `persist_action` selects actions to publish and restore through the retained MQTT namespace `config/{name}/retained-actions/{unique_id}/{call}`.
+Startup actions restore or set object state after devices and pins have been created, but before bindings become live. These actions can be set via the `state_initialization` key in the regular configuration payload on `config/{name}/devices/`. It has two optional lists: 
+- `preset_action` defines a configured default
+- `persist_action` selects actions to publish and restore through the retained MQTT namespace `config/{name}/retained-actions/{unique_id}/{call}`.
 
 When the DGB service starts, it checks for the `config/{name}/retained-actions/#` topic. Actions can only be restored when a retained message exists. A retained action only overrides a preset when its operation is listed in `persist_action` for that `unique_id`. If you remove an operation from `persist_action`, the service may still load the retained message, but it will not apply it to the device.
 
@@ -316,7 +287,7 @@ From the [Home Assistant documentation](https://www.home-assistant.io/getting-st
 
 HMD parameters:
 
-| Parameter          | Description                                                                 | Type               | Default  |
+| Parameter          | Description                                                                 | Type               | Requirement  |
 |-------------------|-----------------------------------------------------------------------------|--------------------|----------|
 | name              | Name of the device.                                                         | str                | required |
 | model             | Model of the device.                                                        | str                | optional |
@@ -352,7 +323,7 @@ In DGB, devices can only be configured inside an entity with the "device" key. T
 
 Parameters that all entities have, and that can be appended to the `EntityInfo` configuration of each entity in the following subsections.
 
-| Parameter           | Description                                                                 | Type       | Default  |
+| Parameter           | Description                                                                 | Type       | Requirement  |
 |--------------------|-----------------------------------------------------------------------------|------------|----------|
 | component          | One of the supported MQTT components, for instance `binary_sensor`.         | str        | required |
 | name               | Name of the sensor inside Home Assistant.                                   | str        | required |
@@ -392,10 +363,10 @@ Parameters that all entities have, and that can be appended to the `EntityInfo` 
 
 HMD parameters:
 
-| Parameter    | Description                                                                 | Type | Default |
+| Parameter    | Description                                                                 | Type | Default  |
 |-------------|-----------------------------------------------------------------------------|------|---------|
 | component   | One of the supported MQTT components. For this sensor, defaults to `binary_sensor`. | str  | `binary_sensor` |
-| off_delay   | For sensors that only send state updates (e.g. PIR sensors), sets a delay in seconds after which the sensor state is automatically updated back to `off`. | int  | optional |
+| off_delay   | For sensors that only send state updates (e.g. PIR sensors), sets a delay in seconds after which the sensor state is automatically updated back to `off`. | int  | None|
 | payload_off | Payload to send for the OFF state.                                          | str  | `off` |
 | payload_on  | Payload to send for the ON state.                                           | str  | `on` |
 
@@ -408,17 +379,17 @@ HMD parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | off | Set binary sensor to off. | | | |
 | on | Set binary sensor to on. | | | |
-| set_state | Set the binary sensor state. | `state_name`, `state` | `str`, `bool \| int \| str` | `state_name` must be `state`; accepted values are `on`/`off`, `true`/`false`, or `1`/`0`. |
+| set_state | Set the binary sensor state. | `name`, `value` | `str`, `bool \| int \| str` | `name` must be `state`; `value` accepts `on`/`off`, `true`/`false`, or `1`/`0`. |
 
 [top](#table-of-contents)
 
-#### Button (not implemented yet)
+<!-- #### Button (not implemented yet)
 
 This component is not implemented in the current runtime yet.
 
@@ -466,7 +437,7 @@ DGB binder run.action.call and (optional) run.action.args:
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_payload   | Update the image payload of the camera.                                  | image_payload  | bytes or str |  image payload to be published to topic |
 
-[top](#table-of-contents)
+[top](#table-of-contents) -->
 
 #### Cover
 
@@ -475,7 +446,7 @@ HMD parameters:
 | Parameter         | Description                                                                 | Type | Default |
 |------------------|-----------------------------------------------------------------------------|------|---------|
 | component        | One of the supported MQTT components. For this entity, defaults to `cover`. | str  | `cover` |
-| optimistic       | Flag that defines whether the cover works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | optional |
+| optimistic       | Flag that defines whether the cover works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | None |
 | payload_close    | Command payload used to close the cover.                                    | str  | `CLOSE` |
 | payload_open     | Command payload used to open the cover.                                     | str  | `OPEN` |
 | payload_stop     | Command payload used to stop the cover.                                     | str  | `STOP` |
@@ -513,7 +484,7 @@ DGB parameters:
 | time_based_state        | Reserved for time-based cover position calculation. Currently accepted but ignored. | bool  | `False` |
 | direct_state_transition  | If True, cover states will change directly based on paload commands, otherwise states must be managed via the binder with run.action.call | bool | `True` |
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
@@ -522,11 +493,11 @@ DGB binder run.action.call and (optional) run.action.args:
 | closing     | Set cover state to closing                                                      |          |      |             |
 | opening     | Set cover state to opening                                                      |          |      |             |
 | stopped     | Set cover state to stopped                                                      |          |      |             |
-| set_state | Set the cover state from a command payload. | `state_name`, `state` | `str`, `str` | `state_name` must be `state`; `state` must equal `payload_open`, `payload_close`, or `payload_stop`. |
+| set_state | Set the cover state from a command payload. | `name`, `value` | `str`, `str` | `name` must be `state`; `value` must equal `payload_open`, `payload_close`, or `payload_stop`. |
 
 [top](#table-of-contents)
 
-#### Device trigger (not implemented yet)
+<!-- #### Device trigger (not implemented yet)
 
 HMD parameters:
 
@@ -534,7 +505,7 @@ HMD parameters:
 |------------------|-----------------------------------------------------------------------------|------|---------|
 | component        | The MQTT component type for this entity.                                    | str  | `device_automation` |
 | automation_type  | Type of automation. Must be `trigger`.                                      | str  | `trigger` |
-| payload          | Optional payload to match against the payload received on the topic.       | str  | optional |
+| payload          | Optional payload to match against the payload received on the topic.       | str  | None |
 | type             | The type of the trigger.                                                    | str  | required |
 | subtype          | The subtype of the trigger.                                                 | str  | required |
 
@@ -548,7 +519,7 @@ HMD parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
@@ -563,10 +534,10 @@ HMD parameters:
 | Parameter        | Description                                                                 | Type | Default |
 |------------------|-----------------------------------------------------------------------------|------|---------|
 | component        | The MQTT component type for this entity.                                    | str  | `image` |
-| url_topic        | MQTT topic used to receive an image URL. Cannot be used together with `image_topic`. | str  | optional |
-| image_topic      | MQTT topic used to receive raw image payloads. Cannot be used together with `url_topic`. | str  | optional |
-| image_encoding   | Encoding of image payloads. Set to `b64` to enable base64 decoding. If not set, payloads must be raw binary data. | str | optional |
-| content_type     | Content type to use when sending image payloads. Cannot be used together with `url_topic`. | str | optional |
+| url_topic        | MQTT topic used to receive an image URL. Cannot be used together with `image_topic`. | str  | None |
+| image_topic      | MQTT topic used to receive raw image payloads. Cannot be used together with `url_topic`. | str  | None |
+| image_encoding   | Encoding of image payloads. Set to `b64` to enable base64 decoding. If not set, payloads must be raw binary data. | str | None |
+| content_type     | Content type to use when sending image payloads. Cannot be used together with `url_topic`. | str | None |
 
 Example using image_topic (binary or base64 payload)
 
@@ -588,7 +559,7 @@ Alternative example using url_topic
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
@@ -605,14 +576,14 @@ HMD parameters:
 |-------------------------|-----------------------------------------------------------------------------|-------------|---------|
 | component               | One of the supported MQTT components. For this entity, defaults to `light`. | str         | `light` |
 | state_schema            | Sets the schema of the state topic (the `schema` field in the configuration). | str         | `json` |
-| optimistic              | Flag that defines whether the light works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool        | optional |
+| optimistic              | Flag that defines whether the light works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool        | None |
 | payload_off             | Payload that represents the OFF state. Used both for comparing against values received on `state_topic` and for sending the OFF command to the `command_topic`. | str         | `OFF` |
 | payload_on              | Payload that represents the ON state. Used both for comparing against values received on `state_topic` and for sending the ON command to the `command_topic`. | str         | `ON` |
 | brightness              | Flag that defines whether the light supports brightness control.             | bool        | `False` |
-| color_mode              | Flag that defines whether the light supports color mode.                     | bool        | optional |
-| supported_color_modes   | List of supported color modes. Required if `color_mode` is set. See Home Assistant documentation for valid values. | list[str]   | optional |
+| color_mode              | Flag that defines whether the light supports color mode.                     | bool        | None |
+| supported_color_modes   | List of supported color modes. Required if `color_mode` is set. See Home Assistant documentation for valid values. | list[str]   | None |
 | effect                  | Flag that defines whether the light supports effects.                        | bool        | `False` |
-| effect_list             | List of supported effects. Required if `effect` is set.                     | str \| list | optional |
+| effect_list             | List of supported effects. Required if `effect` is set.                     | str \| list | None |
 | retain           | Defines whether the published MQTT message should have the retain flag set. | bool | `False` |
 
 ```json
@@ -631,7 +602,7 @@ HMD parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 TODO: make table
 
@@ -644,7 +615,7 @@ HMD parameters:
 | Parameter        | Description                                                                 | Type | Default |
 |------------------|-----------------------------------------------------------------------------|------|---------|
 | component        | One of the supported MQTT components. For this entity, defaults to `lock`.  | str  | `lock` |
-| optimistic       | Flag that defines whether the lock works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | optional |
+| optimistic       | Flag that defines whether the lock works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | None |
 | retain           | Defines whether the published MQTT message should have the retain flag set. | bool | `False` |
 | payload_lock     | Command payload used to lock the lock.                                      | str  | `LOCK` |
 | payload_unlock   | Command payload used to unlock the lock.                                    | str  | `UNLOCK` |
@@ -669,11 +640,11 @@ HMD parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 TODO: make table
 
-[top](#table-of-contents)
+[top](#table-of-contents) -->
 
 #### Number
 
@@ -684,12 +655,12 @@ HMD parameters:
 | component            | One of the supported MQTT components. For this entity, defaults to `number`. | str         | `number` |
 | max                  | Maximum value of the number.                                                 | float \| int | `100` |
 | min                  | Minimum value of the number.                                                 | float \| int | `1` |
-| mode                 | Controls how the number is displayed in the UI. Can be set to `box` or `slider` to force a display mode. | str | optional |
-| optimistic           | Flag that defines whether the number entity works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | optional |
-| payload_reset        | Special payload that resets the state to `None` when received on the `state_topic`. | str | optional |
+| mode                 | Controls how the number is displayed in the UI. Can be set to `box` or `slider` to force a display mode. | str | None |
+| optimistic           | Flag that defines whether the number entity works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | None |
+| payload_reset        | Special payload that resets the state to `None` when received on the `state_topic`. | str | None |
 | retain               | Defines whether the published MQTT message should have the retain flag set. | bool | `False` |
-| step                 | Step value for the number. Smallest acceptable value is 0.001. Defaults to 1.0 if not set. | float | optional |
-| unit_of_measurement  | Defines the unit of measurement of the sensor, if any.                      | str | optional |
+| step                 | Step value for the number. Smallest acceptable value is 0.001. Defaults to 1.0 if not set. | float | None |
+| unit_of_measurement  | Defines the unit of measurement of the sensor, if any.                      | str | None |
 
 ```json
 {
@@ -706,12 +677,12 @@ HMD parameters:
 
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_value   |   Update the numeric value                            | value  | float |  Value of the number configured for this entity |
-| set_state | Update the numeric value. | `state_name`, `state` | `str`, `float` | `state_name` must be `state`. |
+| set_state | Update the numeric value. | `name`, `value` | `str`, `float` | `name` must be `state`. `value` accepts a float. |
 
 [top](#table-of-contents)
 
@@ -722,7 +693,7 @@ HMD parameters:
 | Parameter   | Description                                                                 | Type | Default |
 |------------|-----------------------------------------------------------------------------|------|---------|
 | component  | One of the supported MQTT components. For this entity, defaults to `select`. | str  | `select` |
-| optimistic | Flag that defines whether the select entity works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | optional |
+| optimistic | Flag that defines whether the select entity works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | None |
 | retain     | Defines whether the published MQTT message should have the retain flag set. | bool | `False` |
 | options    | List of selectable options. An empty list or a list with a single item is allowed. | list | `[]` |
 
@@ -735,12 +706,12 @@ HMD parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | select_option   |   Update the selected option.                           | option  | str |  The option to be selected. |
-| set_state | Update the selected option. | `state_name`, `state` | `str`, `str` | `state_name` must be `state`. |
+| set_state | Update the selected option. | `name`, `value` | `str`, `str` | `name` must be `state`. The `value` must be the option to be selected.|
 
 [top](#table-of-contents)
 
@@ -751,11 +722,11 @@ HMD parameters:
 | Parameter                     | Description                                                                 | Type | Default |
 |------------------------------|-----------------------------------------------------------------------------|------|---------|
 | component                    | One of the supported MQTT components. For this sensor, defaults to `sensor`. | str  | `sensor` |
-| unit_of_measurement          | Defines the units of measurement of the sensor, if any.                     | str  | optional |
-| state_class                  | Defines the type of state. If set, the sensor is assumed to be numerical and will be displayed as a line chart instead of discrete values in the frontend. | str  | optional |
-| value_template               | Template used to extract the sensor value. If the template throws an error, the current state is used instead. | str  | optional |
-| last_reset_value_template    | Template used to extract `last_reset`. When set, `state_class` must be `total`. Available variables include `entity_id`, which can reference the entity's attributes. | str  | optional |
-| suggested_display_precision  | Number of decimals used to round the sensor state. Must be greater than or equal to 0. | int  | optional |
+| unit_of_measurement          | Defines the units of measurement of the sensor, if any.                     | str  | None |
+| state_class                  | Defines the type of state. If set, the sensor is assumed to be numerical and will be displayed as a line chart instead of discrete values in the frontend. | str  | None |
+| value_template               | Template used to extract the sensor value. If the template throws an error, the current state is used instead. | str  | None |
+| last_reset_value_template    | Template used to extract `last_reset`. When set, `state_class` must be `total`. Available variables include `entity_id`, which can reference the entity's attributes. | str  | None |
+| suggested_display_precision  | Number of decimals used to round the sensor state. Must be greater than or equal to 0. | int  | None |
 
 ```json
 {
@@ -768,11 +739,11 @@ HMD parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
-| set_state | Update the sensor state. | `state_name`, `state` | `str`, `bytes \| str \| float` | `state_name` must be `state`. |
+| set_state | Update the sensor state. | `name`, `value` | `str`, `bytes \| str \| float` | `name` must be `state`. |
 
 [top](#table-of-contents)
 
@@ -783,11 +754,11 @@ HMD parameters:
 | Parameter     | Description                                                                 | Type | Default |
 |--------------|-----------------------------------------------------------------------------|------|---------|
 | component    | One of the supported MQTT components. For this entity, defaults to `switch`. | str  | `switch` |
-| optimistic   | Flag that defines whether the switch works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | optional |
+| optimistic   | Flag that defines whether the switch works in optimistic mode. Default behavior is `true` if no `state_topic` is defined, otherwise `false`. | bool | None |
 | payload_off  | Payload that represents the OFF state. Used both for comparing against the value received on `state_topic` and for sending the OFF command to `command_topic`. | str  | `OFF` |
 | payload_on   | Payload that represents the ON state. Used both for comparing against the value received on `state_topic` and for sending the ON command to `command_topic`. | str  | `ON` |
 | retain       | Defines whether the published MQTT message should have the retain flag set. | bool | `False` |
-| state_topic  | MQTT topic subscribed to receive state updates.                             | str  | optional |
+| state_topic  | MQTT topic subscribed to receive state updates.                             | str  | None |
 
 ```json
 {
@@ -800,13 +771,13 @@ HMD parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | off | Set switch to off. | | | |
 | on | Set switch to on. | | | |
-| set_state | Set the switch state from a command payload. | `state_name`, `state` | `str`, `str` | `state_name` must be `state`; `state` must equal `payload_on` or `payload_off`. |
+| set_state | Set the switch state from a command payload. | `name`, `value` | `str`, `str` | `name` must be `state`; `value` must equal `payload_on` or `payload_off`. |
 
 [top](#table-of-contents)
 
@@ -820,7 +791,7 @@ HMD parameters:
 | max      | Maximum length of the text being set or received (maximum allowed is 255). | int  | `255` |
 | min      | Minimum length of the text being set or received.                           | int  | `0` |
 | mode     | Mode of the text entity. Must be either `text` or `password`.               | str  | `text` |
-| pattern  | Regular expression that the text being set or received must match.          | str  | optional |
+| pattern  | Regular expression that the text being set or received must match.          | str  | None |
 | retain   | Defines whether the published MQTT message should have the retain flag set. | bool | `False` |
 
 ```json
@@ -834,12 +805,12 @@ HMD parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | set_text   | Update the text displayed by this sensor.                                 | text  | str  |  Value of the text configured for this entity |
-| set_state | Update the text value. | `state_name`, `state` | `str`, `str` | `state_name` must be `state`. |
+| set_state | Update the text value. | `name`, `value` | `str`, `str` | `name` must be `state`. |
 
 [top](#table-of-contents)
 
@@ -888,7 +859,7 @@ DGB parameters:
 | time_based_state        | Reserved for time-based valve position calculation. Currently accepted but ignored. | bool  | `False` |
 | direct_state_transition  | If True, valve states will change directly based on paload commands, otherwise states must be managed via the binder with run.action.call | bool | `True` |
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|-------|------|-------------|
@@ -897,7 +868,7 @@ DGB binder run.action.call and (optional) run.action.args:
 | closing     | Set valve state to closing                                                      |          |      |             |   |      |             |
 | opening     | Set valve state to opening                                                      |          |      |             |   |      |             |
 | position     | Set the valve to a desired position between 0 and 100.                         |   position       | int     | position of the valve     |   state (optional)      | str     | state of the valve (as defined in state_open, state_opening, state_closed or state_closing)     |
-| set_state | Set the valve state or position from a command payload. | `state_name`, `state` | `str`, `str \| int` | `state_name` is `state` or `position`; command payloads must equal `payload_open`, `payload_close`, or `payload_stop`, otherwise `state` is converted to an integer position. |
+| set_state | Set the valve state or position from a command payload. | `name`, `value` | `str`, `str \| int` | `name` is `state` or `position`; `value` must equal `payload_open`, `payload_close`, or `payload_stop`, otherwise `value` is converted to an integer position. |
 
 [top](#table-of-contents)
 
@@ -922,7 +893,6 @@ DGB parameters:
 | ptype          | Functional type of the pin (input).                                         | str  | `in` |
 | active_state   | If `true`, a HIGH hardware signal maps to HIGH software state. If `false`, the input polarity is inverted. | bool | `True` |
 | pull_up        | If `true`, the pin is pulled high using an internal resistor. If `false`, the pin is pulled low. | bool | `True` |
-| webhook        | Home Assistant endpoint to send state changes to when they occur.          | str  | optional |
 
 ```json
 {
@@ -930,8 +900,7 @@ DGB parameters:
   "unique_id": "doorbell_button_pin_17",
   "ptype": "in",
   "active_state": true,
-  "pull_up": true,
-  "webhook": "/api/webhook/gpio_pin_17"
+  "pull_up": true
 }
 ```
 
@@ -950,7 +919,7 @@ DGB parameters:
 | ptype         | Functional type of the pin (output).                                        | str  | `out` |
 | initial       | Initial output value of the pin when it is created. This action occures before any preset or retained values.                         | int  | `0` |
 | active_state  | If `true`, a HIGH software state maps to a HIGH hardware output. If `false`, the output polarity is inverted. | bool | `False` |
-| blink      | Default blink time in seconds, used by the `blink` call when no blink time is provided. | int | optional |
+| blink      | Default blink time in seconds, used by the `blink` call when no blink time is provided. | int | None |
 
 ```json
 {
@@ -963,14 +932,14 @@ DGB parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | on        | Set pin state to on                                                      |          |      |             |
 | off      | Set pin state to off                                                      |          |      |             |
 | blink      | Set pin state to on for a certain time                                     |    blink      |  int    |      The blink time of the output once for this number of seconds.       |
-| set_state | Set the pin state or blink duration. | `state_name`, `state` | `str`, `int \| str \| bool` | `state_name` is `state` (`on`/`off`, `1`/`0`) or `blink` (seconds). |
+| set_state | Set the pin state or blink duration. | `name`, `value` | `str`, `int \| str \| bool` | `name` is `state` or `blink`, `value` accepts `on`/`off`, `1`/`0` or a time in seconds. |
 
 [top](#table-of-contents)
 
@@ -988,7 +957,6 @@ DGB parameters:
 | when_activated | If `true`, count on rising edge events (`when_activated`).                  | bool | `True` |
 | when_deactivated | If `true`, count on falling edge events (`when_deactivated`).            | bool | `True` |
 | scaling_factor | Reported total is scaled as `count_total / scaling_factor`. Must be greater than `0`. | float | `1.0` |
-| webhook       | Home Assistant endpoint to send count/state changes to when they occur.    | str  | optional |
 
 ```json
 {
@@ -999,20 +967,21 @@ DGB parameters:
   "pull_up": false,
   "when_activated": true,
   "when_deactivated": true,
-  "scaling_factor": 10.0,
-  "webhook": "/api/webhook/gpio_counter_5"
+  "scaling_factor": 10.0
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name | Description | Argument | Type | Description |
 |---|---|---|---|---|
-| set_state | Restore the counter total. | `state_name`, `state` | `str`, `float` | `state_name` is `count_total` (raw count) or `scaled_total` (count multiplied by `scaling_factor`). |
+| set_state | Restore the counter total. | `name`, `value` | `str`, `float` | `name` is `count_total` (raw count) or `scaled_total` (count multiplied by `scaling_factor`), `value` accepts floats. |
 
 [top](#table-of-contents)
 
 #### PinNWayOut
+
+The n‑way output allows to controll multiple pins with one interface. This is usefull to controll fans, covers or valves that have multiple inputs, e.g. low, med, high speed or open, close, stop. At most one pin can be active, activating a pin will turn of the others automatically. The n‑way output is addressed as a whole by its `unique_id`. Internally, every other GPIO in `pin_list` becomes a sub-pin with the id `{unique_id}_{index}` (for example `sunscreen_motor_pin_22_1`). Sub-pins are not registered as separate objects and cannot be addressed by their separate unique_id in bindings. They can only be called via the main pin.
 
 DGB parameters:
 
@@ -1038,24 +1007,22 @@ DGB parameters:
 }
 ```
 
-DGB binder run.action.call and (optional) run.action.args:
+DGB binder run.action.call and (optional) run.action.args. These can also be used for `preset_action` and are stored in retained-actions topic:
 
 | Call name    | Description                                                                 | Argument | Type | Description |
 |-------------|------------------------------------------------------------------------------|----------|------|-------------|
 | on        | Turn on one pin and turn off all others                                  |    active_pin      |  int \| str    |     The GPIO pin number or `pin_names` entry to turn on        |
 | off      | Set pin state to off                                                      |          |      |             |
-| set_state | Select the active pin or deactivate all pins. | `state_name`, `state` | `str`, `int \| str \| null` | `state_name` must be `active_pin`; use `null` to deactivate all pins. |
+| set_state | Select the active pin or deactivate all pins. | `name`, `value` | `str`, `int \| str \| null` | `name` must be `active_pin`; `value` accepts the pin name from `pin_names` or the pin number, use `null` to deactivate all pins. |
 <!-- | blink      | Set pin state to on for a certain time                                     |          |      |             |   |      |             | -->
-
-The n‑way output is addressed as a whole by its `unique_id`. Internally, every other GPIO in `pin_list` becomes a sub-pin with the id `{unique_id}_{index}` (for example `sunscreen_motor_pin_22_1`). Sub-pins are not registered as separate objects and cannot be addressed by their separate unique_id in bindings. They can only be called via the main pin.
 
 [top](#table-of-contents)
 
 ### Bindings with BindInfo
 
-The binder manages actions to execute on specific device (entity) and pin triggers via binding rules. These rules are loaded in [Durable Rules](https://github.com/jruizgit/rules) and mostly follow the rich [JSON](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) schema documentation. Some basics are shown here, but details and examples can be found in the [JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md). Note that multiple ruleset implementations can accomplish the same thing. It may still be useful to use Copilot or another AI tool to generate a first draft.
+The binder manages actions to execute on specific device (entity) and pin events via binding rules. These rules are loaded in [Durable Rules](https://github.com/jruizgit/rules) and mostly follow the rich [JSON](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) schema documentation. Some basics are shown here, but details and examples can be found in the [JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md). Note that there are multiple way to implement the same behaviour in a ruleset. It may be useful to use Copilot or another AI tool to generate a first draft.
 
-In addition to the basics, these sections show HMD-DGB additions/changes to the JSON schema. These changes/additions are limited to sublabels of the `run` label, but also impose limitations on other parts of the schema. This is explained in detail in the designated sections. In addition to the documentation here, I made several tests to check the binder stand-alone in [Binder_examples.py](https://github.com/jvanoosterhout/HMD-DGB/blob/main/Examples/Binder_examples.py).
+In addition to the [JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md), the following sections show HMD-DGB additions/changes to the JSON schema. These changes/additions apply only to sublabels of the `run` key, but also impose limitations on other parts of the schema. This is explained in detail in the designated sections. In addition to the documentation here, several tests to validate the binder stand-alone can be found in [Binder_examples.py](https://github.com/jvanoosterhout/HMD-DGB/blob/main/Examples/Binder_examples.py).
 
 [top](#table-of-contents)
 
@@ -1245,7 +1212,7 @@ As shown in the first example in this section, the matching constructs inside th
 - Patterns like match pattern (`$mt`) and case-insensitive match pattern (`$imt`)
 - Arithmetic expressions like $add, $sub, $mul, $div
 
-HMD-DGB currently only supports entity/pin/timer messages in the shape of an event, meaning events are ephemeral: they are evaluated and then gone. Events have the shape:
+HMD-DGB currently supports events from entities, pins and timers, meaning events are ephemeral: they are evaluated and then gone. Events have the shape:
 
 ```JSON
 {"unique_id": "...", "kind": "command", "name": "value", "value": "...", "origin": "device"}
@@ -1253,18 +1220,18 @@ HMD-DGB currently only supports entity/pin/timer messages in the shape of an eve
 {"timeout": "...", "origin": "timer"}
 ```
 
+All JSON keys from an event can be used in matching constructs, though in general the unique_id and value will provide sufficient discriminative capalilities to ensure correct matching.
+
 [top](#table-of-contents)
 
 #### Rule run actions
 
-Forget the JSON run option in the [JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md), they won't work. Even the times do not work.
+[JSON documentation](https://github.com/jruizgit/rules/blob/master/docs/json/reference.md) describes run option, though they won't work in HMD-DGB. Also timers do not work. Instead HMD-DGB provides a custom overlay to run action. These actions are described in the following sections and are summarized here:
+- Log: log a message to the logger
+- Timer: start/stop a timer
+- Action: run an action of an entity/pin (i.e. call a function of the device, args are optional)
 
-HMD-DGB provides a custom overlay to run action. These actions are:
-- log a message to the logger
-- start/stop a timer
-- run an action of an entity/pin (i.e. call a function of the device, args are optional)
-
-One run label can call multiple action by putting them in a array where they will be executed in order:
+One run key can call multiple action by putting them in a array where they will be executed in order, starting with the first action:
 ```JSON
 {
   "my_plain_ruleset": {
@@ -1279,10 +1246,11 @@ One run label can call multiple action by putting them in a array where they wil
 }
 ```
 
+
 [top](#table-of-contents)
 
 ##### Log
-The most simple run action: set the "log" key. Its value is a dict containing the key value pair "msg" and the "the message you want to be displayed". This is most valuable for debugging purposes.
+The most simple run action: set the "log" key. Its value is a dict containing the key value pair "msg" and the "the message you want to be displayed". This is valuable for debugging purposes.
 ```JSON
 {
   "my_plain_ruleset": {
@@ -1298,14 +1266,14 @@ The most simple run action: set the "log" key. Its value is a dict containing th
 
 ##### timer
 
-Timers can be used to schedule an event at timeout. To use this event, a timeout condition can be included in the rule antecedent. Each timer runs in a separate thread, so timers are non-blocking.
+Timers can be used to schedule an event at timeout. To consume this event, a timeout condition can be included in the rule antecedent. Each timer runs in a separate thread, so timers are non-blocking.
 
 Timers can be set by the "timer" key. Its value is a dict containing:
 - name: the name of the timer. This name is used to start and cancel it in `run`, but also to wait for the timeout in a rule antecedent.
-- action: the action to perform on the timer, which can be either `"start"` or `"cancel"`. If a timeout has not occurred yet, `"cancel"` deletes the timer identified by name if it exists. The timeout event will never happen. If a timer is started and has not timed out yet, `"start"` cancels the existing timer with the same name and creates a new one.
+- action: the action to perform on the timer, which can be either `"start"` or `"cancel"`. If a timeout has not occurred yet, `"cancel"` deletes the timer identified by name if it exists and the timeout event will never happen. If a timer is started and has not timed out yet, `"start"` cancels the existing timer with the same name and creates a new one.
 - seconds: the number of seconds the timer lasts before timeout. Only required for action `"start"`.
 
-Timeouts can be set in a rule antecedent by using the key "timeout" with value the name of the timer that should fire the rule.
+This is an example implementation:
 
 ```JSON
 {
@@ -1328,16 +1296,16 @@ Timeouts can be set in a rule antecedent by using the key "timeout" with value t
 
 ##### action
 
-Actions can be used to set the state of an entity or pin via one of the device functions. This is useful to bind an entity action (e.g. a button press in HA) to activate a pin (e.g. set a pinout to high). The reverse is also meaningful: when a pin is high (e.g. PinIn is 1), do something with an entity state (e.g. set a binary sensor in HA to on).
+Actions can be used to set the state of an entity or pin via one of the device functions. This is useful to bind an entity event (e.g. a button press in HA) to activate a pin (e.g. set a pinout to high). The reverse is also meaningful: when a pinin is high (e.g. PinIn is 1), do something with an entity state (e.g. set a binary sensor in HA to on).
 
 Actions can be set by the "action" key. Its value is a dict containing:
-- unique_id:
-- call:
-- args:
-  - name: str
-  - value: Any|{"$ref": "m.value"}
+- unique_id: Str containing the id of the entitie or pin to act upon.
+- call: Str defining the function from the entitie or pin to call, the possible call functions are listed in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo). Generally `set_state`
+- args: Dict containing the (optional) argurments for the call function, the argurments are listed in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo). Frequent arguments are: 
+  - name: Str defining the function argument's name. 
+  - value: Any|{"$ref": "m.value"} defining the value or refference to the value of the triggering event. 
 
-The call functions and args can be found in [Devices with EntityInfo](README.md#devices-with-entityinfo) and [Pins with PinInfo](README.md#pins-with-pininfo). Within bindings the arg can be optional, meaning you could either use:
+As stated, within bindings the arg can be optional, some examples are:
 
 ```JSON
 {"action": {"unique_id": "y", "call": "z"}}
@@ -1373,16 +1341,48 @@ In practic this could look like the following where {"call": "on"} is equivalent
 
 [top](#table-of-contents)
 
+### Startup policy
+
+Startup policy is a separate configuration message to indicat how HMD-DGB should handle new configurations and how to handle configuration errors. Publish it as a retained MQTT message to `config/{name}/startup-policy` before starting the DGB service. At startup, DGB temporarily subscribes to this topic and closes after 0.5 seconds preload window without activity (or after 1 second total). A policy published after that window is not loaded until the next service start.
+
+The `startup_policy` object has two optional fields:
+
+| Parameter | Description | Type | Default |
+|---|---|---|---|
+| `loading_mode` | The way a configuration is loaded in DGB.  | str | `gated` |
+| `error_state_policy` | Action after a configuration cycle fails. | str | `block` |
+
+`loading_mode` may be:
+- `gated`: Each configuration recieves its own live cycle. Pins, entities and bindings are first in "creation" phase. At this point bindings from this cycle block all events and states will not change. At succes, the "apply" phase follows. In this phase, preset and presisted states can be set, events will still be blocked by bindings. Finnaly their is the "live" phase, where bindings from this cycle accept and proces events. If in either the "creation" or "apply" phase something goes wrong, the cycle is considered failed and gets in the "error" phase. 
+- `unsupervised`: is not yet impleemnted. Whatever is configured, DGB uses the gated approach.
+
+`error_state_policy` may be one of:
+- `block`: do not dispatch further configuration after a failed cycle.
+- `warn`: allow the next configuration message after a failed cycle. The bindings in the failed cycle will be blocked, devices and pins may or may not work. Behaviour may become unpredictable.
+- `clear_affected_config_and_restart`: clear the failed (retained) configuration message and restart the service. This results in continued operationes for a live system with existing configs when a new faulty config is loaded for testing.
+- `remove_affected_device_and_binding`: reserved for removing affected objects; this behavior is not implemented yet.
+
+```json
+{
+  "startup_policy": {
+    "loading_mode": "gated",
+    "error_state_policy": "block"
+  }
+}
+```
+
+[top](#table-of-contents)
+
 ## Architecture
 
 ```mermaid
 flowchart TB
-  L1[Home Assistant<br/>Dashboards, automations, entity state]
-  L2[MQTT Messaging Plane<br/>Broker topics for discovery, commands, and state]
+  L1[Home Assistant<br/>Dashboards, automations, entity state and centrally stored configurations]
+  L2[MQTT Messaging Plane<br/>Broker topics for discovery, commands, states, configurations and policies]
   L3[DGB Service Runtime on SBC<br/>DGBContext, DeviceKeeper, Binder, PinKeeper, SystemDevices]
-  L4[SBC Hardware Plane<br/>GPIO, CPU, RAM, temperature, uptime, connected devices]
+  L4[SBC Hardware<br/>GPIO, CPU, RAM, temperature, uptime and physical connected devices]
 
-  L1 <--> |User intent and observed state| L2
+  L1 <--> |User intent & observing states and configuring DGB services| L2
   L2 <--> |Config, discovery, command, telemetry| L3
   L3 <--> |Pin control and host metrics| L4
 
@@ -1415,13 +1415,7 @@ Also see the [Issues](https://github.com/jvanoosterhout/HMD-DGB/issues) labeled 
 
 **Status:** Needs Testing
 
-For run.action.args the value of "$m.value" currently only works if the rule has one value event of one device's unique_id.
-
-### restart of the system
-
-**Status:** Needs Testing
-
-What would currently happen, and should happen when the HMD-DGB service restarts (or the system reboots). Whatever happens, should states be stored and restored, set to unknown, or set to default values?
+For run.action.args the value being {$ref: "$m.value"} currently only works if the rule has one value event of one device's unique_id.
 
 ### Loading configurations & runtime
 
@@ -1433,13 +1427,13 @@ Currently devices and pins can emit events directly after creation, while rules/
 
 **Status:** Not fully functional
 
-Currently the count-type pin implementation is incomplete. Water flow meters and other pulse-based sensors may not work reliably. This is targeted for completion in an upcoming release.
+Currently the count-type pin implementation is incomplete. It has a `scaled_total` and `count_total` output but does not jet the flow. It also lakes the ability to throttle the counts. Curently, all pulses are sent, though it would be usefull to acumulate pulses before sending.
 
 ### Maintenance/updates of Durable Rules
 
 **Status:** unknown
 
-HMD-DGB currently pins Durable Rules to a fixed git commit instead of a PyPI version. This keeps the package metadata at `2.0.28` while including the Python 3.13 compatibility fix for the native extension. Durable Rules still seems to have limited maintenance/updates and no responses on issues lately, so long-term stability is a concern.
+HMD-DGB currently pins Durable Rules to a fixed git commit instead of a PyPI version. This makes HMD-DGB Python 3.13 compatible. Durable Rules still seems to have limited maintenance/updates and no responses on issues lately, so long-term stability is a concern.
 
 [top](#table-of-contents)
 
@@ -1468,14 +1462,14 @@ This is a **spare-time project**, so feedback and suggestions are highly appreci
 
 This is the first public iteration of the HMD-DGB project, transitioning from private development to community use. Expect:
 - Ongoing improvements to core functionality
-- API refinements and potential breaking changes
 - Expanded documentation and examples
 - Bug fixes and stability improvements
+My aim is to keep v1.0.0 API/interfaces/configurations compatible while working in v1.x.x releases. 
 
 ---
 
-**Questions or ideas?** Open an issue on GitHub and let's improve HMD-DGB together!
+**Questions or ideas?** Open an issue on GitHub.
 
-**Found this project helpful?** Consider starring it on GitHub or sharing it with others!
+**Found this project helpful?** Consider starring it on GitHub or sharing it with others.
 
 [top](#table-of-contents)

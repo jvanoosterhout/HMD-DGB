@@ -2,10 +2,10 @@
 [project]
 name = "HMD-DGB"
 dynamic = ["version"]
-description = "A durable rules binder between HA discoverable devices and GPIO on RPI-like devices"
+description = "A Python service for Raspberry Pi that connects GPIO pins to Home Assistant entities via MQTT discovery and configurable rule-based bindings."
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
+license = "Apache-2.0"
 license-files = ['license.txt']
 authors = [
     {name = "Jeroen van Oosterhout", email = "18647330+jvanoosterhout@users.noreply.github.com"}

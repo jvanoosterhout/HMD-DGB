@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Improved the README by reading it entirly and making it match again with HMD-DGB code. 
+- Fixed mixed license usage. 
 
 ## [1.0.0] - 2026-10-25
 

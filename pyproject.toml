@@ -2,7 +2,7 @@
 [project]
 name = "HMD-DGB"
 dynamic = ["version"]
-description = "A Python service for Raspberry Pi that connects GPIO pins to Home Assistant entities via MQTT discovery and configurable rule-based bindings."
+description = "A Python service for Raspberry Pi that connects GPIO pins to Home Assistant devices via MQTT discovery and configurable rule-based bindings."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

@@ -8,9 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.1] - pending
 
+### Added
+- Added AGENTS.md file for Github Copilot instructions.
+
 ### Fixed
-- Improved the README by reading it entirly and making it match again with HMD-DGB code. 
-- Fixed mixed license usage. 
+- Improved the README by reading it entirly and making it match again with HMD-DGB code.
+- Fixed mixed license usage.
 
 ## [1.0.0] - 2026-10-25
 

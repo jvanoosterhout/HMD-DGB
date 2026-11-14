@@ -25,7 +25,6 @@ HMD-DGB has two key strengths:
 - [Installation](#installation)
   - [Option 1: venv](#option-1-venv)
   - [Option 2: Docker](#option-2-docker)
-  - [MQTT topics and --topic](#mqtt-topics-and---topic)
   - [Operational caveats](#operational-caveats)
 - [Example projects](#example-projects)
 - [Reference documentation](#reference-documentation)
@@ -68,6 +67,7 @@ HMD-DGB has two key strengths:
 - [Project Status](#project-status)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 
 
 ## Overview
@@ -1476,7 +1476,7 @@ This is the first public iteration of the HMD-DGB project, transitioning from pr
 - Expanded documentation and examples
 - Bug fixes and stability improvements
 
-My aim is to maintain compatibility with the v1.0.0 API, interfaces, and configurations throughout the v1.x.x releases. Which is of course one of the functions of versioning. 
+My aim is to maintain compatibility with the v1.0.0 API, interfaces, and configurations throughout the v1.x.x releases. Which is of course one of the functions of versioning.
 
 ---
 

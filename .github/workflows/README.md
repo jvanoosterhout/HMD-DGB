@@ -18,7 +18,11 @@ localhost-only listener. Authentication is intentionally not tested: the smoke
 tests observe the MQTT discovery messages produced by DGB.
 
 Repository branch protection and required-check settings are configured separately
-from this workflow.
+from this workflow. Normal pull request merges to `main` require an approval,
+Code Owner review, and the required PR checks. The `protect main` ruleset limits
+its administrator bypass to pull requests; it does not permit direct pushes to
+`main`. `.github/CODEOWNERS` assigns workflow changes and itself to
+`@jvanoosterhout`. The `v*` tag ruleset is configured separately.
 
 The CI workflow runs validation on pull requests and verifies assets on published
 Releases; it does not run on ordinary branch or tag pushes. The separate coverage

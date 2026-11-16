@@ -20,6 +20,16 @@ repos:
       - id: codespell
         types: [markdown]
 
+  - repo: https://github.com/lycheeverse/lychee
+    rev: lychee-v0.24.2
+    hooks:
+      - id: lychee
+        name: lychee (optional external URL check)
+        types: [markdown]
+        files: ^(README\.md|AGENTS\.md|CHANGELOG\.md|\.github/.*\.md|Examples/.*\.md)$
+        args: ["--no-progress", "--timeout", "20", "--max-retries", "2"]
+        stages: [manual]
+
   - repo: https://github.com/amperser/proselint
     rev: v0.16.0
     hooks:

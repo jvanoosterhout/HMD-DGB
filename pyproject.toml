@@ -29,7 +29,7 @@ GitHub = "https://github.com/jvanoosterhout/HMD-DGB"
 [project.optional-dependencies]
 dev = [
     "pre-commit>=4.5.1",
-    "ruff==0.16.0",
+    "ruff==0.17.5",
     "pytest>=9.0.3",
     "pytest-cov>=6.0.0",
     "build>=1.4.3",

@@ -3,6 +3,7 @@ multi-ecosystem-groups:
   dependencies:
     schedule:
       interval: monthly
+    open-pull-requests-limit: 5
 
 updates:
   - package-ecosystem: github-actions
@@ -11,7 +12,6 @@ updates:
     multi-ecosystem-group: dependencies
     cooldown:
       default-days: 30
-    open-pull-requests-limit: 5
 
   - package-ecosystem: pip
     directory: /
@@ -19,4 +19,3 @@ updates:
     multi-ecosystem-group: dependencies
     cooldown:
       default-days: 30
-    open-pull-requests-limit: 5

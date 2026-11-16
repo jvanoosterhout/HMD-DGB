@@ -101,6 +101,9 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
     strategy:
       fail-fast: false
       matrix:
@@ -130,6 +133,15 @@ jobs:
       - name: Run tests and calculate coverage
         run: |
           pytest --cov=DGB --cov-report=term-missing --cov-report=xml:coverage.xml
+
+      - name: Add coverage summary
+        if: github.event_name == 'pull_request' && matrix.python-version == '3.13'
+        uses: py-cov-action/python-coverage-comment-action@main
+        with:
+          ACTIVITY: process_pr
+          COMMENT_ON_PR: false
+          WRITE_JOB_SUMMARY: true
+          GITHUB_TOKEN: ${{ github.token }}
 
       # Retain one matrix report for inspection without repository write access.
       - name: Upload Python 3.13 coverage report

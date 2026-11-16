@@ -3,6 +3,7 @@
 [![Licence](https://img.shields.io/github/license/jvanoosterhout/HMD-DGB.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/jvanoosterhout/HMD-DGB/main.svg)](https://github.com/jvanoosterhout/HMD-DGB)
 [![Tests](https://img.shields.io/github/actions/workflow/status/jvanoosterhout/HMD-DGB/CI-python-package.yml?branch=main&label=tests)](https://github.com/jvanoosterhout/HMD-DGB/actions/workflows/CI-python-package.yml)
+[![Coverage](https://raw.githubusercontent.com/jvanoosterhout/HMD-DGB/python-coverage-comment-action-data/badge.svg)](https://github.com/jvanoosterhout/HMD-DGB/tree/python-coverage-comment-action-data)
 [![Releases](https://img.shields.io/github/v/release/jvanoosterhout/HMD-DGB.svg?include_prereleases)](https://github.com/jvanoosterhout/HMD-DGB/releases)
 [![Downloads](https://img.shields.io/github/downloads/jvanoosterhout/HMD-DGB/total.svg)](https://github.com/jvanoosterhout/HMD-DGB/releases)
 
@@ -67,6 +68,7 @@ HMD-DGB has two key strengths:
 - [Project Status](#project-status)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 
 
 

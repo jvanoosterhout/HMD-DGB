@@ -51,6 +51,9 @@ version_scheme = "no-guess-dev"
 local_scheme = "no-local-version"
 fallback_version = "v0.0.0"
 
+[tool.coverage.run]
+relative_files = true
+
 
 [tool.ruff]
 exclude = ["DGB/_version.py"]

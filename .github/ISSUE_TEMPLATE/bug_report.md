@@ -26,8 +26,8 @@ If applicable, add screenshots to help explain your problem.
 **Desktop (please complete the following information):**
  - OS: [e.g. Bookworm]
  - SBC [e.g. RPI 4, RPI Zero w2]
- - DGB Version 
-- Home Assistant version 
+ - DGB Version
+- Home Assistant version
 
 **Additional context**
 Add any other context about the problem here.

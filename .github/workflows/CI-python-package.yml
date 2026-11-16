@@ -1,30 +1,122 @@
+name: CI - Python package
 
-name: CI – Python package
-
+# Validate pull requests and retain published releases for release processing.
 on:
-  push:
-    branches: [main]
-    tags:
-      - "v*"
   pull_request:
   release:
     types: [published]
 
+# CI only reads the repository. No job in this workflow publishes or edits it.
+permissions:
+  contents: read
+
 jobs:
-  test:
-    name: Test & lint (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+  # Check workflow syntax and security without write permissions.
+  workflow-lint:
+    name: Workflow lint and security
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+      - name: Lint workflows
+        run: actionlint
+
+      - name: Scan workflows with zizmor
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        with:
+          inputs: .github/workflows
+          version: v1.32.0
+          online-audits: false
+          advanced-security: false
+
+  # Check local Markdown links and anchors without making network requests.
+  markdown-links:
+    name: Local Markdown links
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Check local links and anchors
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: >-
+            --offline --include-fragments --no-progress --hidden
+            --exclude-path .git './**/*.md'
+          lycheeVersion: v0.24.2
+          token: ""
+
+  # Run the fast local hooks independently of the Python test matrix.
+  pre-commit:
+    name: Pre-commit checks
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+
+      - name: Install pre-commit
+        run: python -m pip install pre-commit==4.5.1
+
+      - name: Run pre-commit checks
+        run: python -m pre_commit run --all-files
+
+  # Check every supported interpreter on the Ubuntu runner. The dedicated
+  # Python 3.13 broker job below covers real MQTT integration once per run.
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -33,73 +125,119 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git gcc build-essential swig liblgpio-dev
 
-      - name: Upgrade pip
+      - name: Install package and development dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-
-      - name: Install package (editable, incl. dev deps)
-        run: |
           python -m pip install -e ".[dev]"
 
-      - name: Smoke test durable-rules
+      - name: Run tests and calculate coverage
         run: |
-          python - <<'PY'
-          import durable_rules_engine
-          from durable.lang import m, post, ruleset, when_all
+          pytest --cov=DGB --cov-report=term-missing --cov-report=xml:coverage.xml
 
-          seen = []
+      - name: Add coverage summary
+        if: github.event_name == 'pull_request' && matrix.python-version == '3.13'
+        uses: py-cov-action/python-coverage-comment-action@f61e5cd43688fff694a32299b5098c81728388cf # main, temp-pin
+        with:
+          ACTIVITY: process_pr
+          COMMENT_ON_PR: false
+          WRITE_JOB_SUMMARY: true
+          GITHUB_TOKEN: ${{ github.token }}
 
-          with ruleset("ci_smoke"):
-              @when_all(m.subject == "World")
-              def say_hello(c):
-                  seen.append(c.m.subject)
+      # Retain one matrix report for inspection without repository write access.
+      - name: Upload Python 3.13 coverage report
+        if: always() && matrix.python-version == '3.13'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-report-python-3.13
+          path: coverage.xml
+          if-no-files-found: warn
+          retention-days: 30
 
-          post("ci_smoke", {"subject": "World"})
-          assert seen == ["World"], seen
-          print("durable-rules smoke test passed")
-          PY
-
-      - name: Lint with ruff
-        run: |
-          ruff check .
-
-      - name: Run tests
-        run: |
-          pytest --cov=DGB --cov-report=term-missing
-
-  build:
-    name: Build package (tags only)
-    if: startsWith(github.ref, 'refs/tags/v')
+  # Use an isolated, anonymous local broker to check the MQTT output of DGB
+  # startup and configuration without external services or hardware.
+  mqtt-smoke:
+    name: MQTT smoke tests (Python 3.13)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
     needs: test
-    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DGB_CI_MQTT_SMOKE: "1"
+      DGB_CI_MQTT_HOST: 127.0.0.1
+      DGB_CI_MQTT_PORT: "18883"
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
+
+      - name: Install Mosquitto
+        # Ubuntu 24.04 provides Mosquitto 2.x, which defaults to local-only
+        # connections when started without a configuration file.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mosquitto mosquitto-clients git gcc build-essential swig liblgpio-dev
+          mosquitto -p "$DGB_CI_MQTT_PORT" -d
+          # Expand MQTT settings in the child shell, not when constructing its script.
+          # shellcheck disable=SC2016
+          timeout 30s bash -c 'until mosquitto_pub -h "$DGB_CI_MQTT_HOST" -p "$DGB_CI_MQTT_PORT" -t ci/healthcheck -m ready -r; do sleep 1; done'
+
+      - name: Install package and development dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e ".[dev]"
+
+      - name: Run DGB startup and configuration smoke tests
+        run: pytest -q tests/test_ci_smoke.py -k real_mqtt
+
+  # Validate distributions on pull requests before release publication.
+  build:
+    name: Build and check distributions
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
 
       - name: Install build tooling
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          python -m pip install build twine
 
-      - name: Build sdist and wheel
+      - name: Build and validate source and wheel distributions
         run: |
           python -m build
+          python -m twine check dist/*
 
+  # This is deliberately read-only: it verifies assets attached to an already
+  # published Release and does not create, replace, or upload release files.
   verify-release-assets:
     name: Verify published release assets
     if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Download release assets
         env:

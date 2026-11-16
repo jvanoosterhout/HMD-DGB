@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added AGENTS.md file for Github Copilot instructions.
 
 ### Fixed
-- Improved the README by reading it entirly and making it match again with HMD-DGB code.
+- Improved the README by reading it entirely and making it match again with HMD-DGB code.
 - Fixed mixed license usage.
 
 ## [1.0.0] - 2026-10-25
@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `direct_state_transition` being baked into `set_state`, which caused binder-driven state changes to also honor the `dst` flag and never take effect when it was `False`. `False` was only meant to suppress direct changes triggered by incoming MQTT messages, not by binder actions.
 - Fixed valve `set_state` actions to accept named `state` commands and numeric `position` values, and to retain numeric MQTT positions as `position` for startup restoration.
 - Fixed number `set_state` crashing on incoming MQTT commands, which arrive as strings while `set_value` requires a numeric value. The state is now coerced to `float`, and an unconvertible value is logged and rejected instead of raising a `TypeError` that terminated the MQTT network thread.
-- Fixed Uptime Sensor not being set correctly the availability_topic and not being registerd in DGB context as of which it was set unavailable when needed or not deleted at a hard restart.
+- Fixed Uptime Sensor not being set correctly the availability_topic and not being registered in DGB context as of which it was set unavailable when needed or not deleted at a hard restart.
 - Fixed devices no longer responding to commands after an MQTT broker reconnect. With `clean_session=True` the broker drops all subscriptions on disconnect, and they were never renewed. All active subscriptions, including the Home Assistant entity command topics, are now tracked and restored on every (re)connect.
 - Fixed the discovery config and last known state of Home Assistant entities not being republished after an MQTT broker reconnect. The service now notifies registered connected-listeners after each successful (re)connect, and `DeviceKeeper` republishes the config and `last_state` of every entity.
 

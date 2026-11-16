@@ -14,25 +14,37 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
-  - repo: local
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
     hooks:
-      - id: pytest
-        name: pytest
-        entry: pytest
-        language: system
-        pass_filenames: false
+      - id: codespell
+        types: [markdown]
 
-  - repo: local
+  - repo: https://github.com/lycheeverse/lychee
+    rev: lychee-v0.24.2
     hooks:
-      - id: build
-        name: build package
-        entry: python -m build
-        language: system
-        pass_filenames: false
+      - id: lychee
+        name: lychee (optional external URL check)
+        types: [markdown]
+        files: ^(README\.md|AGENTS\.md|CHANGELOG\.md|\.github/.*\.md|Examples/.*\.md)$
+        args: ["--no-progress", "--timeout", "20", "--max-retries", "2"]
+        stages: [manual]
+
+  - repo: https://github.com/amperser/proselint
+    rev: v0.16.0
+    hooks:
+      - id: proselint
+        name: proselint (optional prose review)
+        entry: python -X utf8 -m proselint check
+        types: [markdown]
+        files: ^(README\.md|AGENTS\.md|CHANGELOG\.md|\.github/.*\.md|Examples/.*\.md)$
+        stages: [manual]
+        verbose: true
 
   - repo: https://github.com/thlorenz/doctoc
     rev: v2.4.1
     hooks:
       - id: doctoc
+        files: ^README\.md$
         args:
           - "--update-only"

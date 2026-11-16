@@ -3,6 +3,7 @@
 [![Licence](https://img.shields.io/github/license/jvanoosterhout/HMD-DGB.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![GitHub last commit (branch)](https://img.shields.io/github/last-commit/jvanoosterhout/HMD-DGB/main.svg)](https://github.com/jvanoosterhout/HMD-DGB)
 [![Tests](https://img.shields.io/github/actions/workflow/status/jvanoosterhout/HMD-DGB/CI-python-package.yml?branch=main&label=tests)](https://github.com/jvanoosterhout/HMD-DGB/actions/workflows/CI-python-package.yml)
+[![Coverage](https://raw.githubusercontent.com/jvanoosterhout/HMD-DGB/python-coverage-comment-action-data/badge.svg)](https://github.com/jvanoosterhout/HMD-DGB/tree/python-coverage-comment-action-data)
 [![Releases](https://img.shields.io/github/v/release/jvanoosterhout/HMD-DGB.svg?include_prereleases)](https://github.com/jvanoosterhout/HMD-DGB/releases)
 [![Downloads](https://img.shields.io/github/downloads/jvanoosterhout/HMD-DGB/total.svg)](https://github.com/jvanoosterhout/HMD-DGB/releases)
 
@@ -25,7 +26,6 @@ HMD-DGB has two key strengths:
 - [Installation](#installation)
   - [Option 1: venv](#option-1-venv)
   - [Option 2: Docker](#option-2-docker)
-  - [MQTT topics and --topic](#mqtt-topics-and---topic)
   - [Operational caveats](#operational-caveats)
 - [Example projects](#example-projects)
 - [Reference documentation](#reference-documentation)
@@ -68,6 +68,8 @@ HMD-DGB has two key strengths:
 - [Project Status](#project-status)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
 
 
 ## Overview
@@ -1476,7 +1478,7 @@ This is the first public iteration of the HMD-DGB project, transitioning from pr
 - Expanded documentation and examples
 - Bug fixes and stability improvements
 
-My aim is to maintain compatibility with the v1.0.0 API, interfaces, and configurations throughout the v1.x.x releases. Which is of course one of the functions of versioning. 
+My aim is to maintain compatibility with the v1.0.0 API, interfaces, and configurations throughout the v1.x.x releases. Which is of course one of the functions of versioning.
 
 ---
 

@@ -1,0 +1,250 @@
+name: Prepare draft release assets
+
+# Create the draft Release in GitHub first, then run this workflow with its tag.
+# The workflow adds validated assets but never publishes the Release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing draft Release tag (for example v1.1.0rc1)
+        required: true
+        type: string
+
+concurrency:
+  group: prepare-draft-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-draft:
+    name: Validate draft release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.validate.outputs.tag }}
+
+    steps:
+      - name: Validate draft tag and release classification
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(a[0-9]+|b[0-9]+|rc[0-9]+)?$ ]]; then
+            echo "Tag must use vX.Y.Z, vX.Y.ZaN, vX.Y.ZbN, or vX.Y.ZrcN format." >&2
+            exit 1
+          fi
+
+          expected_prerelease=false
+          if [[ "$RELEASE_TAG" =~ (a|b|rc)[0-9]+$ ]]; then
+            expected_prerelease=true
+          fi
+
+          if ! gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            > "$RUNNER_TEMP/release.json"; then
+            echo "Could not find a GitHub Release for tag $RELEASE_TAG." >&2
+            exit 1
+          fi
+          python - "$RELEASE_TAG" "$expected_prerelease" "$RUNNER_TEMP/release.json" <<'PY'
+          import json
+          import sys
+
+          tag, expected_prerelease, release_path = sys.argv[1:]
+          with open(release_path, encoding="utf-8") as release_file:
+              release = json.load(release_file)
+
+          if release["tag_name"] != tag:
+              raise SystemExit(f"Release tag {release['tag_name']!r} does not match {tag!r}")
+          if not release["draft"]:
+              raise SystemExit(f"Release {tag} is not a draft")
+          if release["prerelease"] != (expected_prerelease == "true"):
+              raise SystemExit(
+                  f"Release prerelease flag does not match tag classification for {tag}"
+              )
+          PY
+
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    needs: validate-draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: refs/tags/${{ needs.validate-draft.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git gcc build-essential swig liblgpio-dev
+
+      - name: Install package and development dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest -q
+
+  build:
+    name: Build and verify release distributions
+    needs: [validate-draft, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: refs/tags/${{ needs.validate-draft.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git gcc build-essential swig liblgpio-dev
+
+      - name: Build and check distributions
+        env:
+          RELEASE_TAG: ${{ needs.validate-draft.outputs.tag }}
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check dist/*
+          python - "$RELEASE_TAG" <<'PY'
+          import email
+          import pathlib
+          import sys
+          import tarfile
+          import zipfile
+
+          expected_version = sys.argv[1].removeprefix("v")
+          distributions = pathlib.Path("dist")
+          wheels = list(distributions.glob("*.whl"))
+          sdists = list(distributions.glob("*.tar.gz"))
+          if len(wheels) != 1 or len(sdists) != 1:
+              raise SystemExit("Expected exactly one wheel and one source distribution")
+
+          with zipfile.ZipFile(wheels[0]) as wheel:
+              metadata_path = next(
+                  name for name in wheel.namelist() if name.endswith(".dist-info/METADATA")
+              )
+              wheel_metadata = email.message_from_bytes(wheel.read(metadata_path))
+
+          with tarfile.open(sdists[0], "r:gz") as sdist:
+              metadata_path = next(
+                  name for name in sdist.getnames() if name.endswith("/PKG-INFO")
+              )
+              metadata_file = sdist.extractfile(metadata_path)
+              if metadata_file is None:
+                  raise SystemExit("Source distribution has no readable PKG-INFO")
+              sdist_metadata = email.message_from_bytes(metadata_file.read())
+
+          for metadata in (wheel_metadata, sdist_metadata):
+              if metadata["Name"] != "HMD-DGB" or metadata["Version"] != expected_version:
+                  raise SystemExit(
+                      f"Unexpected package metadata: {metadata['Name']} {metadata['Version']}; "
+                      f"expected HMD-DGB {expected_version}"
+                  )
+          PY
+
+      - name: Upload the checked distributions as a workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-distributions
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  attach-assets:
+    name: Attach assets to draft release
+    needs: [validate-draft, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download checked distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-distributions
+          path: dist
+
+      - name: Recheck draft and attach assets without overwriting
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate-draft.outputs.tag }}
+        run: |
+          expected_prerelease=false
+          if [[ "$RELEASE_TAG" =~ (a|b|rc)[0-9]+$ ]]; then
+            expected_prerelease=true
+          fi
+
+          if ! gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            > "$RUNNER_TEMP/release.json"; then
+            echo "Could not find a GitHub Release for tag $RELEASE_TAG." >&2
+            exit 1
+          fi
+          python - "$RELEASE_TAG" "$expected_prerelease" "$RUNNER_TEMP/release.json" \
+            "$RUNNER_TEMP/existing-assets.txt" <<'PY'
+          import json
+          import sys
+
+          tag, expected_prerelease, release_path, assets_path = sys.argv[1:]
+          with open(release_path, encoding="utf-8") as release_file:
+              release = json.load(release_file)
+
+          if release["tag_name"] != tag or not release["draft"]:
+              raise SystemExit(f"Release {tag} is no longer the expected draft")
+          if release["prerelease"] != (expected_prerelease == "true"):
+              raise SystemExit(f"Release prerelease flag no longer matches tag {tag}")
+          with open(assets_path, "w", encoding="utf-8") as assets_file:
+              for asset in release["assets"]:
+                  print(asset["name"], file=assets_file)
+          PY
+
+          mapfile -t assets < <(find dist -maxdepth 1 -type f \( -name '*.whl' -o -name '*.tar.gz' \) | sort)
+          if [[ "${#assets[@]}" -ne 2 ]]; then
+            echo "Expected exactly one wheel and one source distribution." >&2
+            exit 1
+          fi
+
+          for asset in "${assets[@]}"; do
+            asset_name="${asset##*/}"
+            if grep -Fxq "$asset_name" "$RUNNER_TEMP/existing-assets.txt"; then
+              echo "Release already contains $asset_name; refusing to overwrite." >&2
+              exit 1
+            fi
+          done
+
+          gh release upload "$RELEASE_TAG" "${assets[@]}"

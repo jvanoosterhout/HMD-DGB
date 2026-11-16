@@ -14,6 +14,7 @@ jobs:
   # Check workflow syntax and security without write permissions.
   workflow-lint:
     name: Workflow lint and security
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -72,6 +73,7 @@ jobs:
   # Run the fast local hooks independently of the Python test matrix.
   pre-commit:
     name: Pre-commit checks
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -96,6 +98,7 @@ jobs:
   # Python 3.13 broker job below covers real MQTT integration once per run.
   test:
     name: Tests (Python ${{ matrix.python-version }})
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -142,6 +145,7 @@ jobs:
   # startup and configuration without external services or hardware.
   mqtt-smoke:
     name: MQTT smoke tests (Python 3.13)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     needs: test
     timeout-minutes: 10
@@ -178,10 +182,10 @@ jobs:
       - name: Run DGB startup and configuration smoke tests
         run: pytest -q tests/test_ci_smoke.py -k real_mqtt
 
-  # Build distributions on pull requests as well as branch/tag updates, so
-  # packaging regressions are caught before changes are merged.
+  # Validate distributions on pull requests before release publication.
   build:
     name: Build and check distributions
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 

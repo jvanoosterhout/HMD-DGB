@@ -184,6 +184,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mosquitto mosquitto-clients git gcc build-essential swig liblgpio-dev
           mosquitto -p "$DGB_CI_MQTT_PORT" -d
+          # Expand MQTT settings in the child shell, not when constructing its script.
+          # shellcheck disable=SC2016
           timeout 30s bash -c 'until mosquitto_pub -h "$DGB_CI_MQTT_HOST" -p "$DGB_CI_MQTT_PORT" -t ci/healthcheck -m ready -r; do sleep 1; done'
 
       - name: Install package and development dependencies
